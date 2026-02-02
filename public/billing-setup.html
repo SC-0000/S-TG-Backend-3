@@ -1,0 +1,329 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup Payment Method</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      height: 100vh;
+      align-items: center;
+      justify-content: center;
+      background: #f8f9fa;
+    }
+    #billing-widget {
+      width: 100%;
+      max-width: 400px;
+      min-height: 500px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="billing-widget"></div>
+
+  <!-- Load Stripe.js -->
+  <script src="https://js.stripe.com/v3/"></script>
+
+  <script>
+    // Configuration
+    const config = {
+      customerId: "8f7220c4-965b-423c-a538-24391e8ddd0c",
+      apiKey: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIwMTk4Mjk5OS0xZWM3LTcwZjctOGJhMy1lMmMwNTVjZTg3YTAiLCJqdGkiOiJjNTA3ZDg3ODE0MTZmODRmY2I1MWQwZTMyOTYyYjBlZTdiYmQ2ZDE3NTQ3ZmRkNWJhZmFlOGQ1OWQwOTVjZmI5ZGZlMWE4ZGY2MGQzZDA2OCIsImlhdCI6MTc1MzE5MzY2Ni43ODc0ODQsIm5iZiI6MTc1MzE5MzY2Ni43ODc0ODYsImV4cCI6MTc4NDcyOTY2Ni43ODMxMDQsInN1YiI6IjIiLCJzY29wZXMiOlsiY3VzdG9tZXJzOmNyZWF0ZSIsImN1c3RvbWVyczpyZWFkIiwiY3VzdG9tZXJzOnVwZGF0ZSIsImN1c3RvbWVyczpkZWxldGUiLCJwYXltZW50czpjcmVhdGUiLCJwYXltZW50czpyZWFkIiwicGF5bWVudHM6dXBkYXRlIiwicGF5bWVudHM6ZGVsZXRlIiwic3Vic2NyaXB0aW9uczpyZWFkIiwic3Vic2NyaXB0aW9uczp1cGRhdGUiLCJpbnZvaWNlczp1cGRhdGUiLCJpbnZvaWNlczpyZWFkIiwiaW52b2ljZXM6Y3JlYXRlIiwic3Vic2NyaXB0aW9uczpjcmVhdGUiXX0.aeSKUlVZVbTcSQN8grA4Kon9IIlgpw-0c4rwfWy0FWoZC3umT_dN4bt7B5f_a8tx6PXAq2-bOQ1kuNWsVyWeDEeopLCYKCAYwh1JL3aDOBOhj3HTLZCIkBtH4j7omsb5xjfoEbMKLhLooxgYsKW7suZHVdpj-NNUNUcm-3zdJtyZ2AcWA0-id-zLLK9GE4pvO4FvzeJQaBh5p98PyEuqgcEutLdXNiqZQqt8q5ZZwmI0ZjGTVyE-dRhd86y-FBBD_zcxFaVohrgf_MPMMfx0bh-vf0Zril6WQ51NVHdR8qAKB5iwvcysytT7au0ti2HH-N-JB5kNSj6FcNSugAP13CizBxHu6woIRyCk-tj2tP_GeV_0_nOFGROZm5LhrLC-0qKHY8e4r0mxzZkGYnDY2hyZNhW7Pm7qqh5-RUhK_vnTwNU-C0SFLaStaEq4hhzUXOaCvE6gQhe0HrEQ5FP2Rai2Qd-yO20mwgfHDMOE8FvxKd1z5qxZvL3Xkj0PamIgZ0X1dRorpLb6GX3GhaNNtT_EQeRl8yCknjlKrgkxphNo_YhsyWRh31CDfPRvKa20Mzyb899mFuZj6sUhdiyOYvQOylZmO8kJMjGl--Dbbq5SGUz3r3mv5TbHRMvbCWa3lZmeSn2EMuYFex0f_38bai8RUYTZ2-hPu-PwtKm_XPA",
+      theme: "dark",
+      borderRadius: "medium",
+      showLogo: true,
+      collectBillingDetails: true,
+      debug: true
+    };
+
+    // Override the widget to bypass config endpoint
+    document.addEventListener('DOMContentLoaded', function() {
+      const container = document.getElementById('billing-widget');
+
+      if (!container) {
+        console.error('Container not found');
+        return;
+      }
+
+      // Show loading
+      container.innerHTML = `
+        <div style="text-align: center; padding: 32px; color: #666;">
+          <div style="width: 32px; height: 32px; border: 3px solid #ddd; border-top: 3px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
+          <div>Loading payment form...</div>
+        </div>
+        <style>
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      `;
+
+      // Try to get Stripe key from the API first, then fallback to direct setup
+      fetchStripeKey()
+        .then(stripeKey => {
+          if (stripeKey) {
+            initializeStripeWidget(stripeKey);
+          } else {
+            // Fallback: show error message with instructions
+            showConfigError();
+          }
+        })
+        .catch(error => {
+          console.error('Failed to fetch Stripe key:', error);
+          showConfigError();
+        });
+    });
+
+    async function fetchStripeKey() {
+      try {
+        const response = await fetch('https://billings.systems/api/v1/widget/config', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`,
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data.stripe && result.data.stripe.publishable_key) {
+            return result.data.stripe.publishable_key;
+          }
+        }
+        return null;
+      } catch (error) {
+        console.error('Config fetch error:', error);
+        return null;
+      }
+    }
+
+    function initializeStripeWidget(stripePublishableKey) {
+      try {
+        const stripe = Stripe(stripePublishableKey);
+        const elements = stripe.elements();
+
+        // Create the form
+        const container = document.getElementById('billing-widget');
+        container.innerHTML = `
+          <div style="padding: 32px;">
+            <div style="text-align: center; margin-bottom: 32px;">
+              <h2 style="margin: 0 0 8px 0; color: #1e293b; font-size: 24px; font-weight: 600;">Setup Payment Method</h2>
+              <p style="margin: 0; color: #64748b; font-size: 16px;">Securely save your payment information</p>
+            </div>
+
+            <form id="setup-form">
+              <div style="margin-bottom: 24px;">
+                <label style="display: block; font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px;">Card Information</label>
+                <div id="card-element" style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px;"></div>
+                <div id="card-errors" style="color: #dc2626; font-size: 14px; margin-top: 8px; display: none;"></div>
+              </div>
+
+              ${config.collectBillingDetails ? `
+                <div style="margin-bottom: 24px;">
+                  <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px;">Cardholder Name</label>
+                    <input type="text" id="cardholder-name" placeholder="Full name on card" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; font-size: 16px; box-sizing: border-box;" />
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div>
+                      <label style="display: block; font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px;">Email</label>
+                      <input type="email" id="billing-email" placeholder="email@example.com" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; font-size: 16px; box-sizing: border-box;" />
+                    </div>
+                    <div>
+                      <label style="display: block; font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px;">Phone (Optional)</label>
+                      <input type="tel" id="billing-phone" placeholder="+1 (555) 123-4567" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; font-size: 16px; box-sizing: border-box;" />
+                    </div>
+                  </div>
+                </div>
+              ` : ''}
+
+              <button type="submit" id="submit-button" style="width: 100%; background: #0f172a; color: white; border: none; border-radius: 8px; padding: 16px 24px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 24px;">
+                <span id="button-text">Save Payment Method</span>
+                <div id="button-loader" style="display: none; width: 20px; height: 20px; border: 2px solid transparent; border-top: 2px solid currentColor; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+              </button>
+
+              <div style="text-align: center; margin-top: 24px;">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: #64748b;">
+                  <span>🔒</span>
+                  <span>Secured by Stripe • No charge will be made</span>
+                </div>
+              </div>
+            </form>
+          </div>
+        `;
+
+        // Setup Stripe elements
+        const cardElement = elements.create('card', {
+          style: {
+            base: {
+              color: '#1e293b',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              fontSize: '16px',
+              '::placeholder': {
+                color: '#64748b'
+              }
+            },
+            invalid: {
+              color: '#dc2626'
+            }
+          }
+        });
+
+        cardElement.mount('#card-element');
+
+        // Handle card errors
+        cardElement.on('change', function(event) {
+          const displayError = document.getElementById('card-errors');
+          if (event.error) {
+            displayError.textContent = event.error.message;
+            displayError.style.display = 'block';
+          } else {
+            displayError.textContent = '';
+            displayError.style.display = 'none';
+          }
+        });
+
+        // Handle form submission
+        document.getElementById('setup-form').addEventListener('submit', async function(event) {
+          event.preventDefault();
+          await handleSetup(stripe, cardElement);
+        });
+
+      } catch (error) {
+        console.error('Stripe initialization failed:', error);
+        showConfigError();
+      }
+    }
+
+    async function handleSetup(stripe, cardElement) {
+      const submitButton = document.getElementById('submit-button');
+      const buttonText = document.getElementById('button-text');
+      const buttonLoader = document.getElementById('button-loader');
+      const errorElement = document.getElementById('card-errors');
+
+      // Show loading state
+      submitButton.disabled = true;
+      buttonText.style.display = 'none';
+      buttonLoader.style.display = 'block';
+
+      try {
+        // Step 1: Create setup intent
+        const setupResponse = await fetch('https://billings.systems/api/v1/widget/setup', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`,
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({ customer_id: config.customerId })
+        });
+
+        if (!setupResponse.ok) {
+          throw new Error(`Setup failed: ${setupResponse.status}`);
+        }
+
+        const setupResult = await setupResponse.json();
+        if (!setupResult.success) {
+          throw new Error(setupResult.message || 'Failed to create setup intent');
+        }
+
+        const { client_secret: clientSecret } = setupResult.data;
+
+        // Prepare billing details
+        const billingDetails = {};
+        if (config.collectBillingDetails) {
+          const nameInput = document.getElementById('cardholder-name');
+          const emailInput = document.getElementById('billing-email');
+          const phoneInput = document.getElementById('billing-phone');
+
+          if (nameInput && nameInput.value) billingDetails.name = nameInput.value;
+          if (emailInput && emailInput.value) billingDetails.email = emailInput.value;
+          if (phoneInput && phoneInput.value) billingDetails.phone = phoneInput.value;
+        }
+
+        // Step 2: Confirm setup intent with Stripe
+        const { error, setupIntent } = await stripe.confirmCardSetup(clientSecret, {
+          payment_method: {
+            card: cardElement,
+            billing_details: billingDetails
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        // Step 3: Confirm with backend
+        const confirmResponse = await fetch('https://billings.systems/api/v1/widget/setup/confirm', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`,
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({
+            setup_intent_id: setupIntent.id,
+            customer_id: config.customerId,
+            payment_method_id: setupIntent.payment_method
+          })
+        });
+
+        if (!confirmResponse.ok) {
+          throw new Error(`Confirmation failed: ${confirmResponse.status}`);
+        }
+
+        const confirmResult = await confirmResponse.json();
+        if (!confirmResult.success) {
+          throw new Error(confirmResult.message || 'Failed to save payment method');
+        }
+
+        // Show success
+        const container = document.getElementById('billing-widget');
+        container.innerHTML = `
+          <div style="text-align: center; padding: 32px; color: #059669;">
+            <div style="font-size: 48px; margin-bottom: 16px;">✓</div>
+            <div style="font-size: 16px; font-weight: 500;">Payment method saved successfully!</div>
+            <div style="font-size: 14px; color: #64748b; margin-top: 8px;">Card ending in ${confirmResult.data.payment_method.last4}</div>
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Setup failed:', error);
+        errorElement.textContent = error.message || 'An error occurred. Please try again.';
+        errorElement.style.display = 'block';
+
+        // Reset button
+        submitButton.disabled = false;
+        buttonText.style.display = 'block';
+        buttonLoader.style.display = 'none';
+      }
+    }
+
+    function showConfigError() {
+      const container = document.getElementById('billing-widget');
+      container.innerHTML = `
+        <div style="text-align: center; padding: 32px; background: #fef2f2; border: 2px solid #fecaca; border-radius: 8px; color: #991b1b;">
+          <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+          <div style="font-size: 18px; font-weight: 600; margin-bottom: 12px;">Configuration Error</div>
+          <div style="font-size: 14px; line-height: 1.5;">
+            Unable to load payment configuration. Please check your API key and ensure the widget configuration endpoint is available.
+          </div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

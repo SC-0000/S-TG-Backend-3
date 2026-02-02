@@ -1,0 +1,198 @@
+name: Basic-Repo-Test
+on:
+  push:
+    branches: [main]          # trigger on any change to main
+  workflow_dispatch: {}       # manual run if you ever need it
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install Node.js dependencies
+        id: npm-install
+        run: |
+          echo "::group::Installing npm dependencies"
+          npm ci
+          echo "✅ npm dependencies installed successfully"
+          echo "::endgroup::"
+        continue-on-error: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, dom, filter, gd, iconv, json, mbstring, pdo
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        id: composer-install
+        run: |
+          echo "::group::Installing Composer dependencies"
+          composer install --prefer-dist --no-progress --no-suggest
+          echo "✅ Composer dependencies installed successfully"
+          echo "::endgroup::"
+        continue-on-error: false
+
+      - name: Create Laravel environment
+        id: laravel-setup
+        run: |
+          echo "::group::Setting up Laravel environment"
+          if [ ! -f .env ]; then
+            cp .env.example .env
+            echo "📄 Created .env file from .env.example"
+          fi
+          php artisan key:generate
+          echo "🔑 Application key generated"
+          echo "::endgroup::"
+        continue-on-error: false
+
+      - name: Run npm build
+        id: npm-build
+        run: |
+          echo "::group::Running npm build"
+          echo "🔨 Starting build process..."
+          
+          # Check if build script exists
+          if ! npm run | grep -q "build"; then
+            echo "::error::npm run build script not found in package.json"
+            exit 1
+          fi
+          
+          # Run build with detailed output
+          npm run build 2>&1 | tee build.log
+          
+          if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            echo "✅ npm run build completed successfully"
+            echo "build_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "::error::npm run build failed"
+            echo "build_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          echo "::endgroup::"
+
+      - name: Run PHP artisan optimize
+        id: php-optimize
+        run: |
+          echo "::group::Running PHP artisan optimize"
+          echo "⚡ Starting optimization process..."
+          
+          # Run optimize with error handling
+          if php artisan optimize --verbose 2>&1 | tee optimize.log; then
+            echo "✅ php artisan optimize completed successfully"
+            echo "optimize_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "::error::php artisan optimize failed"
+            echo "optimize_status=failed" >> $GITHUB_OUTPUT
+            
+            # Show Laravel logs if they exist
+            if [ -f storage/logs/laravel.log ]; then
+              echo "::group::Laravel Error Logs"
+              tail -50 storage/logs/laravel.log
+              echo "::endgroup::"
+            fi
+            
+            exit 1
+          fi
+          echo "::endgroup::"
+
+      - name: Run additional tests
+        id: run-tests
+        run: |
+          echo "::group::Running available tests"
+          test_results=""
+          
+          # Check and run npm tests
+          if npm run | grep -q "test"; then
+            echo "🧪 Running npm tests..."
+            if npm run test 2>&1 | tee npm-test.log; then
+              echo "✅ npm tests passed"
+              test_results="npm:✅"
+            else
+              echo "❌ npm tests failed"
+              test_results="npm:❌"
+              echo "npm_test_status=failed" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "ℹ️ No npm test script found"
+            test_results="npm:N/A"
+          fi
+          
+          # Check and run PHP tests
+          if [ -f "vendor/bin/phpunit" ] || [ -f "artisan" ]; then
+            echo "🧪 Running PHP tests..."
+            if php artisan test --verbose 2>&1 | tee php-test.log; then
+              echo "✅ PHP tests passed"
+              test_results="${test_results} php:✅"
+            else
+              echo "❌ PHP tests failed"
+              test_results="${test_results} php:❌"
+              echo "php_test_status=failed" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "ℹ️ No PHP testing framework found"
+            test_results="${test_results} php:N/A"
+          fi
+          
+          echo "test_summary=${test_results}" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: Upload build artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build.log
+            optimize.log
+            npm-test.log
+            php-test.log
+            storage/logs/laravel.log
+          retention-days: 7
+
+      - name: Create test summary
+        if: always()
+        run: |
+          echo "## 📊 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Build status
+          if [ "${{ steps.npm-build.outputs.build_status }}" == "success" ]; then
+            echo "✅ **npm run build**: Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **npm run build**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Optimize status
+          if [ "${{ steps.php-optimize.outputs.optimize_status }}" == "success" ]; then
+            echo "✅ **php artisan optimize**: Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **php artisan optimize**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Test summary
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Results**: ${{ steps.run-tests.outputs.test_summary }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Add failure notice if any step failed
+          if [ "${{ job.status }}" == "failure" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🚨 **Build failed!** Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+            echo "Build artifacts with detailed logs have been uploaded for debugging." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail job if required steps failed
+        if: steps.npm-build.outputs.build_status == 'failed' || steps.php-optimize.outputs.optimize_status == 'failed'
+        run: |
+          echo "::error::One or more required steps failed"
+          exit 1
