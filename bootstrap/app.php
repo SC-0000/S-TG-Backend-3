@@ -19,9 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-            \App\Http\Middleware\ShareUnassignedSubscriptions::class,
         ]);
         $middleware->api(append: [
             \App\Http\Middleware\SetRequestId::class,
@@ -85,26 +83,6 @@ return Application::configure(basePath: dirname(__DIR__))
                     ],
                     'errors' => $payloadErrors,
                 ], $status);
-            }
-            
-            // Only handle these specific error codes for Inertia requests
-            if ($request->header('X-Inertia') && in_array($status, [403, 404, 419, 500, 503])) {
-                $message = match($status) {
-                    403 => "You don't have permission to access this resource.",
-                    404 => "The page you're looking for doesn't exist.",
-                    419 => 'Your session has expired. Please refresh and try again.',
-                    500 => "We're experiencing technical difficulties. Our team has been notified.",
-                    503 => "We're currently under maintenance. We'll be back soon!",
-                    default => 'An error occurred.'
-                };
-                
-                return \Inertia\Inertia::render("Errors/{$status}", [
-                    'status' => $status,
-                    'message' => $message,
-                    'debug' => config('app.debug') && $status === 500 ? $exception->getMessage() : null,
-                ])
-                ->toResponse($request)
-                ->setStatusCode($status);
             }
             
             return $response;

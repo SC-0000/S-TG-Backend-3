@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Head, Link } from '@inertiajs/react';
 import SuperAdminLayout from '@/superadmin/Layouts/SuperAdminLayout';
 import { 
     BookOpen, Users, GraduationCap, FileText, Calendar, 
@@ -156,7 +155,6 @@ export default function SiteAdminIndex() {
 
     return (
         <SuperAdminLayout>
-            <Head title="Site Administration" />
             
             <div className="space-y-8">
                 {/* Header */}
@@ -208,7 +206,7 @@ export default function SiteAdminIndex() {
                                         const FeatureIcon = feature.icon;
                                         
                                         return (
-                                            <Link
+                                            <a
                                                 key={feature.name}
                                                 href={feature.route}
                                                 className={`group flex items-start gap-4 p-4 rounded-lg border ${colors.border} ${colors.hover} transition-all hover:shadow-md`}
@@ -225,7 +223,7 @@ export default function SiteAdminIndex() {
                                                     </div>
                                                     <p className="text-sm text-gray-600 mt-1">{feature.description}</p>
                                                 </div>
-                                            </Link>
+                                            </a>
                                         );
                                     })}
                                 </div>

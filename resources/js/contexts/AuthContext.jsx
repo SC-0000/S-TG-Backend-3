@@ -32,7 +32,7 @@ export const AuthProvider = ({ children, initialUser = null }) => {
         try {
             setLoading(true);
             const response = await apiClient.get('/me');
-            setUser(response.data);
+            setUser(response.data?.user ?? response.data);
             setInitialized(true);
         } catch (error) {
             console.error('Failed to fetch user:', error);
@@ -51,7 +51,15 @@ export const AuthProvider = ({ children, initialUser = null }) => {
                 useToken: false, // Don't send token for login
             });
             
-            const { token: newToken, user: userData } = response.data;
+            const payload = response?.data ?? response;
+            const { token: newToken, user: userData } = payload || {};
+
+            if (!newToken) {
+                return {
+                    success: false,
+                    error: new Error('Login succeeded but no token was returned.'),
+                };
+            }
             
             setToken(newToken);
             setTokenState(newToken);
@@ -72,7 +80,8 @@ export const AuthProvider = ({ children, initialUser = null }) => {
                 useToken: false,
             });
             
-            const { token: newToken, user: userData } = response.data;
+            const payload = response?.data ?? response;
+            const { token: newToken, user: userData } = payload || {};
             
             if (newToken) {
                 setToken(newToken);
@@ -109,7 +118,7 @@ export const AuthProvider = ({ children, initialUser = null }) => {
     const updateUser = useCallback(async (userData) => {
         try {
             const response = await apiClient.patch('/me', userData);
-            setUser(response.data);
+            setUser(response.data?.user ?? response.data);
             return { success: true, data: response.data };
         } catch (error) {
             return { 

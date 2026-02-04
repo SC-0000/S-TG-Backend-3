@@ -12,14 +12,22 @@ use App\Http\Controllers\Api\Admin\DashboardController as ApiAdminDashboardContr
 use App\Http\Controllers\Api\Admin\AccessController as AdminAccessController;
 use App\Http\Controllers\Api\Admin\AdminTaskController as ApiAdminTaskController;
 use App\Http\Controllers\Api\Admin\LessonUploadController as ApiAdminLessonUploadController;
+use App\Http\Controllers\Api\Admin\LessonController as ApiAdminLessonController;
 use App\Http\Controllers\Api\Admin\AttendanceController as ApiAdminAttendanceController;
+use App\Http\Controllers\Api\Admin\ProductController as ApiAdminProductController;
+use App\Http\Controllers\Api\Admin\TeacherController as ApiAdminTeacherController;
 use App\Http\Controllers\Api\Admin\AIUploadController as ApiAdminAIUploadController;
 use App\Http\Controllers\Api\Admin\FlagController as ApiAdminFlagController;
 use App\Http\Controllers\Api\Admin\ApplicationController as ApiAdminApplicationController;
+use App\Http\Controllers\Api\Admin\JourneyController as ApiAdminJourneyController;
 use App\Http\Controllers\Api\Admin\TeacherApplicationController as ApiTeacherApplicationController;
 use App\Http\Controllers\Api\Admin\PortalFeedbackController as ApiAdminPortalFeedbackController;
+use App\Http\Controllers\Api\Admin\ServiceController as ApiAdminServiceController;
+use App\Http\Controllers\Api\Admin\FeedbackController as ApiAdminFeedbackController;
 use App\Http\Controllers\Api\Admin\TeacherStudentAssignmentController as ApiTeacherStudentAssignmentController;
 use App\Http\Controllers\Api\Admin\YearGroupController as ApiAdminYearGroupController;
+use App\Http\Controllers\Api\Admin\NotificationController as ApiAdminNotificationController;
+use App\Http\Controllers\Api\Admin\ChildController as ApiAdminChildController;
 use App\Http\Controllers\Api\Public\ContentController as PublicContentController;
 use App\Http\Controllers\Api\Public\ApplicationController as ApiPublicApplicationController;
 use App\Http\Controllers\Api\Public\ApeAcademyController as ApiPublicApeAcademyController;
@@ -181,7 +189,45 @@ Route::middleware(['throttle:api'])->group(function () {
         Route::get('/lesson-slides/{slide}', [ApiLessonSlideController::class, 'show'])->name('api.v1.lesson-slides.show');
 
         Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
+            Route::prefix('services')->group(function () {
+                Route::get('/', [ApiAdminServiceController::class, 'index'])->name('api.v1.admin.services.index');
+                Route::get('/create-data', [ApiAdminServiceController::class, 'createData'])->name('api.v1.admin.services.create-data');
+                Route::post('/', [ApiAdminServiceController::class, 'store'])->name('api.v1.admin.services.store');
+                Route::get('/{service}', [ApiAdminServiceController::class, 'show'])->name('api.v1.admin.services.show');
+                Route::get('/{service}/edit-data', [ApiAdminServiceController::class, 'editData'])->name('api.v1.admin.services.edit-data');
+                Route::put('/{service}', [ApiAdminServiceController::class, 'update'])->name('api.v1.admin.services.update');
+                Route::delete('/{service}', [ApiAdminServiceController::class, 'destroy'])->name('api.v1.admin.services.destroy');
+            });
+            Route::prefix('feedbacks')->group(function () {
+                Route::get('/', [ApiAdminFeedbackController::class, 'index'])->name('api.v1.admin.feedbacks.index');
+                Route::post('/', [ApiAdminFeedbackController::class, 'store'])->name('api.v1.admin.feedbacks.store');
+                Route::get('/{feedback}', [ApiAdminFeedbackController::class, 'show'])->name('api.v1.admin.feedbacks.show');
+                Route::put('/{feedback}', [ApiAdminFeedbackController::class, 'update'])->name('api.v1.admin.feedbacks.update');
+                Route::delete('/{feedback}', [ApiAdminFeedbackController::class, 'destroy'])->name('api.v1.admin.feedbacks.destroy');
+            });
+            Route::get('/journey-categories', [\App\Http\Controllers\Api\Admin\JourneyCategoryController::class, 'index'])
+                ->name('api.v1.admin.journey-categories.index');
+            Route::post('/journey-categories', [\App\Http\Controllers\Api\Admin\JourneyCategoryController::class, 'store'])
+                ->name('api.v1.admin.journey-categories.store');
+            Route::prefix('journeys')->group(function () {
+                Route::get('/', [ApiAdminJourneyController::class, 'index'])->name('api.v1.admin.journeys.index');
+                Route::post('/', [ApiAdminJourneyController::class, 'store'])->name('api.v1.admin.journeys.store');
+                Route::get('/overview', [ApiAdminJourneyController::class, 'overview'])->name('api.v1.admin.journeys.overview');
+            });
+            Route::prefix('lessons')->group(function () {
+                Route::get('/', [ApiAdminLessonController::class, 'index'])->name('api.v1.admin.lessons.index');
+                Route::get('/assigned', [ApiAdminLessonController::class, 'assigned'])->name('api.v1.admin.lessons.assigned');
+                Route::get('/create-data', [ApiAdminLessonController::class, 'createData'])->name('api.v1.admin.lessons.create-data');
+                Route::post('/', [ApiAdminLessonController::class, 'store'])->name('api.v1.admin.lessons.store');
+                Route::get('/{lesson}', [ApiAdminLessonController::class, 'show'])->name('api.v1.admin.lessons.show');
+                Route::get('/{lesson}/edit-data', [ApiAdminLessonController::class, 'editData'])->name('api.v1.admin.lessons.edit-data');
+                Route::put('/{lesson}', [ApiAdminLessonController::class, 'update'])->name('api.v1.admin.lessons.update');
+                Route::delete('/{lesson}', [ApiAdminLessonController::class, 'destroy'])->name('api.v1.admin.lessons.destroy');
+            });
             Route::prefix('courses')->group(function () {
+                Route::get('/', [ApiAdminCourseController::class, 'index'])->name('api.v1.admin.courses.index');
+                Route::get('/{course}', [ApiAdminCourseController::class, 'show'])->name('api.v1.admin.courses.show');
+                Route::get('/{course}/edit-data', [ApiAdminCourseController::class, 'editData'])->name('api.v1.admin.courses.edit-data');
                 Route::post('/', [ApiAdminCourseController::class, 'store'])->name('api.v1.admin.courses.store');
                 Route::put('/{course}', [ApiAdminCourseController::class, 'update'])->name('api.v1.admin.courses.update');
                 Route::delete('/{course}', [ApiAdminCourseController::class, 'destroy'])->name('api.v1.admin.courses.destroy');
@@ -205,6 +251,9 @@ Route::middleware(['throttle:api'])->group(function () {
             });
 
             Route::prefix('content-lessons')->group(function () {
+                Route::get('/', [ApiAdminContentLessonController::class, 'index'])->name('api.v1.admin.content-lessons.index');
+                Route::get('/{lesson}', [ApiAdminContentLessonController::class, 'show'])->name('api.v1.admin.content-lessons.show');
+                Route::post('/', [ApiAdminContentLessonController::class, 'storeStandalone'])->name('api.v1.admin.content-lessons.store-standalone');
                 Route::post('/{module}', [ApiAdminContentLessonController::class, 'store'])->name('api.v1.admin.content-lessons.store');
                 Route::put('/{lesson}', [ApiAdminContentLessonController::class, 'update'])->name('api.v1.admin.content-lessons.update');
                 Route::delete('/{lesson}', [ApiAdminContentLessonController::class, 'destroy'])->name('api.v1.admin.content-lessons.destroy');
@@ -227,6 +276,38 @@ Route::middleware(['throttle:api'])->group(function () {
             });
 
             Route::post('/upload-image', [ApiImageUploadController::class, 'upload'])->name('api.v1.admin.upload-image');
+            Route::prefix('notifications')->group(function () {
+                Route::get('/', [ApiAdminNotificationController::class, 'index'])->name('api.v1.admin.notifications.index');
+                Route::get('/create-data', [ApiAdminNotificationController::class, 'createData'])->name('api.v1.admin.notifications.create-data');
+                Route::post('/', [ApiAdminNotificationController::class, 'store'])->name('api.v1.admin.notifications.store');
+                Route::get('/{notification}', [ApiAdminNotificationController::class, 'show'])->name('api.v1.admin.notifications.show');
+                Route::put('/{notification}', [ApiAdminNotificationController::class, 'update'])->name('api.v1.admin.notifications.update');
+                Route::delete('/{notification}', [ApiAdminNotificationController::class, 'destroy'])->name('api.v1.admin.notifications.destroy');
+            });
+
+            Route::prefix('children')->group(function () {
+                Route::get('/', [ApiAdminChildController::class, 'index'])->name('api.v1.admin.children.index');
+                Route::get('/create-data', [ApiAdminChildController::class, 'createData'])->name('api.v1.admin.children.create-data');
+                Route::post('/', [ApiAdminChildController::class, 'store'])->name('api.v1.admin.children.store');
+                Route::get('/{child}', [ApiAdminChildController::class, 'show'])->name('api.v1.admin.children.show');
+                Route::put('/{child}', [ApiAdminChildController::class, 'update'])->name('api.v1.admin.children.update');
+                Route::delete('/{child}', [ApiAdminChildController::class, 'destroy'])->name('api.v1.admin.children.destroy');
+            });
+
+            Route::prefix('teachers')->group(function () {
+                Route::get('/', [ApiAdminTeacherController::class, 'index'])->name('api.v1.admin.teachers.index');
+                Route::get('/assignments', [ApiAdminTeacherController::class, 'assignments'])->name('api.v1.admin.teachers.assignments');
+                Route::get('/{teacher}', [ApiAdminTeacherController::class, 'show'])->name('api.v1.admin.teachers.show');
+            });
+
+            Route::prefix('teacher-profiles')->group(function () {
+                Route::get('/create-data', [ApiAdminTeacherController::class, 'createData'])->name('api.v1.admin.teacher-profiles.create-data');
+                Route::post('/', [ApiAdminTeacherController::class, 'storeProfile'])->name('api.v1.admin.teacher-profiles.store');
+                Route::get('/{teacher}', [ApiAdminTeacherController::class, 'showProfile'])->name('api.v1.admin.teacher-profiles.show');
+                Route::get('/{teacher}/edit-data', [ApiAdminTeacherController::class, 'editData'])->name('api.v1.admin.teacher-profiles.edit-data');
+                Route::put('/{teacher}', [ApiAdminTeacherController::class, 'updateProfile'])->name('api.v1.admin.teacher-profiles.update');
+                Route::delete('/{teacher}', [ApiAdminTeacherController::class, 'destroyProfile'])->name('api.v1.admin.teacher-profiles.destroy');
+            });
         });
 
         Route::prefix('teacher')->middleware('role:teacher,admin')->group(function () {
@@ -269,6 +350,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::get('/transactions', [ApiTransactionController::class, 'index'])
             ->middleware('role:parent,guest_parent,admin,super_admin')
             ->name('api.v1.transactions.index');
+        Route::post('/transactions', [ApiTransactionController::class, 'store'])
+            ->middleware('role:admin,super_admin')
+            ->name('api.v1.transactions.store');
         Route::get('/transactions/{transaction}', [ApiTransactionController::class, 'show'])
             ->middleware('role:parent,guest_parent,admin,super_admin')
             ->name('api.v1.transactions.show');
@@ -292,6 +376,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('/lessons/{lesson}', [ApiAdminAttendanceController::class, 'sheet'])->name('api.v1.attendance.sheet');
             Route::post('/lessons/{lesson}/mark-all', [ApiAdminAttendanceController::class, 'markAll'])->name('api.v1.attendance.mark-all');
             Route::post('/lessons/{lesson}/approve-all', [ApiAdminAttendanceController::class, 'approveAll'])->name('api.v1.attendance.approve-all');
+            Route::post('/lessons/{lesson}/mark', [ApiAdminAttendanceController::class, 'mark'])->name('api.v1.attendance.mark');
+            Route::post('/{attendance}/approve', [ApiAdminAttendanceController::class, 'approve'])->name('api.v1.attendance.approve');
         });
 
         Route::prefix('questions')->middleware('role:admin,teacher,super_admin')->group(function () {
@@ -359,6 +445,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         });
 
         Route::prefix('homework/submissions')->group(function () {
+            Route::get('/', [ApiHomeworkSubmissionController::class, 'indexAll'])
+                ->middleware('role:admin,teacher,super_admin')
+                ->name('api.v1.homework.submissions.index-all');
             Route::get('/{submission}', [ApiHomeworkSubmissionController::class, 'show'])
                 ->middleware('role:parent,guest_parent,admin,teacher,super_admin')
                 ->name('api.v1.homework.submissions.show');
@@ -647,6 +736,16 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::delete('/{subscription}', [ApiAdminSubscriptionController::class, 'destroy'])->name('api.v1.admin.subscriptions.destroy');
             });
 
+            Route::prefix('products')->group(function () {
+                Route::get('/', [ApiAdminProductController::class, 'index'])->name('api.v1.admin.products.index');
+                Route::post('/', [ApiAdminProductController::class, 'store'])->name('api.v1.admin.products.store');
+                Route::get('/{product}', [ApiAdminProductController::class, 'show'])->name('api.v1.admin.products.show');
+                Route::put('/{product}', [ApiAdminProductController::class, 'update'])->name('api.v1.admin.products.update');
+                Route::delete('/{product}', [ApiAdminProductController::class, 'destroy'])->name('api.v1.admin.products.destroy');
+            });
+
+            Route::get('/teachers', [ApiAdminTeacherController::class, 'index'])->name('api.v1.admin.teachers.index');
+
             Route::prefix('user-subscriptions')->group(function () {
                 Route::get('/', [ApiAdminUserSubscriptionController::class, 'index'])->name('api.v1.admin.user-subscriptions.index');
                 Route::post('/', [ApiAdminUserSubscriptionController::class, 'store'])->name('api.v1.admin.user-subscriptions.store');
@@ -773,6 +872,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             });
 
             Route::get('/access', [AdminAccessController::class, 'index'])->name('api.v1.admin.access.index');
+            Route::post('/access/grant', [AdminAccessController::class, 'store'])->name('api.v1.admin.access.grant');
+            Route::post('/access', [AdminAccessController::class, 'store'])->name('api.v1.admin.access.store');
             Route::put('/access/{access}', [AdminAccessController::class, 'update'])->name('api.v1.admin.access.update');
         });
 
@@ -881,6 +982,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::get('/lesson/{lesson}', [ApiTeacherAttendanceController::class, 'sheet'])->name('api.v1.teacher.attendance.sheet');
                 Route::post('/lessons/{lesson}/mark-all', [ApiTeacherAttendanceController::class, 'markAll'])->name('api.v1.teacher.attendance.mark-all');
                 Route::post('/lessons/{lesson}/approve-all', [ApiTeacherAttendanceController::class, 'approveAll'])->name('api.v1.teacher.attendance.approve-all');
+                Route::post('/lessons/{lesson}/mark', [ApiTeacherAttendanceController::class, 'mark'])->name('api.v1.teacher.attendance.mark');
             });
 
             Route::prefix('tasks')->group(function () {

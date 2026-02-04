@@ -35,7 +35,7 @@ class RegisteredUserController extends Controller
             'name'                  => 'required|string|max:255',
             'email'                 => 'required|string|email|max:255|unique:' . User::class,
             'password'              => ['required', 'confirmed', Rules\Password::defaults()],
-            'role'                  => 'required|string|in:'
+            'role'                  => 'nullable|string|in:'
                                        . implode(',', [
                                            User::ROLE_BASIC,
                                            User::ROLE_PARENT,
@@ -48,7 +48,7 @@ class RegisteredUserController extends Controller
             'name'     => $request->name,
             'email'    => $request->email,
             'password' => Hash::make($request->password),
-            'role'     => $request->input('role', User::ROLE_BASIC),
+            'role'     => $request->input('role', User::ROLE_PARENT),
         ]);
 
         event(new Registered($user));
@@ -58,4 +58,3 @@ class RegisteredUserController extends Controller
         return redirect(route('dashboard'));
     }
 }
-

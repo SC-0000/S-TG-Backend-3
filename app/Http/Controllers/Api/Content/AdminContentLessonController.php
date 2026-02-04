@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Support\ApiPagination;
 
 class AdminContentLessonController extends ApiController
 {
@@ -35,6 +36,7 @@ class AdminContentLessonController extends ApiController
             'completion_rules' => 'nullable|array',
             'enable_ai_help' => 'nullable|boolean',
             'enable_tts' => 'nullable|boolean',
+            'journey_category_id' => 'nullable|exists:journey_categories,id',
             'order_position' => 'nullable|integer|min:0',
         ]);
 
@@ -50,6 +52,7 @@ class AdminContentLessonController extends ApiController
             'completion_rules' => $validated['completion_rules'] ?? null,
             'enable_ai_help' => $request->boolean('enable_ai_help'),
             'enable_tts' => $request->boolean('enable_tts'),
+            'journey_category_id' => $validated['journey_category_id'] ?? null,
         ]);
 
         $module->lessons()->attach($lesson->id, [
@@ -59,6 +62,185 @@ class AdminContentLessonController extends ApiController
         return $this->success([
             'lesson' => $lesson,
         ], status: 201);
+    }
+
+    public function storeStandalone(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'year_group' => 'nullable|string|max:50',
+            'lesson_type' => 'nullable|string|max:50',
+            'delivery_mode' => 'nullable|string|max:50',
+            'estimated_minutes' => 'nullable|integer|min:0',
+            'completion_rules' => 'nullable|array',
+            'enable_ai_help' => 'nullable|boolean',
+            'enable_tts' => 'nullable|boolean',
+            'journey_category_id' => 'nullable|exists:journey_categories,id',
+            'organization_id' => 'nullable|integer|exists:organizations,id',
+        ]);
+
+        $user = $request->user();
+        $organizationId = $validated['organization_id'] ?? null;
+
+        if ($user?->role !== 'super_admin') {
+            $organizationId = $user?->current_organization_id;
+        }
+
+        if ($user?->role === 'super_admin' && !$organizationId) {
+            throw ValidationException::withMessages([
+                'organization_id' => 'Organization is required.',
+            ]);
+        }
+
+        $lesson = ContentLesson::create([
+            'organization_id' => $organizationId,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'year_group' => $validated['year_group'] ?? null,
+            'lesson_type' => $validated['lesson_type'] ?? null,
+            'delivery_mode' => $validated['delivery_mode'] ?? null,
+            'status' => 'draft',
+            'estimated_minutes' => $validated['estimated_minutes'] ?? null,
+            'completion_rules' => $validated['completion_rules'] ?? null,
+            'enable_ai_help' => $request->boolean('enable_ai_help'),
+            'enable_tts' => $request->boolean('enable_tts'),
+            'journey_category_id' => $validated['journey_category_id'] ?? null,
+        ]);
+
+        return $this->success([
+            'lesson' => $lesson,
+        ], status: 201);
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        $orgId = $this->resolveOrgId($request);
+        $user = $request->user();
+
+        $query = ContentLesson::query()
+            ->with(['modules.course', 'organization'])
+            ->when($user?->role === 'super_admin', function ($q) use ($request) {
+                if ($request->filled('organization_id')) {
+                    $q->where('organization_id', $request->integer('organization_id'));
+                }
+            }, function ($q) use ($orgId) {
+                if ($orgId) {
+                    $q->where('organization_id', $orgId);
+                }
+            });
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $lessons = $query->orderBy('created_at', 'desc')
+            ->paginate(ApiPagination::perPage($request, 20));
+
+        $data = $lessons->getCollection()->map(function ($lesson) {
+            $module = $lesson->modules->first();
+            return [
+                'id' => $lesson->id,
+                'uid' => $lesson->uid,
+                'title' => $lesson->title,
+                'description' => $lesson->description,
+                'lesson_type' => $lesson->lesson_type,
+                'status' => $lesson->status,
+                'module' => $module ? [
+                    'id' => $module->id,
+                    'title' => $module->title,
+                    'course' => $module->course ? [
+                        'id' => $module->course->id,
+                        'title' => $module->course->title,
+                    ] : null,
+                ] : null,
+            ];
+        })->all();
+
+        return $this->paginated($lessons, $data);
+    }
+
+    public function show(Request $request, ContentLesson $lesson): JsonResponse
+    {
+        $orgId = $this->resolveOrgId($request);
+        if ($orgId && (int) $lesson->organization_id !== (int) $orgId) {
+            return $this->error('Not found.', [], 404);
+        }
+
+        $lesson->load([
+            'modules.course.journeyCategory.journey',
+            'journeyCategory.journey',
+            'slides',
+            'assessments',
+        ]);
+
+        $module = $lesson->modules->first();
+
+        return $this->success([
+            'lesson' => [
+                'id' => $lesson->id,
+                'uid' => $lesson->uid,
+                'title' => $lesson->title,
+                'description' => $lesson->description,
+                'year_group' => $lesson->year_group,
+                'lesson_type' => $lesson->lesson_type,
+                'delivery_mode' => $lesson->delivery_mode,
+                'status' => $lesson->status,
+                'estimated_minutes' => $lesson->estimated_minutes,
+                'enable_ai_help' => $lesson->enable_ai_help,
+                'enable_tts' => $lesson->enable_tts,
+                'journey_category_id' => $lesson->journey_category_id,
+                'created_at' => $lesson->created_at?->toDateTimeString(),
+                'updated_at' => $lesson->updated_at?->toDateTimeString(),
+                'slides_count' => $lesson->slides->count(),
+                'slides' => $lesson->slides->map(function ($slide) {
+                    return [
+                        'id' => $slide->id,
+                        'title' => $slide->title,
+                        'order_position' => $slide->order_position,
+                        'blocks_count' => is_array($slide->blocks) ? count($slide->blocks) : 0,
+                    ];
+                })->values(),
+                'assessments' => $lesson->assessments->map(fn ($assessment) => [
+                    'id' => $assessment->id,
+                    'title' => $assessment->title,
+                    'description' => $assessment->description,
+                ])->values(),
+                'module' => $module ? [
+                    'id' => $module->id,
+                    'title' => $module->title,
+                    'course' => $module->course ? [
+                        'id' => $module->course->id,
+                        'title' => $module->course->title,
+                        'journey_category' => $module->course->journeyCategory ? [
+                            'id' => $module->course->journeyCategory->id,
+                            'name' => $module->course->journeyCategory->name,
+                            'journey' => $module->course->journeyCategory->journey ? [
+                                'id' => $module->course->journeyCategory->journey->id,
+                                'name' => $module->course->journeyCategory->journey->name,
+                            ] : null,
+                        ] : null,
+                    ] : null,
+                ] : null,
+                'journey_category' => $lesson->journeyCategory ? [
+                    'id' => $lesson->journeyCategory->id,
+                    'name' => $lesson->journeyCategory->name,
+                    'journey' => $lesson->journeyCategory->journey ? [
+                        'id' => $lesson->journeyCategory->journey->id,
+                        'name' => $lesson->journeyCategory->journey->name,
+                    ] : null,
+                ] : null,
+                'is_standalone' => $lesson->modules->isEmpty(),
+            ],
+        ]);
     }
 
     public function update(Request $request, ContentLesson $lesson): JsonResponse
@@ -80,6 +262,7 @@ class AdminContentLessonController extends ApiController
             'enable_ai_help' => 'nullable|boolean',
             'enable_tts' => 'nullable|boolean',
             'module_id' => 'nullable|integer|exists:modules,id',
+            'journey_category_id' => 'nullable|exists:journey_categories,id',
         ]);
 
         $lesson->update([
@@ -93,6 +276,7 @@ class AdminContentLessonController extends ApiController
             'completion_rules' => $validated['completion_rules'] ?? $lesson->completion_rules,
             'enable_ai_help' => $request->boolean('enable_ai_help', $lesson->enable_ai_help),
             'enable_tts' => $request->boolean('enable_tts', $lesson->enable_tts),
+            'journey_category_id' => $validated['journey_category_id'] ?? $lesson->journey_category_id,
         ]);
 
         if (!empty($validated['module_id'])) {

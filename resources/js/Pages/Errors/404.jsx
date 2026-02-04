@@ -1,11 +1,13 @@
-import { Head, Link } from '@inertiajs/react';
+import React, { useEffect } from 'react';
 import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 export default function Error404({ status, message }) {
+    useEffect(() => {
+        document.title = '404 - Page Not Found';
+    }, []);
+
     return (
         <>
-            <Head title="404 - Page Not Found" />
-            
             <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 flex items-center justify-center px-4">
                 <div className="max-w-2xl w-full text-center">
                     {/* Status Code */}
@@ -26,13 +28,13 @@ export default function Error404({ status, message }) {
 
                         {/* Action Buttons */}
                         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                            <Link
+                            <a
                                 href="/"
                                 className="inline-flex items-center justify-center px-6 py-3 bg-accent hover:bg-accent-600 text-white font-semibold rounded-lg transition-colors duration-200 shadow-md font-poppins"
                             >
                                 <HomeIcon className="w-5 h-5 mr-2" />
                                 Go Home
-                            </Link>
+                            </a>
                             
                             <button
                                 onClick={() => window.history.back()}
@@ -49,17 +51,17 @@ export default function Error404({ status, message }) {
                                 Looking for something?
                             </p>
                             <div className="flex gap-4 justify-center flex-wrap text-sm">
-                                <Link href="/courses" className="text-accent hover:text-accent-600 font-medium transition-colors">
+                                <a href="/courses" className="text-accent hover:text-accent-600 font-medium transition-colors">
                                     Browse Courses
-                                </Link>
+                                </a>
                                 <span className="text-gray-300">•</span>
-                                <Link href="/portal" className="text-accent hover:text-accent-600 font-medium transition-colors">
+                                <a href="/portal" className="text-accent hover:text-accent-600 font-medium transition-colors">
                                     My Portal
-                                </Link>
+                                </a>
                                 <span className="text-gray-300">•</span>
-                                <Link href="/contact" className="text-accent hover:text-accent-600 font-medium transition-colors">
+                                <a href="/contact" className="text-accent hover:text-accent-600 font-medium transition-colors">
                                     Contact Support
-                                </Link>
+                                </a>
                             </div>
                         </div>
                     </div>

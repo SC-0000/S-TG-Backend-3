@@ -53,4 +53,8 @@ return [
         'url' => env('LIVEKIT_URL', 'wss://localhost:7880'),
     ],
 
+    'admin_registration' => [
+        'secret' => env('ADMIN_REGISTRATION_SECRET'),
+    ],
+
 ];

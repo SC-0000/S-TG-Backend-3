@@ -7,7 +7,6 @@ use App\Models\Faq;
 
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
-use Inertia\Inertia;
 // use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\AlertController;
@@ -88,23 +87,9 @@ Route::get('/payment-widget-demo', function (\Illuminate\Http\Request $request) 
     ]);
 });
 
-Route::get('/payment-widget', function (\Illuminate\Http\Request $request) {
-    $apiKey = $request->query('api_key');
-    $customerId = $request->query('customer_id');
-    $invoiceId = $request->query('invoice_id');
-    $returnTo = $request->query('return_to') ?? $request->query('returnTo') ?? route('checkout.show');
+Route::view('/payment-widget', 'app-api');
 
-    return Inertia::render('@public/Payments/PaymentWidget', [
-        'apiKey' => $apiKey,
-        'customerId' => $customerId,
-        'invoiceId' => $invoiceId,
-        'returnTo' => $returnTo,
-    ]);
-});
-
-Route::get('/widget-test', function () {
-    return Inertia::render('@public/Main/WidgetTestPage');
-})->name('widget.test');
+Route::view('/widget-test', 'app-api')->name('widget.test');
 
 //route for receipt-widget-demo
 Route::get('/receipt-widget-demo', function (\Illuminate\Http\Request $request) {
@@ -121,7 +106,7 @@ Route::get('/receipt-widget-demo', function (\Illuminate\Http\Request $request) 
 
 
 
-Route::get('/login', [AuthenticatedSessionController::class, 'create'])
+Route::view('/login', 'app-api')
      ->middleware('guest')
      ->name('login');
 
@@ -129,12 +114,11 @@ Route::get('/login', [AuthenticatedSessionController::class, 'create'])
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
      ->middleware('guest');
 
-     Route::get('/billing/setup',          [BillingController::class,'setup'])->name('billing.setup');
-Route::get('/billing/pay/{invoice}',  [BillingController::class,'pay'])->name('billing.pay');
-Route::get('/billing/invoice',        [BillingController::class,'createInvoice'])
-    ->middleware('role:admin')->name('billing.invoice');
-Route::get('/billing/subs',           [BillingController::class,'subscriptions'])->name('billing.subs');
-Route::get('/billing/receipt/{invoice}', [BillingController::class,'receipt'])->name('billing.receipt');
+Route::view('/billing/setup', 'app-api')->name('billing.setup');
+Route::view('/billing/pay/{invoice}', 'app-api')->name('billing.pay');
+Route::view('/billing/invoice', 'app-api')->name('billing.invoice');
+Route::view('/billing/subs', 'app-api')->name('billing.subs');
+Route::view('/billing/receipt/{invoice}', 'app-api')->name('billing.receipt');
 
 
 // Webhook endpoint for billing provider to notify invoice/payment events
@@ -142,17 +126,16 @@ Route::post('/webhooks/billing', [\App\Http\Controllers\BillingWebhookController
     ->name('webhooks.billing');
 
 // Public "My Purchases" page for logged-in parents / guest_parent accounts
-Route::get('/my-purchases', [\App\Http\Controllers\PortalController::class, 'transactionsIndex'])
-    ->middleware('auth')
+Route::view('/my-purchases', 'app-api')
     ->name('my.purchases');
-Route::get('/billing/portal',         [BillingController::class,'portal'])->name('billing.portal');
+Route::view('/billing/portal', 'app-api')->name('billing.portal');
 Route::post('/transaction/{transaction}/enable-autopay', [TransactionController::class, 'enableAutopay']);
 
 Route::post('/ai/public/ask', [AIChatController::class, 'ask']);
 
 Route::post('/feedbacks', [FeedbackController::class, 'store'])->name('feedbacks.store');
 
-Route::get('/feedback/success/{feedback}', [FeedbackController::class, 'success'])->name('feedback.success');
+Route::view('/feedback/success/{feedback}', 'app-api')->name('feedback.success');
 
 Route::get('/cart', [CartController::class, 'getCart'])->name('cart.index');
 Route::post('/cart/add/{type}/{id}', [CartController::class, 'addToCart'])
@@ -161,7 +144,7 @@ Route::post('/cart/add-flexible', [CartController::class, 'addFlexibleService'])
 Route::delete('/cart/remove/{id}', [CartController::class, 'removeFromCart'])->name('cart.remove');
 Route::post('/cart/update/{cartItemId}', [CartController::class, 'updateQuantity'])->name('cart.update');
 
-Route::get('/portal/notifications', [NotificationController::class, 'portalIndex'])
+Route::view('/portal/notifications', 'app-api')
          ->name('notifications.portal.index');
 
     // mark one as read
@@ -176,7 +159,7 @@ Route::get('/portal/notifications', [NotificationController::class, 'portalIndex
 
 
 Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
-Route::get('/checkout', [CheckoutController::class, 'show'])->name('checkout.show');
+Route::view('/checkout', 'app-api')->name('checkout.show');
 
 // Pre-check endpoint: create a guest user + child before showing the checkout page.
 // The frontend should call this when the user opens the checkout (pre-check modal).
@@ -202,106 +185,95 @@ Route::post('/checkout/guest-store', [CheckoutController::class, 'guestStore'])
 
 // Route::resource('milestones', MilestoneController::class);
 
-Route::get('/testimonials/{id}', [TestimonialController::class, 'show'])->name('testimonials.show');
+Route::view('/testimonials/{id}', 'app-api')
+    ->name('testimonials.show');
 
 
-Route::resource('transactions', TransactionController::class)
-     ->only(['index', 'show']);   // expose more actions if needed
-    // expose more actions if needed
+Route::view('/transactions', 'app-api')->name('transactions.index');
+Route::view('/transactions/{transaction}', 'app-api')->name('transactions.show');
 
 Route::post('checkout', [CheckoutController::class, 'store'])
      ->name('checkout.store');
 
-Route::resource('assessments', AssessmentController::class)
-     ->names([
-         'index'   => 'assessments.index',
-         'create'  => 'assessments.create',
-         'store'   => 'assessments.store',
-         'show'    => 'assessments.show',
-         'edit'    => 'assessments.edit',
-         'update'  => 'assessments.update',
-         'destroy' => 'assessments.destroy',
-     ])->middleware('role:parent,admin');   // uses {assessment} param automatically; restrict to parents/admins (guest_parent allowed only for whitelisted routes)
-
-/* ---------- attempt & submit ---------- */
-Route::prefix('assessments/{assessment}')->group(function () {
-    Route::get('attempt',  [AssessmentController::class, 'attempt'])
-         ->middleware('role:parent,admin')
-         ->name('assessments.attempt');
-
-    Route::post('attempt', [AssessmentController::class, 'attemptSubmit'])
-         ->middleware('role:parent,admin')
-         ->name('assessments.attemptSubmit');   // <-- matches React code
-});
+Route::view('/assessments', 'app-api')
+     ->name('assessments.index');
+Route::view('/assessments/create', 'app-api')
+     ->name('assessments.create');
+Route::view('/assessments/{assessment}', 'app-api')
+     ->name('assessments.show');
+Route::view('/assessments/{assessment}/edit', 'app-api')
+     ->name('assessments.edit');
+Route::view('/assessments/{assessment}/attempt', 'app-api')
+     ->name('assessments.attempt');
 // Route::get('/portal/assessments', [AssessmentController::class, 'portalIndex'])
 //          ->middleware('role:parent,admin')
 //          ->name('portal.assessments.index');
 
 /* ---------- result screen ---------- */
-Route::get('submissions/{submission}', [SubmissionsController::class, 'show'])
-     ->middleware('role:parent,admin')
+Route::view('submissions/{submission}', 'app-api')
      ->name('submissions.show');
 
 
-Route::resource('products', ProductController::class);
+Route::view('/products', 'app-api')->name('products.index');
+Route::view('/products/create', 'app-api')->name('products.create');
+Route::view('/products/{product}', 'app-api')->name('products.show');
+Route::view('/products/{product}/edit', 'app-api')->name('products.edit');
 
 // Old lesson routes disabled - conflicts with new ContentLesson player routes
 // Route::resource('lessons', LessonController::class);
 
-Route::resource('children', ChildController::class);
+Route::view('/children', 'app-api')->name('children.index');
+Route::view('/children/create', 'app-api')->name('children.create');
+Route::view('/children/{child}', 'app-api')->name('children.show');
+Route::view('/children/{child}/edit', 'app-api')->name('children.edit');
 
 
-Route::get('/applications/create', [ApplicationController::class, 'create'])->name('applications.create');
+Route::view('/applications/create', 'app-api')->name('applications.create');
 Route::post('/applications', [ApplicationController::class, 'store'])->name('applications.store');
-Route::get('/applications/verify/{token}', [ApplicationController::class, 'verifyEmail'])->name('application.verify');
+Route::view('/applications/verify/{token}', 'app-api')->name('application.verify');
 Route::post('/application/resend-verification', [ApplicationController::class, 'resendVerificationEmail'])->name('application.resend_verification');
-Route::get('/application/verification', [ApplicationController::class, 'verificationPage'])->name('application.verification');
-Route::get('/email/verified', [ApplicationController::class, 'emailVerified'])->name('email.verified');
-Route::get('/applications', [ApplicationController::class, 'index'])->name('applications.index');
-Route::get('/applications/{id}/edit', [ApplicationController::class, 'edit'])->name('applications.edit');
+Route::view('/application/verification', 'app-api')->name('application.verification');
+Route::view('/email/verified', 'app-api')->name('email.verified');
+Route::view('/applications', 'app-api')
+    ->name('applications.index');
+Route::view('/applications/{id}/edit', 'app-api')
+    ->name('applications.edit');
 Route::put('/applications/{id}', [ApplicationController::class, 'reviewApplication'])->name('applications.review');
 Route::delete('/applications/{id}', [ApplicationController::class, 'destroy'])->name('applications.destroy');
-Route::get('/applications/{id}', [ApplicationController::class, 'show'])->name('applications.show');
+Route::view('/applications/{id}', 'app-api')
+    ->name('applications.show');
 
-Route::get('/feedbacks/{id}', [FeedbackController::class, 'show'])->name('feedbacks.show');
+Route::view('/feedbacks/{id}', 'app-api')
+    ->name('feedbacks.show');
 
-Route::get('/faqs/{id}', [FaqController::class, 'show'])->name('faqs.show');
+Route::view('/faqs/{id}', 'app-api')
+    ->name('faqs.show');
 
-Route::get('/slides/{slide_id}', [SlideController::class, 'show'])->name('slides.show');
-
-
-Route::get('/alerts/{id}', [AlertController::class, 'show'])->name('alerts.show');
-
-Route::get('/articles/{id}', [ArticleController::class, 'show'])->name('articles.show');
-
+Route::view('/slides/{slide_id}', 'app-api')
+    ->name('slides.show');
 
 
-Route::get('/about', [AboutController::class, 'index'])
-     ->name('about');
-Route::get('/contact', function () {
-    $faqs = Faq::where('published', true)->get();
-    return inertia('@public/Main/ContactUs', [
-        'faqs' => $faqs,
-    ]);
-})->name('contact');
+Route::view('/alerts/{id}', 'app-api')
+    ->name('alerts.show');
+
+Route::view('/articles/{id}', 'app-api')->name('articles.show');
+Route::view('/articles/{id}/edit', 'app-api')
+    ->name('articles.edit');
+
+
+
+Route::view('/about', 'app-api')->name('about');
+Route::view('/contact', 'app-api')->name('contact');
 // Route::get('/contact', [MilestoneController::class, 'aboutUs'])->name('milestones.index');
 
 
 
-    Route::get('/login', function () {
-        return Inertia::render('@public/Auth/PreLogin');
-    })->name('login');
-
-
-        Route::get('register', [RegisteredUserController::class, 'create'])
-        ->name('register');
+    Route::view('register', 'app-api')->name('register');
 
     Route::post('register', [RegisteredUserController::class, 'store']);
 
     // Teacher Registration Routes (with OTP verification)
-    Route::get('/teacher/register', function () {
-        return inertia('@public/Teacher/Register');
-    })->name('teacher.register.form');
+    Route::view('/teacher/register', 'app-api')->name('teacher.register.form');
     
     Route::post('/teacher/send-otp', [\App\Http\Controllers\TeacherController::class, 'sendOtp'])
         ->name('teacher.sendOtp');
@@ -312,18 +284,18 @@ Route::get('/contact', function () {
 
 
 
-    Route::get('authenticate-user', [AuthenticatedSessionController::class, 'create'])
+    Route::view('authenticate-user', 'app-api')
         ->name('authenticate-user');
 
     Route::post('authenticate-user', [AuthenticatedSessionController::class, 'store']);
 
-    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
+    Route::view('forgot-password', 'app-api')
         ->name('password.request');
 
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
         ->name('password.email');
 
-    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+    Route::view('reset-password/{token}', 'app-api')
         ->name('password.reset');
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
@@ -331,7 +303,7 @@ Route::get('/contact', function () {
 
 
 
-    Route::get('confirm-password', [ConfirmablePasswordController::class, 'show'])
+    Route::view('confirm-password', 'app-api')
         ->name('password.confirm');
 
     Route::post('confirm-password', [ConfirmablePasswordController::class, 'store']);
@@ -345,48 +317,87 @@ Route::get('/contact', function () {
 
 
 
-Route::get('/portal/assessments/browse', [AssessmentController::class, 'browseIndex'])
-         ->middleware('role:parent,admin')
+Route::view('/portal/assessments/browse', 'app-api')
          ->name('portal.assessments.browse');
 
 //
 // Guest onboarding: when a guest_parent attempts to access a parent-only page they will be
 // redirected to /guest/complete-profile. The controller will show a form to complete the
 // remaining parent + children details and then upgrade their role to 'parent'.
-Route::get('/guest/complete-profile', [\App\Http\Controllers\GuestOnboardingController::class, 'show'])
-    ->middleware('auth')
+Route::view('/guest/complete-profile', 'app-api')
     ->name('guest.complete_profile');
 
 Route::post('/guest/complete-profile', [\App\Http\Controllers\GuestOnboardingController::class, 'store'])
-    ->middleware('auth')
     ->name('guest.complete_profile.store');
 
-Route::get('/portal/products', [ProductController::class, 'portalIndex'])
+Route::view('/portal/products', 'app-api')
      ->name('portal.products.index');
 
 // Old lesson routes disabled - conflicts with new ContentLesson player routes
 // Route::resource('lessons', LessonController::class);
-Route::get('/portal/lessons/browse', [LessonController::class, 'browseIndex'])
+Route::view('/portal/lessons/browse', 'app-api')
          ->name('portal.lessons.browse');
 
-Route::get('/portal/faqs', [FaqController::class, 'portalIndex'])
+Route::view('/portal/faqs', 'app-api')
          ->name('portal.faqs.index');
 
-        Route::get('/portal/services', [ServiceController::class, 'portalindex'])
+        Route::view('/portal/services', 'app-api')
      ->name('portal.services.index');
-  Route::get('/portal/services/{service}', [PublicServiceController::class, 'portalShow'])->name('portal.services.show');
+  Route::view('/portal/services/{service}', 'app-api')
+     ->name('portal.services.show');
 
 
-Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::view('/', 'app-api')->name('home');
 
-Route::get('/services', [ServiceController::class, 'index'])->name('services.index');
-Route::get('/services/{service}', [ServiceController::class, 'publicShow'])->name('services.show');
+Route::view('/services', 'app-api')->name('services.index');
+Route::view('/services/{service}', 'app-api')->name('services.show');
 
-Route::get('/articles', [ArticleController::class, 'index'])->name('articles.index');
+Route::view('/articles', 'app-api')->name('articles.index');
 
 // Subscription Catalog - Public page showing all subscriptions with course previews
-Route::get('/subscription-plans', [\App\Http\Controllers\SubscriptionCatalogController::class, 'index'])
+Route::view('/subscription-plans', 'app-api')
      ->name('subscriptions.catalog');
+
+// SPA entrypoints for authenticated areas (Phase 6)
+Route::view('/portal/{path?}', 'app-api')->where('path', '.*');
+Route::view('/courses/{path?}', 'app-api')->where('path', '.*');
+Route::view('/lessons/{path?}', 'app-api')->where('path', '.*');
+Route::view('/assessments/{path?}', 'app-api')->where('path', '.*');
+Route::view('/submissions/{path?}', 'app-api')->where('path', '.*');
+Route::view('/live-sessions/{path?}', 'app-api')->where('path', '.*');
+Route::view('/my-live-sessions/{path?}', 'app-api')->where('path', '.*');
+Route::view('/flags/{path?}', 'app-api')->where('path', '.*');
+
+Route::view('/admin-dashboard', 'app-api')->name('admin.dashboard');
+Route::view('/admin-dashboard/debug', 'app-api')->name('admin.dashboard.debug');
+Route::view('/admin-tasks/{path?}', 'app-api')->where('path', '.*');
+Route::view('/admin/{path?}', 'app-api')->where('path', '.*');
+Route::view('/notifications/{path?}', 'app-api')->where('path', '.*');
+Route::view('/subscriptions/{path?}', 'app-api')->where('path', '.*');
+Route::view('/teachers/{path?}', 'app-api')->where('path', '.*');
+Route::view('/organizations/{path?}', 'app-api')->where('path', '.*');
+Route::view('/journeys/{path?}', 'app-api')->where('path', '.*');
+Route::view('/journey-categories/{path?}', 'app-api')->where('path', '.*');
+Route::view('/attendance/{path?}', 'app-api')->where('path', '.*');
+Route::view('/homework/{path?}', 'app-api')->where('path', '.*');
+Route::view('/admin/homework/{path?}', 'app-api')->where('path', '.*');
+Route::view('/homework/submissions/{path?}', 'app-api')->where('path', '.*');
+Route::view('/admin/homework-submissions/{path?}', 'app-api')->where('path', '.*');
+Route::view('/tasks/{path?}', 'app-api')->where('path', '.*');
+Route::view('/feedbacks/{path?}', 'app-api')->where('path', '.*');
+Route::view('/faqs/{path?}', 'app-api')->where('path', '.*');
+Route::view('/alerts/{path?}', 'app-api')->where('path', '.*');
+Route::view('/slides/{path?}', 'app-api')->where('path', '.*');
+Route::view('/milestones/{path?}', 'app-api')->where('path', '.*');
+Route::view('/testimonials/{path?}', 'app-api')->where('path', '.*');
+Route::view('/user-subscriptions/{path?}', 'app-api')->where('path', '.*');
+Route::view('/users/{user}/subscriptions', 'app-api');
+Route::view('/access/{path?}', 'app-api')->where('path', '.*');
+Route::view('/questions/{path?}', 'app-api')->where('path', '.*');
+
+Route::view('/teacher/{path?}', 'app-api')->where('path', '.*');
+
+Route::view('/superadmin/{path?}', 'app-api')->where('path', '.*');
 
 // API: Check if the user has an active payment method set up
 Route::get('/api/check-payment-method-setup', [BillingController::class, 'checkPaymentMethodSetup'])->middleware('auth');

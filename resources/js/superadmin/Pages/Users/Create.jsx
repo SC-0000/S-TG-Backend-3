@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import React, { useEffect, useState } from 'react';
 import SuperAdminLayout from '@/superadmin/Layouts/SuperAdminLayout';
 import { ArrowLeft, Save, X } from 'lucide-react';
+import { apiClient, extractValidationErrors } from '@/api';
+import { useToast } from '@/contexts/ToastContext';
 
-export default function CreateUser({ organizations }) {
-    const { data, setData, post, processing, errors } = useForm({
+export default function CreateUser() {
+    const { showError, showSuccess } = useToast();
+    const [organizations, setOrganizations] = useState([]);
+    const [processing, setProcessing] = useState(false);
+    const [errors, setErrors] = useState({});
+    const [data, setData] = useState({
         name: '',
         email: '',
         password: '',
@@ -18,25 +23,64 @@ export default function CreateUser({ organizations }) {
         send_credentials: true,
     });
 
-    const handleSubmit = (e) => {
+    useEffect(() => {
+        let mounted = true;
+
+        const loadOrganizations = async () => {
+            try {
+                const response = await apiClient.get('/superadmin/organizations', {
+                    params: { per_page: 200 },
+                    useToken: true,
+                });
+                if (!mounted) return;
+                setOrganizations(Array.isArray(response?.data) ? response.data : []);
+            } catch (error) {
+                if (!mounted) return;
+                showError(error.message || 'Unable to load organizations.');
+            }
+        };
+
+        loadOrganizations();
+
+        return () => {
+            mounted = false;
+        };
+    }, [showError]);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        post('/superadmin/users');
+        setProcessing(true);
+        setErrors({});
+
+        try {
+            const payload = {
+                name: data.name,
+                email: data.email,
+                password: data.password,
+                role: data.role,
+                current_organization_id: data.current_organization_id || null,
+            };
+
+            await apiClient.post('/superadmin/users', payload, { useToken: true });
+            showSuccess('User created.');
+            window.location.href = '/superadmin/users';
+        } catch (error) {
+            const fieldErrors = extractValidationErrors(error);
+            setErrors(fieldErrors);
+            showError(error.message || 'Unable to create user.');
+        } finally {
+            setProcessing(false);
+        }
     };
 
     return (
         <SuperAdminLayout>
-            <Head title="Create User" />
-
             <div className="space-y-6">
-                {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link
-                            href="/superadmin/users"
-                            className="p-2 hover:bg-gray-100 rounded-lg transition"
-                        >
+                        <a href="/superadmin/users" className="p-2 hover:bg-gray-100 rounded-lg transition">
                             <ArrowLeft className="h-5 w-5" />
-                        </Link>
+                        </a>
                         <div>
                             <h1 className="text-3xl font-bold text-gray-900">Create New User</h1>
                             <p className="text-gray-500 mt-1">Add a new user to the platform</p>
@@ -44,14 +88,11 @@ export default function CreateUser({ organizations }) {
                     </div>
                 </div>
 
-                {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Basic Information */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 className="text-lg font-bold text-gray-900 mb-6">Basic Information</h2>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Full Name */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Full Name <span className="text-red-500">*</span>
@@ -59,7 +100,7 @@ export default function CreateUser({ organizations }) {
                                 <input
                                     type="text"
                                     value={data.name}
-                                    onChange={e => setData('name', e.target.value)}
+                                    onChange={e => setData((prev) => ({ ...prev, name: e.target.value }))}
                                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                         errors.name ? 'border-red-500' : 'border-gray-300'
                                     }`}
@@ -71,7 +112,6 @@ export default function CreateUser({ organizations }) {
                                 )}
                             </div>
 
-                            {/* Email */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Email Address <span className="text-red-500">*</span>
@@ -79,7 +119,7 @@ export default function CreateUser({ organizations }) {
                                 <input
                                     type="email"
                                     value={data.email}
-                                    onChange={e => setData('email', e.target.value)}
+                                    onChange={e => setData((prev) => ({ ...prev, email: e.target.value }))}
                                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                         errors.email ? 'border-red-500' : 'border-gray-300'
                                     }`}
@@ -91,7 +131,6 @@ export default function CreateUser({ organizations }) {
                                 )}
                             </div>
 
-                            {/* Mobile Number */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Mobile Number
@@ -99,23 +138,19 @@ export default function CreateUser({ organizations }) {
                                 <input
                                     type="tel"
                                     value={data.mobile_number}
-                                    onChange={e => setData('mobile_number', e.target.value)}
+                                    onChange={e => setData((prev) => ({ ...prev, mobile_number: e.target.value }))}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     placeholder="+44 7700 900000"
                                 />
-                                {errors.mobile_number && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.mobile_number}</p>
-                                )}
                             </div>
 
-                            {/* Role */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Role <span className="text-red-500">*</span>
                                 </label>
                                 <select
                                     value={data.role}
-                                    onChange={e => setData('role', e.target.value)}
+                                    onChange={e => setData((prev) => ({ ...prev, role: e.target.value }))}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     required
                                 >
@@ -129,14 +164,13 @@ export default function CreateUser({ organizations }) {
                                 )}
                             </div>
 
-                            {/* Organization */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Organization
                                 </label>
                                 <select
                                     value={data.current_organization_id}
-                                    onChange={e => setData('current_organization_id', e.target.value)}
+                                    onChange={e => setData((prev) => ({ ...prev, current_organization_id: e.target.value }))}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 >
                                     <option value="">Select an organization</option>
@@ -154,47 +188,10 @@ export default function CreateUser({ organizations }) {
                         </div>
                     </div>
 
-                    {/* Address Information */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h2 className="text-lg font-bold text-gray-900 mb-6">Address Information</h2>
-                        
-                        <div className="grid grid-cols-1 gap-6">
-                            {/* Address Line 1 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Address Line 1
-                                </label>
-                                <input
-                                    type="text"
-                                    value={data.address_line1}
-                                    onChange={e => setData('address_line1', e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="123 Main Street"
-                                />
-                            </div>
-
-                            {/* Address Line 2 */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Address Line 2
-                                </label>
-                                <input
-                                    type="text"
-                                    value={data.address_line2}
-                                    onChange={e => setData('address_line2', e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="Apartment, suite, etc."
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Security */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 className="text-lg font-bold text-gray-900 mb-6">Security</h2>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Password */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Password <span className="text-red-500">*</span>
@@ -202,7 +199,7 @@ export default function CreateUser({ organizations }) {
                                 <input
                                     type="password"
                                     value={data.password}
-                                    onChange={e => setData('password', e.target.value)}
+                                    onChange={e => setData((prev) => ({ ...prev, password: e.target.value }))}
                                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                                         errors.password ? 'border-red-500' : 'border-gray-300'
                                     }`}
@@ -215,7 +212,6 @@ export default function CreateUser({ organizations }) {
                                 <p className="mt-1 text-xs text-gray-500">Minimum 8 characters</p>
                             </div>
 
-                            {/* Confirm Password */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Confirm Password <span className="text-red-500">*</span>
@@ -223,58 +219,23 @@ export default function CreateUser({ organizations }) {
                                 <input
                                     type="password"
                                     value={data.password_confirmation}
-                                    onChange={e => setData('password_confirmation', e.target.value)}
+                                    onChange={e => setData((prev) => ({ ...prev, password_confirmation: e.target.value }))}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     placeholder="••••••••"
                                     required
                                 />
                             </div>
                         </div>
-
-                        {/* Send Credentials */}
-                        <div className="mt-6">
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={data.send_credentials}
-                                    onChange={e => setData('send_credentials', e.target.checked)}
-                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                />
-                                <span className="text-sm text-gray-700">
-                                    Send login credentials to user's email
-                                </span>
-                            </label>
-                        </div>
                     </div>
 
-                    {/* Account Status */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h2 className="text-lg font-bold text-gray-900 mb-6">Account Status</h2>
-                        
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Status
-                            </label>
-                            <select
-                                value={data.status}
-                                onChange={e => setData('status', e.target.value)}
-                                className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Action Buttons */}
                     <div className="flex items-center justify-end gap-4 pt-4">
-                        <Link
+                        <a
                             href="/superadmin/users"
                             className="flex items-center gap-2 px-6 py-2 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition"
                         >
                             <X className="h-4 w-4" />
                             Cancel
-                        </Link>
+                        </a>
                         <button
                             type="submit"
                             disabled={processing}

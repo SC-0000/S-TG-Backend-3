@@ -1,11 +1,13 @@
-import { Head, Link } from '@inertiajs/react';
+import React, { useEffect } from 'react';
 import { HomeIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 export default function Error500({ status, message, debug }) {
+    useEffect(() => {
+        document.title = '500 - Server Error';
+    }, []);
+
     return (
         <>
-            <Head title="500 - Server Error" />
-            
             <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-primary-50 flex items-center justify-center px-4">
                 <div className="max-w-2xl w-full text-center">
                     {/* Error Icon */}
@@ -46,22 +48,22 @@ export default function Error500({ status, message, debug }) {
                                 Try Again
                             </button>
                             
-                            <Link
+                            <a
                                 href="/"
                                 className="inline-flex items-center justify-center px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg transition-colors duration-200 border border-gray-300 shadow-sm font-poppins"
                             >
                                 <HomeIcon className="w-5 h-5 mr-2" />
                                 Go Home
-                            </Link>
+                            </a>
                         </div>
 
                         {/* Support Contact */}
                         <div className="mt-12 pt-8 border-t border-gray-200">
                             <p className="text-sm text-gray-600 font-nunito">
                                 Need immediate assistance?{' '}
-                                <Link href="/contact" className="text-accent hover:text-accent-600 font-medium transition-colors">
+                                <a href="/contact" className="text-accent hover:text-accent-600 font-medium transition-colors">
                                     Contact our support team
-                                </Link>
+                                </a>
                             </p>
                         </div>
                     </div>

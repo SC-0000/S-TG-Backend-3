@@ -84,7 +84,14 @@ class QuestionBankController extends BaseQuestionController
         $question->load(['creator:id,name', 'organization:id,name']);
         $data = (new QuestionResource($question))->resolve();
 
-        return $this->success($data);
+        return $this->success([
+            'question' => $data,
+            'rendered' => [
+                'student_view' => $question->renderForStudent(),
+                'admin_view' => $question->renderForAdmin(),
+            ],
+            'type_definition' => QuestionTypeRegistry::getTypeDefinition($question->question_type),
+        ]);
     }
 
     public function store(Request $request): JsonResponse
@@ -262,6 +269,7 @@ class QuestionBankController extends BaseQuestionController
             return (int) $organizationId;
         }
 
-        return (int) $request->attributes->get('organization_id');
+        $orgId = $request->attributes->get('organization_id') ?? $question?->organization_id;
+        return $orgId ? (int) $orgId : null;
     }
 }

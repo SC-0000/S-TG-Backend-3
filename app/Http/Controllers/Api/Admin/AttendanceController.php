@@ -7,6 +7,7 @@ use App\Http\Requests\Api\Attendance\AttendanceApproveRequest;
 use App\Http\Requests\Api\Attendance\AttendanceMarkAllRequest;
 use App\Models\Attendance;
 use App\Models\Lesson;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -226,6 +227,58 @@ class AttendanceController extends ApiController
         ]);
 
         return $this->success(['message' => 'Attendance updated']);
+    }
+
+    public function mark(Request $request, Lesson $lesson): JsonResponse
+    {
+        if ($response = $this->ensureLessonScope($request, $lesson)) {
+            return $response;
+        }
+
+        $data = $request->validate([
+            'child_id' => 'required|exists:children,id',
+            'status' => 'required|in:pending,present,absent,late,excused',
+            'notes' => 'nullable|string|max:500',
+            'date' => 'nullable|date',
+        ]);
+
+        $date = $data['date']
+            ? Carbon::parse($data['date'])->toDateString()
+            : $this->lessonDate($lesson);
+
+        $existing = Attendance::where('lesson_id', $lesson->id)
+            ->where('child_id', $data['child_id'])
+            ->whereDate('date', $date)
+            ->first();
+
+        Attendance::updateOrCreate(
+            [
+                'lesson_id' => $lesson->id,
+                'child_id' => $data['child_id'],
+            ],
+            [
+                'status' => $data['status'],
+                'notes' => $data['notes'] ?? null,
+                'approved' => $existing ? (bool) $existing->approved : false,
+                'date' => $date,
+            ]
+        );
+
+        $attendance = Attendance::where('lesson_id', $lesson->id)
+            ->where('child_id', $data['child_id'])
+            ->whereDate('date', $date)
+            ->first();
+
+        return $this->success([
+            'attendance' => [
+                'id' => $attendance?->id,
+                'child_id' => $attendance?->child_id,
+                'status' => $attendance?->status,
+                'notes' => $attendance?->notes,
+                'approved' => (bool) ($attendance?->approved ?? false),
+                'date' => $attendance?->date,
+            ],
+        ]);
     }
 
     private function lessonDate(Lesson $lesson): string

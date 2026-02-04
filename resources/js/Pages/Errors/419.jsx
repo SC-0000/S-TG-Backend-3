@@ -1,28 +1,17 @@
-import { Head, Link, router } from '@inertiajs/react';
+import React, { useEffect } from 'react';
 import { HomeIcon, ArrowPathIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 export default function Error419({ status, message }) {
     const handleRefresh = () => {
-        // Use Inertia's router.reload() instead of window.location.reload()
-        // This ensures proper CSRF token refresh and Inertia state management
-        router.reload({ 
-            preserveState: false,
-            preserveScroll: false,
-            only: [],
-            onSuccess: () => {
-                // Force update the CSRF token after reload
-                const token = document.head.querySelector('meta[name="csrf-token"]');
-                if (token && window.axios) {
-                    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token.content;
-                }
-            }
-        });
+        window.location.reload();
     };
+
+    useEffect(() => {
+        document.title = '419 - Page Expired';
+    }, []);
 
     return (
         <>
-            <Head title="419 - Page Expired" />
-            
             <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-primary-50 flex items-center justify-center px-4">
                 <div className="max-w-2xl w-full text-center">
                     {/* Clock Icon */}
@@ -56,13 +45,13 @@ export default function Error419({ status, message }) {
                                 Refresh Page
                             </button>
                             
-                            <Link
+                            <a
                                 href="/"
                                 className="inline-flex items-center justify-center px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg transition-colors duration-200 border border-gray-300 shadow-sm font-poppins"
                             >
                                 <HomeIcon className="w-5 h-5 mr-2" />
                                 Go Home
-                            </Link>
+                            </a>
                         </div>
 
                         {/* Info Section */}

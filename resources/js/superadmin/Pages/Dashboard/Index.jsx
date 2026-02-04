@@ -1,10 +1,11 @@
-import React from 'react';
-import { Head } from '@inertiajs/react';
+import React, { useEffect, useState } from 'react';
 import SuperAdminLayout from '@/superadmin/Layouts/SuperAdminLayout';
 import { 
-    Users, Building2, FileText, DollarSign, 
-    TrendingUp, Activity, AlertCircle 
+    Users, Building2, FileText,
+    Activity, AlertCircle 
 } from 'lucide-react';
+import { apiClient } from '@/api';
+import { useToast } from '@/contexts/ToastContext';
 
 const StatCard = ({ title, value, change, icon: Icon, color }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -23,48 +24,70 @@ const StatCard = ({ title, value, change, icon: Icon, color }) => (
     </div>
 );
 
-export default function Dashboard({ stats: backendStats }) {
-    // Use backend data if available, otherwise fallback to dummy data for preview
-    const statsData = backendStats ? [
+export default function Dashboard() {
+    const { showError } = useToast();
+    const [stats, setStats] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let mounted = true;
+
+        const loadStats = async () => {
+            try {
+                setLoading(true);
+                const response = await apiClient.get('/superadmin/dashboard', { useToken: true });
+                if (!mounted) return;
+                setStats(response?.data?.stats || null);
+            } catch (error) {
+                if (!mounted) return;
+                showError(error.message || 'Unable to load dashboard stats.');
+            } finally {
+                if (mounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        loadStats();
+
+        return () => {
+            mounted = false;
+        };
+    }, [showError]);
+
+    const statsData = stats ? [
         { 
             title: 'Total Users', 
-            value: backendStats.total_users?.toLocaleString() || '0', 
+            value: stats.total_users?.toLocaleString() || '0', 
             change: null, 
             icon: Users, 
             color: 'bg-blue-600' 
         },
         { 
             title: 'Organizations', 
-            value: backendStats.total_organizations?.toLocaleString() || '0', 
+            value: stats.total_organizations?.toLocaleString() || '0', 
             change: null, 
             icon: Building2, 
             color: 'bg-purple-600' 
         },
         { 
             title: 'Courses', 
-            value: backendStats.total_courses?.toLocaleString() || '0', 
+            value: stats.total_courses?.toLocaleString() || '0', 
             change: null, 
             icon: FileText, 
             color: 'bg-green-600' 
         },
         { 
             title: 'Lessons', 
-            value: backendStats.total_lessons?.toLocaleString() || '0', 
+            value: stats.total_lessons?.toLocaleString() || '0', 
             change: null, 
             icon: FileText, 
             color: 'bg-purple-600' 
         },
-    ] : [
-        { title: 'Total Users', value: '12,543', change: 12, icon: Users, color: 'bg-blue-600' },
-        { title: 'Organizations', value: '342', change: 8, icon: Building2, color: 'bg-purple-600' },
-        { title: 'Content Items', value: '8,291', change: 15, icon: FileText, color: 'bg-green-600' },
-        { title: 'Revenue (MTD)', value: '$45,230', change: 23, icon: DollarSign, color: 'bg-orange-600' },
-    ];
+    ] : [];
 
     return (
         <SuperAdminLayout>
-            <Head title="Super Admin Dashboard" />
-            
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
@@ -76,9 +99,13 @@ export default function Dashboard({ stats: backendStats }) {
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {statsData.map((stat, index) => (
-                        <StatCard key={index} {...stat} />
-                    ))}
+                    {loading ? (
+                        <div className="col-span-full text-gray-500">Loading stats...</div>
+                    ) : (
+                        statsData.map((stat, index) => (
+                            <StatCard key={index} {...stat} />
+                        ))
+                    )}
                 </div>
 
                 {/* Quick Actions */}

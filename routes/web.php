@@ -2,6 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 
+Route::view('/app/{path?}', 'app-api')
+    ->where('path', '.*')
+    ->name('app.api');
+
 // Generic /dashboard route that redirects based on user role
 Route::get('/dashboard', function () {
     $user = auth()->user();
@@ -17,9 +21,13 @@ Route::get('/dashboard', function () {
         'super_admin' => redirect()->route('superadmin.dashboard'),
         default => redirect('/'),
     };
-})->middleware('auth')->name('dashboard.redirect');
+})->middleware('auth')->name('dashboard');
 
 require __DIR__.'/public.php';
 require __DIR__.'/admin.php';
 require __DIR__.'/teacher.php';
 require __DIR__.'/parent.php';
+
+Route::fallback(function () {
+    return view('app-api');
+});

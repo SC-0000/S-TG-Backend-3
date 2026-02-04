@@ -13,8 +13,14 @@ class ProfileController extends ApiController
 {
     public function show(): JsonResponse
     {
+        $user = request()->user();
+
+        if (!$user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
         return $this->success([
-            'user' => new UserResource(request()->user()),
+            'user' => new UserResource($user),
         ]);
     }
 

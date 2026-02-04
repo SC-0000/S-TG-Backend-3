@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
+import React, { useEffect, useState } from 'react';
 import SuperAdminLayout from '@/superadmin/Layouts/SuperAdminLayout';
 import { Upload, X, Eye, Check, Palette as PaletteIcon, Mail, Globe, Settings } from 'lucide-react';
+import { apiClient, extractValidationErrors } from '@/api';
+import { useToast } from '@/contexts/ToastContext';
 
-// Predefined color palettes
 const COLOR_PALETTES = [
     {
         name: 'Purple Wave',
@@ -31,7 +31,13 @@ const COLOR_PALETTES = [
     },
 ];
 
-// File Upload Component with Drag & Drop
+const resolveOrganizationId = () => {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const index = parts.indexOf('organizations');
+    if (index >= 0 && parts[index + 1]) return parts[index + 1];
+    return parts[parts.length - 1];
+};
+
 function FileUpload({ label, accept, onUpload, currentUrl, onDelete, className = '', description }) {
     const [isDragging, setIsDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -121,7 +127,6 @@ function FileUpload({ label, accept, onUpload, currentUrl, onDelete, className =
     );
 }
 
-// Color Picker Component with Palette
 function ColorPicker({ label, value, onChange, description }) {
     const [showPalette, setShowPalette] = useState(false);
     
@@ -137,7 +142,6 @@ function ColorPicker({ label, value, onChange, description }) {
             {description && <p className="text-xs text-gray-500 mb-2">{description}</p>}
             
             <div className="flex items-center gap-3">
-                {/* Color Preview */}
                 <div className="relative">
                     <input
                         type="color"
@@ -147,7 +151,6 @@ function ColorPicker({ label, value, onChange, description }) {
                     />
                 </div>
 
-                {/* Hex Input */}
                 <input
                     type="text"
                     value={value}
@@ -156,7 +159,6 @@ function ColorPicker({ label, value, onChange, description }) {
                     placeholder="#000000"
                 />
 
-                {/* Palette Button */}
                 <button
                     type="button"
                     onClick={() => setShowPalette(!showPalette)}
@@ -166,7 +168,6 @@ function ColorPicker({ label, value, onChange, description }) {
                 </button>
             </div>
 
-            {/* Color Palette Dropdown */}
             {showPalette && (
                 <div className="absolute z-10 mt-2 p-4 bg-white border border-gray-200 rounded-lg shadow-xl">
                     <p className="text-xs font-semibold text-gray-700 mb-2">Quick Colors</p>
@@ -191,7 +192,6 @@ function ColorPicker({ label, value, onChange, description }) {
     );
 }
 
-// Live Preview Component
 function LivePreview({ data, organization }) {
     return (
         <div className="bg-white rounded-xl shadow-lg p-6 sticky top-6">
@@ -202,12 +202,10 @@ function LivePreview({ data, organization }) {
                 </h3>
             </div>
 
-            {/* Preview Content */}
             <div className="space-y-6">
-                {/* Logo Preview */}
                 <div className="border-2 border-gray-200 rounded-lg p-6 bg-gray-50">
                     <p className="text-xs font-semibold text-gray-600 mb-3">Logo</p>
-                    {organization.settings?.branding?.logo_url ? (
+                    {organization?.settings?.branding?.logo_url ? (
                         <img
                             src={organization.settings.branding.logo_url}
                             alt="Logo Preview"
@@ -220,7 +218,6 @@ function LivePreview({ data, organization }) {
                     )}
                 </div>
 
-                {/* Theme Colors Preview */}
                 <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
                     <p className="text-xs font-semibold text-gray-600 mb-3">Theme Colors</p>
                     <div className="space-y-2">
@@ -243,7 +240,6 @@ function LivePreview({ data, organization }) {
                     </div>
                 </div>
 
-                {/* Sample Button Preview */}
                 <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
                     <p className="text-xs font-semibold text-gray-600 mb-3">Sample Button</p>
                     <button
@@ -260,7 +256,6 @@ function LivePreview({ data, organization }) {
                     </button>
                 </div>
 
-                {/* Organization Info Preview */}
                 <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
                     <p className="text-xs font-semibold text-gray-600 mb-2">Organization Info</p>
                     <h4 className="font-bold text-gray-900">{data['branding.organization_name'] || 'Organization Name'}</h4>
@@ -271,100 +266,189 @@ function LivePreview({ data, organization }) {
     );
 }
 
-export default function Branding({ organization }) {
+export default function Branding() {
+    const { showError, showSuccess } = useToast();
+    const organizationId = resolveOrganizationId();
     const [activeTab, setActiveTab] = useState('branding');
     const [selectedPalette, setSelectedPalette] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [processing, setProcessing] = useState(false);
+    const [errors, setErrors] = useState({});
+    const [organization, setOrganization] = useState(null);
 
-    const { data, setData, post, processing, errors } = useForm({
-        // Branding
-        'branding.organization_name': organization.settings?.branding?.organization_name || '',
-        'branding.tagline': organization.settings?.branding?.tagline || '',
-        'branding.description': organization.settings?.branding?.description || '',
-        
-        // Theme Colors
-        'theme.colors.primary': organization.settings?.theme?.colors?.primary || '#411183',
-        'theme.colors.accent': organization.settings?.theme?.colors?.accent || '#1F6DF2',
-        'theme.colors.accent_soft': organization.settings?.theme?.colors?.accent_soft || '#93C5FD',
-        'theme.colors.secondary': organization.settings?.theme?.colors?.secondary || '#6B7280',
-        'theme.colors.heavy': organization.settings?.theme?.colors?.heavy || '#1F2937',
-        
-        // Contact
-        'contact.email': organization.settings?.contact?.email || '',
-        'contact.phone': organization.settings?.contact?.phone || '',
-        'contact.business_hours': organization.settings?.contact?.business_hours || '',
-        'contact.address.line1': organization.settings?.contact?.address?.line1 || '',
-        'contact.address.city': organization.settings?.contact?.address?.city || '',
-        'contact.address.country': organization.settings?.contact?.address?.country || '',
-        
-        // Social Media
-        'social_media.facebook': organization.settings?.social_media?.facebook || '',
-        'social_media.twitter': organization.settings?.social_media?.twitter || '',
-        'social_media.instagram': organization.settings?.social_media?.instagram || '',
-        'social_media.linkedin': organization.settings?.social_media?.linkedin || '',
-        'social_media.youtube': organization.settings?.social_media?.youtube || '',
-        
-        // Email Settings
-        'email.from_name': organization.settings?.email?.from_name || '',
-        'email.from_email': organization.settings?.email?.from_email || '',
-        'email.header_color': organization.settings?.email?.header_color || '#411183',
-        'email.button_color': organization.settings?.email?.button_color || '#1F6DF2',
-        'email.footer_text': organization.settings?.email?.footer_text || '',
-        'email.footer_disclaimer': organization.settings?.email?.footer_disclaimer || '',
-        
-        // Custom CSS
-        'theme.custom_css': organization.settings?.theme?.custom_css || '',
+    const [data, setData] = useState({
+        'branding.organization_name': '',
+        'branding.tagline': '',
+        'branding.description': '',
+        'theme.colors.primary': '#411183',
+        'theme.colors.accent': '#1F6DF2',
+        'theme.colors.accent_soft': '#93C5FD',
+        'theme.colors.secondary': '#6B7280',
+        'theme.colors.heavy': '#1F2937',
+        'contact.email': '',
+        'contact.phone': '',
+        'contact.business_hours': '',
+        'contact.address.line1': '',
+        'contact.address.city': '',
+        'contact.address.country': '',
+        'social_media.facebook': '',
+        'social_media.twitter': '',
+        'social_media.instagram': '',
+        'social_media.linkedin': '',
+        'social_media.youtube': '',
+        'email.from_name': '',
+        'email.from_email': '',
+        'email.header_color': '#411183',
+        'email.button_color': '#1F6DF2',
+        'email.footer_text': '',
+        'email.footer_disclaimer': '',
+        'theme.custom_css': '',
     });
 
-    const handleSubmit = (e) => {
+    useEffect(() => {
+        let mounted = true;
+
+        const loadOrganization = async () => {
+            try {
+                setLoading(true);
+                const response = await apiClient.get(`/superadmin/organizations/${organizationId}`, { useToken: true });
+                if (!mounted) return;
+                const org = response?.data?.organization;
+                if (!org) throw new Error('Organization not found.');
+                setOrganization(org);
+                const settings = org.settings || {};
+
+                setData((prev) => ({
+                    ...prev,
+                    'branding.organization_name': settings?.branding?.organization_name || '',
+                    'branding.tagline': settings?.branding?.tagline || '',
+                    'branding.description': settings?.branding?.description || '',
+                    'theme.colors.primary': settings?.theme?.colors?.primary || prev['theme.colors.primary'],
+                    'theme.colors.accent': settings?.theme?.colors?.accent || prev['theme.colors.accent'],
+                    'theme.colors.accent_soft': settings?.theme?.colors?.accent_soft || prev['theme.colors.accent_soft'],
+                    'theme.colors.secondary': settings?.theme?.colors?.secondary || prev['theme.colors.secondary'],
+                    'theme.colors.heavy': settings?.theme?.colors?.heavy || prev['theme.colors.heavy'],
+                    'contact.email': settings?.contact?.email || '',
+                    'contact.phone': settings?.contact?.phone || '',
+                    'contact.business_hours': settings?.contact?.business_hours || '',
+                    'contact.address.line1': settings?.contact?.address?.line1 || '',
+                    'contact.address.city': settings?.contact?.address?.city || '',
+                    'contact.address.country': settings?.contact?.address?.country || '',
+                    'social_media.facebook': settings?.social_media?.facebook || '',
+                    'social_media.twitter': settings?.social_media?.twitter || '',
+                    'social_media.instagram': settings?.social_media?.instagram || '',
+                    'social_media.linkedin': settings?.social_media?.linkedin || '',
+                    'social_media.youtube': settings?.social_media?.youtube || '',
+                    'email.from_name': settings?.email?.from_name || '',
+                    'email.from_email': settings?.email?.from_email || '',
+                    'email.header_color': settings?.email?.header_color || prev['email.header_color'],
+                    'email.button_color': settings?.email?.button_color || prev['email.button_color'],
+                    'email.footer_text': settings?.email?.footer_text || '',
+                    'email.footer_disclaimer': settings?.email?.footer_disclaimer || '',
+                    'theme.custom_css': settings?.theme?.custom_css || '',
+                }));
+            } catch (error) {
+                if (!mounted) return;
+                showError(error.message || 'Unable to load organization settings.');
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        };
+
+        loadOrganization();
+
+        return () => {
+            mounted = false;
+        };
+    }, [showError, organizationId]);
+
+    const updateField = (key, value) => {
+        setData((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        post(route('superadmin.organizations.branding.update', organization.id), {
-            preserveScroll: true,
-        });
+        setProcessing(true);
+        setErrors({});
+
+        try {
+            await apiClient.put(`/superadmin/organizations/${organizationId}/branding`, data, { useToken: true });
+            showSuccess('Branding updated.');
+        } catch (error) {
+            const fieldErrors = extractValidationErrors(error);
+            setErrors(fieldErrors);
+            showError(error.message || 'Unable to update branding.');
+        } finally {
+            setProcessing(false);
+        }
     };
 
     const handleLogoUpload = async (file, type) => {
         const formData = new FormData();
         formData.append('logo', file);
         formData.append('type', type);
-
-        return new Promise((resolve) => {
-            router.post(route('superadmin.organizations.branding.upload-logo', organization.id), formData, {
-                preserveScroll: true,
-                onFinish: () => resolve(),
-            });
-        });
+        const response = await apiClient.post(`/superadmin/organizations/${organizationId}/branding/logo`, formData, { useToken: true });
+        if (response?.data?.logo_url) {
+            setOrganization((prev) => ({
+                ...prev,
+                settings: {
+                    ...prev.settings,
+                    branding: {
+                        ...prev.settings?.branding,
+                        ...(type === 'dark' ? { logo_dark_url: response.data.logo_url } : { logo_url: response.data.logo_url }),
+                    },
+                },
+            }));
+        }
     };
 
     const handleFaviconUpload = async (file) => {
         const formData = new FormData();
         formData.append('favicon', file);
-
-        return new Promise((resolve) => {
-            router.post(route('superadmin.organizations.branding.upload-favicon', organization.id), formData, {
-                preserveScroll: true,
-                onFinish: () => resolve(),
-            });
-        });
+        const response = await apiClient.post(`/superadmin/organizations/${organizationId}/branding/favicon`, formData, { useToken: true });
+        if (response?.data?.favicon_url) {
+            setOrganization((prev) => ({
+                ...prev,
+                settings: {
+                    ...prev.settings,
+                    branding: {
+                        ...prev.settings?.branding,
+                        favicon_url: response.data.favicon_url,
+                    },
+                },
+            }));
+        }
     };
 
-    const handleDeleteAsset = (assetType) => {
+    const handleDeleteAsset = async (assetType) => {
         if (!confirm(`Are you sure you want to delete this ${assetType}?`)) return;
-
-        router.delete(route('superadmin.organizations.branding.delete-asset', organization.id), {
-            data: { asset_type: assetType },
-            preserveScroll: true,
+        await apiClient.delete(`/superadmin/organizations/${organizationId}/branding/asset`, {
+            body: { asset_type: assetType },
+            useToken: true,
         });
+        setOrganization((prev) => ({
+            ...prev,
+            settings: {
+                ...prev.settings,
+                branding: {
+                    ...prev.settings?.branding,
+                    ...(assetType === 'logo' ? { logo_url: null } : {}),
+                    ...(assetType === 'logo_dark' ? { logo_dark_url: null } : {}),
+                    ...(assetType === 'favicon' ? { favicon_url: null } : {}),
+                },
+            },
+        }));
     };
 
     const applyPalette = (palette) => {
-        setData({
-            ...data,
+        setData((prev) => ({
+            ...prev,
             'theme.colors.primary': palette.colors.primary,
             'theme.colors.accent': palette.colors.accent,
             'theme.colors.accent_soft': palette.colors.accent_soft,
             'theme.colors.secondary': palette.colors.secondary,
             'theme.colors.heavy': palette.colors.heavy,
-        });
+        }));
         setSelectedPalette(palette.name);
         setTimeout(() => setSelectedPalette(null), 2000);
     };
@@ -378,25 +462,27 @@ export default function Branding({ organization }) {
         { id: 'advanced', name: 'Advanced', icon: Settings },
     ];
 
+    if (loading) {
+        return (
+            <SuperAdminLayout>
+                <div className="text-gray-600">Loading branding settings...</div>
+            </SuperAdminLayout>
+        );
+    }
+
     return (
         <SuperAdminLayout>
-            <Head title={`Branding - ${organization.name}`} />
-
             <div className="py-8 bg-gray-50 min-h-screen">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    {/* Header */}
                     <div className="mb-8">
                         <h1 className="text-4xl font-bold text-gray-900">Organization Branding</h1>
                         <p className="mt-2 text-gray-600">
-                            Customize the look and feel for <span className="font-semibold text-gray-900">{organization.name}</span>
+                            Customize the look and feel for <span className="font-semibold text-gray-900">{organization?.name}</span>
                         </p>
                     </div>
 
-                    {/* Main Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Left Column - Form */}
                         <div className="lg:col-span-2">
-                            {/* Tabs */}
                             <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
                                 <div className="border-b border-gray-200">
                                     <nav className="flex overflow-x-auto">
@@ -420,14 +506,11 @@ export default function Branding({ organization }) {
                                 </div>
 
                                 <form onSubmit={handleSubmit} className="p-8">
-                                    {/* Branding Tab */}
                                     {activeTab === 'branding' && (
                                         <div className="space-y-8">
                                             <div>
                                                 <h3 className="text-2xl font-bold text-gray-900 mb-6">Branding Assets</h3>
-                                                
                                                 <div className="space-y-6">
-                                                    {/* Organization Name */}
                                                     <div>
                                                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                                                             Organization Name
@@ -435,13 +518,12 @@ export default function Branding({ organization }) {
                                                         <input
                                                             type="text"
                                                             value={data['branding.organization_name']}
-                                                            onChange={(e) => setData('branding.organization_name', e.target.value)}
+                                                            onChange={(e) => updateField('branding.organization_name', e.target.value)}
                                                             className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                                             placeholder="Enter organization name"
                                                         />
                                                     </div>
 
-                                                    {/* Tagline */}
                                                     <div>
                                                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                                                             Tagline
@@ -449,33 +531,31 @@ export default function Branding({ organization }) {
                                                         <input
                                                             type="text"
                                                             value={data['branding.tagline']}
-                                                            onChange={(e) => setData('branding.tagline', e.target.value)}
+                                                            onChange={(e) => updateField('branding.tagline', e.target.value)}
                                                             className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                                             placeholder="Enter tagline"
                                                         />
                                                     </div>
 
-                                                    {/* Description */}
                                                     <div>
                                                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                                                             Description
                                                         </label>
                                                         <textarea
                                                             value={data['branding.description']}
-                                                            onChange={(e) => setData('branding.description', e.target.value)}
+                                                            onChange={(e) => updateField('branding.description', e.target.value)}
                                                             rows={4}
                                                             className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                                             placeholder="Enter organization description"
                                                         />
                                                     </div>
 
-                                                    {/* Logo Uploads */}
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                         <FileUpload
                                                             label="Logo (Light Mode)"
                                                             accept="image/png,image/svg+xml,image/webp,image/jpeg"
                                                             onUpload={(file) => handleLogoUpload(file, 'light')}
-                                                            currentUrl={organization.settings?.branding?.logo_url}
+                                                            currentUrl={organization?.settings?.branding?.logo_url}
                                                             onDelete={() => handleDeleteAsset('logo')}
                                                             description="PNG, SVG, WEBP, JPG (max 2MB)"
                                                         />
@@ -484,18 +564,17 @@ export default function Branding({ organization }) {
                                                             label="Logo (Dark Mode)"
                                                             accept="image/png,image/svg+xml,image/webp,image/jpeg"
                                                             onUpload={(file) => handleLogoUpload(file, 'dark')}
-                                                            currentUrl={organization.settings?.branding?.logo_dark_url}
+                                                            currentUrl={organization?.settings?.branding?.logo_dark_url}
                                                             onDelete={() => handleDeleteAsset('logo_dark')}
                                                             description="Optional for dark themes"
                                                         />
                                                     </div>
 
-                                                    {/* Favicon */}
                                                     <FileUpload
                                                         label="Favicon"
                                                         accept="image/x-icon,image/png"
                                                         onUpload={handleFaviconUpload}
-                                                        currentUrl={organization.settings?.branding?.favicon_url}
+                                                        currentUrl={organization?.settings?.branding?.favicon_url}
                                                         onDelete={() => handleDeleteAsset('favicon')}
                                                         description="ICO or PNG (max 100KB, 32x32 or 16x16)"
                                                         className="max-w-md"
@@ -505,7 +584,6 @@ export default function Branding({ organization }) {
                                         </div>
                                     )}
 
-                                    {/* Theme Colors Tab */}
                                     {activeTab === 'theme' && (
                                         <div className="space-y-8">
                                             <div>
@@ -514,37 +592,34 @@ export default function Branding({ organization }) {
                                                     Choose colors that represent your brand. These will be used throughout the application.
                                                 </p>
 
-                                                {/* Color Palettes */}
                                                 <div className="mb-8 p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border border-blue-200">
                                                     <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
                                                         <PaletteIcon className="w-4 h-4" />
-                                                        Quick Start Palettes
+                                                        Quick Palettes
                                                     </h4>
-                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                         {COLOR_PALETTES.map((palette) => (
                                                             <button
                                                                 key={palette.name}
                                                                 type="button"
                                                                 onClick={() => applyPalette(palette)}
-                                                                className={`
-                                                                    p-4 rounded-lg border-2 transition-all hover:shadow-md
-                                                                    ${selectedPalette === palette.name
+                                                                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                                                                    selectedPalette === palette.name
                                                                         ? 'border-green-500 bg-green-50'
-                                                                        : 'border-gray-200 bg-white hover:border-blue-400'
-                                                                    }
-                                                                `}
+                                                                        : 'border-gray-200 hover:border-blue-300 bg-white'
+                                                                }`}
                                                             >
-                                                                <div className="flex justify-between items-center mb-2">
-                                                                    <span className="text-xs font-semibold text-gray-700">{palette.name}</span>
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-medium text-gray-900">{palette.name}</span>
                                                                     {selectedPalette === palette.name && (
                                                                         <Check className="w-4 h-4 text-green-600" />
                                                                     )}
                                                                 </div>
-                                                                <div className="flex gap-1">
-                                                                    {Object.values(palette.colors).map((color, idx) => (
+                                                                <div className="flex gap-2 mt-3">
+                                                                    {Object.values(palette.colors).map((color, i) => (
                                                                         <div
-                                                                            key={idx}
-                                                                            className="w-8 h-8 rounded shadow-sm"
+                                                                            key={i}
+                                                                            className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
                                                                             style={{ backgroundColor: color }}
                                                                         />
                                                                     ))}
@@ -554,283 +629,224 @@ export default function Branding({ organization }) {
                                                     </div>
                                                 </div>
 
-                                                {/* Individual Color Pickers */}
-                                                <div className="space-y-6">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     <ColorPicker
                                                         label="Primary Color"
                                                         value={data['theme.colors.primary']}
-                                                        onChange={(value) => setData('theme.colors.primary', value)}
-                                                        description="Main brand color used for buttons, links, and key elements"
+                                                        onChange={(value) => updateField('theme.colors.primary', value)}
+                                                        description="Main brand color"
                                                     />
-
                                                     <ColorPicker
                                                         label="Accent Color"
                                                         value={data['theme.colors.accent']}
-                                                        onChange={(value) => setData('theme.colors.accent', value)}
-                                                        description="Secondary highlights and call-to-action elements"
+                                                        onChange={(value) => updateField('theme.colors.accent', value)}
+                                                        description="Secondary brand color"
                                                     />
-
                                                     <ColorPicker
                                                         label="Accent Soft"
                                                         value={data['theme.colors.accent_soft']}
-                                                        onChange={(value) => setData('theme.colors.accent_soft', value)}
-                                                        description="Light accent for backgrounds and subtle highlights"
+                                                        onChange={(value) => updateField('theme.colors.accent_soft', value)}
+                                                        description="Soft accent for backgrounds"
                                                     />
-
                                                     <ColorPicker
                                                         label="Secondary Color"
                                                         value={data['theme.colors.secondary']}
-                                                        onChange={(value) => setData('theme.colors.secondary', value)}
-                                                        description="Supporting color for less prominent elements"
+                                                        onChange={(value) => updateField('theme.colors.secondary', value)}
                                                     />
-
                                                     <ColorPicker
                                                         label="Heavy Color"
                                                         value={data['theme.colors.heavy']}
-                                                        onChange={(value) => setData('theme.colors.heavy', value)}
-                                                        description="Dark color for text and strong contrasts"
+                                                        onChange={(value) => updateField('theme.colors.heavy', value)}
                                                     />
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Contact Info Tab */}
                                     {activeTab === 'contact' && (
                                         <div className="space-y-6">
-                                            <h3 className="text-2xl font-bold text-gray-900 mb-6">Contact Information</h3>
-
+                                            <div>
+                                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Contact Info</h3>
+                                                <p className="text-gray-600 mb-6">Set support contact details.</p>
+                                            </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div>
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
                                                     <input
                                                         type="email"
                                                         value={data['contact.email']}
-                                                        onChange={(e) => setData('contact.email', e.target.value)}
+                                                        onChange={(e) => updateField('contact.email', e.target.value)}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="contact@example.com"
                                                     />
                                                 </div>
-
                                                 <div>
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
                                                     <input
-                                                        type="tel"
+                                                        type="text"
                                                         value={data['contact.phone']}
-                                                        onChange={(e) => setData('contact.phone', e.target.value)}
+                                                        onChange={(e) => updateField('contact.phone', e.target.value)}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="+1 (555) 123-4567"
                                                     />
                                                 </div>
-
-                                                <div className="md:col-span-2">
+                                                <div>
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Business Hours</label>
                                                     <input
                                                         type="text"
                                                         value={data['contact.business_hours']}
-                                                        onChange={(e) => setData('contact.business_hours', e.target.value)}
+                                                        onChange={(e) => updateField('contact.business_hours', e.target.value)}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="Mon-Fri 9AM-5PM EST"
                                                     />
                                                 </div>
-
-                                                <div className="md:col-span-2">
-                                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                                                <div>
+                                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Address Line 1</label>
                                                     <input
                                                         type="text"
                                                         value={data['contact.address.line1']}
-                                                        onChange={(e) => setData('contact.address.line1', e.target.value)}
+                                                        onChange={(e) => updateField('contact.address.line1', e.target.value)}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="123 Main Street"
                                                     />
                                                 </div>
-
                                                 <div>
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">City</label>
                                                     <input
                                                         type="text"
                                                         value={data['contact.address.city']}
-                                                        onChange={(e) => setData('contact.address.city', e.target.value)}
+                                                        onChange={(e) => updateField('contact.address.city', e.target.value)}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="New York"
                                                     />
                                                 </div>
-
                                                 <div>
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Country</label>
                                                     <input
                                                         type="text"
                                                         value={data['contact.address.country']}
-                                                        onChange={(e) => setData('contact.address.country', e.target.value)}
+                                                        onChange={(e) => updateField('contact.address.country', e.target.value)}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="United States"
                                                     />
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Social Media Tab */}
                                     {activeTab === 'social' && (
                                         <div className="space-y-6">
-                                            <h3 className="text-2xl font-bold text-gray-900 mb-6">Social Media Links</h3>
-
-                                            {[
-                                                { key: 'social_media.facebook', label: 'Facebook', placeholder: 'https://facebook.com/...' },
-                                                { key: 'social_media.twitter', label: 'Twitter', placeholder: 'https://twitter.com/...' },
-                                                { key: 'social_media.instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
-                                                { key: 'social_media.linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/...' },
-                                                { key: 'social_media.youtube', label: 'YouTube', placeholder: 'https://youtube.com/...' },
-                                            ].map((social) => (
-                                                <div key={social.key}>
-                                                    <label className="block text-sm font-semibold text-gray-700 mb-2">{social.label}</label>
-                                                    <input
-                                                        type="url"
-                                                        value={data[social.key]}
-                                                        onChange={(e) => setData(social.key, e.target.value)}
-                                                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder={social.placeholder}
-                                                    />
-                                                </div>
-                                            ))}
+                                            <div>
+                                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Social Media</h3>
+                                                <p className="text-gray-600 mb-6">Add social media links.</p>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {['facebook', 'twitter', 'instagram', 'linkedin', 'youtube'].map((key) => (
+                                                    <div key={key}>
+                                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                            {key.charAt(0).toUpperCase() + key.slice(1)}
+                                                        </label>
+                                                        <input
+                                                            type="url"
+                                                            value={data[`social_media.${key}`]}
+                                                            onChange={(e) => updateField(`social_media.${key}`, e.target.value)}
+                                                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
 
-                                    {/* Email Settings Tab */}
                                     {activeTab === 'email' && (
                                         <div className="space-y-6">
-                                            <h3 className="text-2xl font-bold text-gray-900 mb-6">Email Branding</h3>
-
+                                            <div>
+                                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Email Settings</h3>
+                                                <p className="text-gray-600 mb-6">Configure email branding.</p>
+                                            </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div>
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">From Name</label>
                                                     <input
                                                         type="text"
                                                         value={data['email.from_name']}
-                                                        onChange={(e) => setData('email.from_name', e.target.value)}
+                                                        onChange={(e) => updateField('email.from_name', e.target.value)}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="Your Organization"
                                                     />
                                                 </div>
-
                                                 <div>
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">From Email</label>
                                                     <input
                                                         type="email"
                                                         value={data['email.from_email']}
-                                                        onChange={(e) => setData('email.from_email', e.target.value)}
+                                                        onChange={(e) => updateField('email.from_email', e.target.value)}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="noreply@example.com"
                                                     />
                                                 </div>
-
-                                                <div>
-                                                    <ColorPicker
-                                                        label="Email Header Color"
-                                                        value={data['email.header_color']}
-                                                        onChange={(value) => setData('email.header_color', value)}
-                                                        description="Color for email headers"
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <ColorPicker
-                                                        label="Email Button Color"
-                                                        value={data['email.button_color']}
-                                                        onChange={(value) => setData('email.button_color', value)}
-                                                        description="Color for call-to-action buttons"
-                                                    />
-                                                </div>
-
+                                                <ColorPicker
+                                                    label="Header Color"
+                                                    value={data['email.header_color']}
+                                                    onChange={(value) => updateField('email.header_color', value)}
+                                                />
+                                                <ColorPicker
+                                                    label="Button Color"
+                                                    value={data['email.button_color']}
+                                                    onChange={(value) => updateField('email.button_color', value)}
+                                                />
                                                 <div className="md:col-span-2">
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Footer Text</label>
-                                                    <input
-                                                        type="text"
+                                                    <textarea
                                                         value={data['email.footer_text']}
-                                                        onChange={(e) => setData('email.footer_text', e.target.value)}
+                                                        onChange={(e) => updateField('email.footer_text', e.target.value)}
+                                                        rows={3}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="© 2025. All rights reserved."
                                                     />
                                                 </div>
-
                                                 <div className="md:col-span-2">
                                                     <label className="block text-sm font-semibold text-gray-700 mb-2">Footer Disclaimer</label>
                                                     <textarea
                                                         value={data['email.footer_disclaimer']}
-                                                        onChange={(e) => setData('email.footer_disclaimer', e.target.value)}
+                                                        onChange={(e) => updateField('email.footer_disclaimer', e.target.value)}
                                                         rows={3}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                        placeholder="Optional legal or privacy disclaimer"
                                                     />
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Advanced Tab */}
                                     {activeTab === 'advanced' && (
                                         <div className="space-y-6">
-                                            <h3 className="text-2xl font-bold text-gray-900 mb-6">Advanced Settings</h3>
-
-                                            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                <p className="text-sm text-yellow-800">
-                                                    <strong>⚠️ Warning:</strong> Custom CSS can override default styles. Use with caution.
-                                                </p>
-                                            </div>
-
                                             <div>
-                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                                    Custom CSS
-                                                </label>
-                                                <p className="text-xs text-gray-500 mb-3">
-                                                    Add custom CSS to override default styles and create unique designs.
-                                                </p>
+                                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Advanced</h3>
+                                                <p className="text-gray-600 mb-6">Custom CSS overrides.</p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Custom CSS</label>
                                                 <textarea
                                                     value={data['theme.custom_css']}
-                                                    onChange={(e) => setData('theme.custom_css', e.target.value)}
-                                                    rows={16}
+                                                    onChange={(e) => updateField('theme.custom_css', e.target.value)}
+                                                    rows={8}
                                                     className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono text-sm"
-                                                    placeholder=".my-custom-class {&#10;  color: #333;&#10;  font-weight: bold;&#10;}"
+                                                    placeholder="/* Custom CSS */"
                                                 />
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Save Button */}
-                                    <div className="mt-8 flex justify-end gap-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => router.visit(route('superadmin.organizations.show', organization.id))}
-                                            className="px-6 py-3 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition"
-                                        >
-                                            Cancel
-                                        </button>
+                                    <div className="mt-8 flex items-center gap-4">
                                         <button
                                             type="submit"
                                             disabled={processing}
-                                            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50"
                                         >
-                                            {processing ? (
-                                                <span className="flex items-center gap-2">
-                                                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                                    </svg>
-                                                    Saving...
-                                                </span>
-                                            ) : (
-                                                'Save Changes'
-                                            )}
+                                            {processing ? 'Saving...' : 'Save Changes'}
                                         </button>
+                                        {Object.keys(errors).length > 0 && (
+                                            <div className="flex items-center gap-2 text-red-600 text-sm">
+                                                Please fix the highlighted fields.
+                                            </div>
+                                        )}
                                     </div>
                                 </form>
                             </div>
                         </div>
 
-                        {/* Right Column - Live Preview */}
-                        <div className="lg:col-span-1">
-                            <LivePreview data={data} organization={organization} />
-                        </div>
+                        <LivePreview data={data} organization={organization} />
                     </div>
                 </div>
             </div>

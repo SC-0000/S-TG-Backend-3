@@ -20,7 +20,7 @@ class CartController extends ApiController
     {
         $cart = CartSession::current()->load('items.service', 'items.product');
 
-        return $this->success($this->mapCart($cart));
+        return $this->respondWithCart($cart);
     }
 
     public function store(CartAddRequest $request): JsonResponse
@@ -58,7 +58,7 @@ class CartController extends ApiController
 
         $cart->load('items.service', 'items.product');
 
-        return $this->success($this->mapCart($cart), [], 201);
+        return $this->respondWithCart($cart, 201);
     }
 
     public function storeFlexible(CartFlexibleRequest $request, FlexibleServiceAccessService $service): JsonResponse
@@ -102,7 +102,7 @@ class CartController extends ApiController
 
         $cart->load('items.service', 'items.product');
 
-        return $this->success($this->mapCart($cart), [], 201);
+        return $this->respondWithCart($cart, 201);
     }
 
     public function update(CartUpdateRequest $request, CartItem $item): JsonResponse
@@ -116,7 +116,7 @@ class CartController extends ApiController
 
         $cart->load('items.service', 'items.product');
 
-        return $this->success($this->mapCart($cart));
+        return $this->respondWithCart($cart);
     }
 
     public function destroy(Request $request, CartItem $item): JsonResponse
@@ -130,7 +130,7 @@ class CartController extends ApiController
 
         $cart->load('items.service', 'items.product');
 
-        return $this->success($this->mapCart($cart));
+        return $this->respondWithCart($cart);
     }
 
     private function mapCart(Cart $cart): array
@@ -160,5 +160,16 @@ class CartController extends ApiController
             'items' => $items,
             'subtotal' => $subtotal,
         ];
+    }
+
+    private function respondWithCart(Cart $cart, int $status = 200): JsonResponse
+    {
+        $response = $this->success($this->mapCart($cart), [], $status);
+
+        if ($cart->cart_token) {
+            $response->headers->set('X-Cart-Token', $cart->cart_token);
+        }
+
+        return $response;
     }
 }

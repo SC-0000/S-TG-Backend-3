@@ -3,9 +3,9 @@
 
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\ProfileController;
+use Illuminate\Http\Request;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 // use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\AlertController;
@@ -49,6 +49,28 @@ use App\Http\Controllers\CalendarFeed;
 use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\ParentFeedbackController;
 
+Route::middleware('auth')->group(function () {
+    Route::view('/profile', 'app-api')->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('verify-email', function (Request $request) {
+        if ($request->user()?->hasVerifiedEmail()) {
+            return redirect()->intended(route('dashboard', absolute: false));
+        }
+
+        return view('app-api');
+    })->name('verification.notice');
+
+    Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
+        ->middleware(['signed', 'throttle:6,1'])
+        ->name('verification.verify');
+
+    Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('verification.send');
+});
+
 Route::middleware(['auth', 'role:admin,parent,guest_parent,super_admin'])->group(function () {
 
     // Subscription Assignment
@@ -58,10 +80,6 @@ Route::middleware(['auth', 'role:admin,parent,guest_parent,super_admin'])->group
 
     // Parent Services Detail Page
     Route::get('/portal/services/{service}', [ServiceController::class, 'parentShow'])->name('parent.services.show');
-
-     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
    Route::post('/lesson/{lesson}/attendance', [AttendanceController::class,'store'])
             ->name('portal.attendance.store');
@@ -75,7 +93,7 @@ Route::middleware(['auth', 'role:admin,parent,guest_parent,super_admin'])->group
 Route::post('/ai/chat', [ChatController::class,'ask'])
     ->middleware(['subscription:ai_analysis', 'feature:parent.ai.chatbot'])
     ->name('ai.chat.ask'); // Ask AI a question
-Route::get('/ai/chat', [ChatController::class,'show'])
+Route::view('/ai/chat', 'app-api')
     ->middleware(['subscription:ai_analysis', 'feature:parent.ai.chatbot'])
     ->name('ai.chat.fetch'); // Fetch chat history
 Route::get('/ai/chat/history', [ChatController::class,'fetch'])
@@ -132,26 +150,6 @@ Route::get('/portal/ai-hub', [PortalController::class, 'aiHubDemo'])
 Route::get('/portal/ai-console', [PortalController::class, 'aiConsole'])
     ->middleware('feature:parent.ai.chatbot')
     ->name('portal.ai-console');
-
-   Route::get('verify-email', EmailVerificationPromptController::class)
-        ->name('verification.notice');
-
-    Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
-        ->middleware(['signed', 'throttle:6,1'])
-        ->name('verification.verify');
-
-    Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
-        ->middleware('throttle:6,1')
-        ->name('verification.send');
-
-
-
-
-    Route::get('/dashboard', function () {
-        return Inertia::render('@public/Main/Dashboard');
-    })->middleware(['auth'])->name('dashboard');
-
-
 
     // Homework assignments routes
 

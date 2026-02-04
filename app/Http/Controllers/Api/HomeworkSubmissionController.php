@@ -16,6 +16,38 @@ use Illuminate\Http\UploadedFile;
 
 class HomeworkSubmissionController extends ApiController
 {
+    public function indexAll(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
+        if (in_array($user->role, ['parent', 'guest_parent'], true)) {
+            return $this->error('Unauthorized access.', [], 403);
+        }
+
+        $query = HomeworkSubmission::query();
+
+        $orgId = $request->attributes->get('organization_id');
+        if ($orgId) {
+            $query->where('organization_id', $orgId);
+        }
+
+        ApiQuery::applyFilters($query, $request, [
+            'submission_status' => true,
+            'student_id' => true,
+            'assignment_id' => true,
+        ]);
+
+        ApiQuery::applySort($query, $request, ['created_at', 'submitted_at', 'reviewed_at'], '-created_at');
+
+        $submissions = $query->paginate(ApiPagination::perPage($request, 20));
+        $data = HomeworkSubmissionResource::collection($submissions->items())->resolve();
+
+        return $this->paginated($submissions, $data);
+    }
+
     public function index(Request $request, HomeworkAssignment $homework): JsonResponse
     {
         if ($response = $this->ensureAssignmentScope($request, $homework)) {

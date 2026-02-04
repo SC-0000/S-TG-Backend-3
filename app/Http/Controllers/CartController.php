@@ -14,7 +14,7 @@ class CartController extends Controller
     public function getCart()
     {
         $cart = CartSession::current()->load('items.service','items.product');
-        return response()->json($cart);
+        return $this->withCartToken(response()->json($cart), $cart);
     }
 
      public function addToCart(Request $request, $type, $id)
@@ -48,7 +48,7 @@ class CartController extends Controller
             ]);
         }
 
-        return response()->json($cart->load('items.service', 'items.product'));
+        return $this->withCartToken(response()->json($cart->load('items.service', 'items.product')), $cart);
     }
 
     /**
@@ -104,10 +104,10 @@ class CartController extends Controller
             ]);
         }
 
-        return response()->json([
+        return $this->withCartToken(response()->json([
             'success' => true,
             'cart' => $cart->load('items.service', 'items.product')
-        ]);
+        ]), $cart);
     }
 
     public function removeFromCart( int $id)
@@ -118,8 +118,9 @@ class CartController extends Controller
         // delete only the matching row in this user’s cart
          $cart->items()->where('id', $id)->delete();
 
-        return response()->json(
-            $cart->fresh()->load('items.service', 'items.product')
+        return $this->withCartToken(
+            response()->json($cart->fresh()->load('items.service', 'items.product')),
+            $cart
         );
     }
 
@@ -132,8 +133,16 @@ class CartController extends Controller
         CartItem::whereKey($cartItemId)
                 ->update(['quantity' => $data['quantity']]);
 
-        return response()->json(
-            CartSession::current()->load('items.service', 'items.product')
-        );
+        $cart = CartSession::current()->load('items.service', 'items.product');
+        return $this->withCartToken(response()->json($cart), $cart);
 }
+
+    private function withCartToken(\Illuminate\Http\JsonResponse $response, Cart $cart): \Illuminate\Http\JsonResponse
+    {
+        if ($cart->cart_token) {
+            $response->headers->set('X-Cart-Token', $cart->cart_token);
+        }
+
+        return $response;
+    }
 }

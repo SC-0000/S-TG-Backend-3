@@ -57,14 +57,16 @@ class AuthController extends ApiController
     public function me(): JsonResponse
     {
         $user = request()->user();
+        if (! $user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
         $features = $user
-            ? $user->subscriptions
-                ->flatMap->features
-                ->filter(fn ($value) => $value === true)
-                ->keys()
-                ->values()
-                ->all()
-            : [];
+            ->subscriptions
+            ->flatMap->features
+            ->filter(fn ($value) => $value === true)
+            ->keys()
+            ->values()
+            ->all();
 
         return $this->success([
             'user' => new UserResource($user),

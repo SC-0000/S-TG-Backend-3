@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './config';
 import { getToken, setToken, clearToken } from './token';
+import { getCartToken, setCartToken } from './cartToken';
 
 export class ApiError extends Error {
     constructor(message, { status, errors, meta, data } = {}) {
@@ -55,6 +56,7 @@ async function parseJson(response) {
 
 let isRefreshing = false;
 let refreshSubscribers = [];
+const ENABLE_REFRESH = import.meta.env.VITE_AUTH_REFRESH === 'true';
 
 function onTokenRefreshed(newToken) {
     refreshSubscribers.forEach(callback => callback(newToken));
@@ -66,6 +68,10 @@ function subscribeTokenRefresh(callback) {
 }
 
 async function refreshToken() {
+    if (!ENABLE_REFRESH) {
+        throw new Error('Token refresh not supported');
+    }
+
     if (isRefreshing) {
         return new Promise((resolve) => {
             subscribeTokenRefresh((token) => {
@@ -130,6 +136,11 @@ export async function request(path, options = {}) {
         }
     }
 
+    const cartToken = getCartToken();
+    if (cartToken) {
+        requestHeaders.set('X-Cart-Token', cartToken);
+    }
+
     let requestBody = body;
     if (body && !isFormData(body)) {
         requestHeaders.set('Content-Type', 'application/json');
@@ -143,10 +154,25 @@ export async function request(path, options = {}) {
         credentials,
     });
 
+    const responseCartToken = response.headers.get('X-Cart-Token');
+    if (responseCartToken) {
+        setCartToken(responseCartToken);
+    }
+
     const payload = await parseJson(response);
 
     // Handle 401 - Try to refresh token and retry
     if (response.status === 401 && retry && useToken && !path.includes('/auth/')) {
+        if (!ENABLE_REFRESH) {
+            clearToken();
+            throw new ApiError(payload?.message || response.statusText, {
+                status: response.status,
+                errors: payload?.errors,
+                meta: payload?.meta,
+                data: payload?.data,
+            });
+        }
+
         try {
             const newToken = await refreshToken();
             if (newToken) {

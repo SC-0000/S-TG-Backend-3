@@ -1,11 +1,13 @@
-import { Head, Link } from '@inertiajs/react';
+import React, { useEffect } from 'react';
 import { HomeIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 
 export default function Error503({ status, message }) {
+    useEffect(() => {
+        document.title = '503 - Service Unavailable';
+    }, []);
+
     return (
         <>
-            <Head title="503 - Service Unavailable" />
-            
             <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 flex items-center justify-center px-4">
                 <div className="max-w-2xl w-full text-center">
                     {/* Maintenance Icon */}
@@ -38,22 +40,22 @@ export default function Error503({ status, message }) {
                                 Check Again
                             </button>
                             
-                            <Link
+                            <a
                                 href="/"
                                 className="inline-flex items-center justify-center px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg transition-colors duration-200 border border-gray-300 shadow-sm font-poppins"
                             >
                                 <HomeIcon className="w-5 h-5 mr-2" />
                                 Go Home
-                            </Link>
+                            </a>
                         </div>
 
                         {/* Status Updates */}
                         <div className="mt-12 pt-8 border-t border-gray-200">
                             <p className="text-sm text-gray-600 font-nunito">
                                 For status updates, please check our{' '}
-                                <Link href="/contact" className="text-accent hover:text-accent-600 font-medium transition-colors">
+                                <a href="/contact" className="text-accent hover:text-accent-600 font-medium transition-colors">
                                     contact page
-                                </Link>
+                                </a>
                             </p>
                         </div>
                     </div>

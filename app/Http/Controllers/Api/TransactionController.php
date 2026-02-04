@@ -74,6 +74,44 @@ class TransactionController extends ApiController
         return $this->paginated($transactions, $data);
     }
 
+    public function store(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
+        if (! $user->isAdmin() && ! $user->isSuperAdmin()) {
+            return $this->error('Forbidden.', [], 403);
+        }
+
+        $validated = $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'amount' => 'required|numeric',
+            'currency' => 'nullable|string',
+            'payment_method' => 'required|in:credit_card,paypal,bank_transfer',
+            'status' => 'required|in:pending,completed,failed,refunded',
+        ]);
+
+        $transaction = Transaction::create($validated);
+
+        return $this->success([
+            'transaction' => [
+                'id' => $transaction->id,
+                'user_id' => $transaction->user_id,
+                'user_email' => $transaction->user_email,
+                'type' => $transaction->type,
+                'status' => $transaction->status,
+                'payment_method' => $transaction->payment_method,
+                'subtotal' => $transaction->subtotal,
+                'total' => $transaction->total,
+                'invoice_id' => $transaction->invoice_id,
+                'created_at' => $transaction->created_at?->toISOString(),
+            ],
+            'message' => 'Transaction created successfully.',
+        ], [], 201);
+    }
+
     public function show(Request $request, Transaction $transaction): JsonResponse
     {
         $authError = $this->authorizeTransaction($request, $transaction);

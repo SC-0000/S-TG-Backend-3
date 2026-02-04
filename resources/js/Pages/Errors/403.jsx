@@ -1,11 +1,13 @@
-import { Head, Link } from '@inertiajs/react';
+import React, { useEffect } from 'react';
 import { HomeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 
 export default function Error403({ status, message }) {
+    useEffect(() => {
+        document.title = '403 - Forbidden';
+    }, []);
+
     return (
         <>
-            <Head title="403 - Forbidden" />
-            
             <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-primary-50 flex items-center justify-center px-4">
                 <div className="max-w-2xl w-full text-center">
                     {/* Lock Icon */}
@@ -31,13 +33,13 @@ export default function Error403({ status, message }) {
 
                         {/* Action Buttons */}
                         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                            <Link
+                            <a
                                 href="/"
                                 className="inline-flex items-center justify-center px-6 py-3 bg-accent hover:bg-accent-600 text-white font-semibold rounded-lg transition-colors duration-200 shadow-md font-poppins"
                             >
                                 <HomeIcon className="w-5 h-5 mr-2" />
                                 Go Home
-                            </Link>
+                            </a>
                             
                             <button
                                 onClick={() => window.history.back()}
@@ -51,9 +53,9 @@ export default function Error403({ status, message }) {
                         <div className="mt-12 pt-8 border-t border-gray-200">
                             <p className="text-sm text-gray-600 font-nunito">
                                 If you believe this is an error, please{' '}
-                                <Link href="/contact" className="text-accent hover:text-accent-600 font-medium transition-colors">
+                                <a href="/contact" className="text-accent hover:text-accent-600 font-medium transition-colors">
                                     contact support
-                                </Link>
+                                </a>
                             </p>
                         </div>
                     </div>
