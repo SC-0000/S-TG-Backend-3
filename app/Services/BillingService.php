@@ -65,12 +65,19 @@ class BillingService
         $idemKey = (string) Str::uuid();
 
 
-        $response = Http::withToken($this->token)
-            ->withHeaders([
-                'Idempotency-Key' => $idemKey,
-            ])
-            ->acceptJson()
-            ->post("{$this->base}/customers", $payload);
+        try {
+            $response = Http::withToken($this->token)
+                ->withHeaders([
+                    'Idempotency-Key' => $idemKey,
+                ])
+                ->acceptJson()
+                ->post("{$this->base}/customers", $payload);
+        } catch (\Throwable $e) {
+            Log::error('Billing createCustomer exception', [
+                'message' => $e->getMessage(),
+            ]);
+            return null;
+        }
 
         Log::info('Billing API createCustomer response', [
             'status' => $response->status(),
@@ -167,10 +174,17 @@ class BillingService
         // generate idempotency key so you don’t accidentally double-create the same invoice
         $idem = (string) Str::uuid();
 
-        $resp = Http::withToken($this->token)
-            ->withHeaders(['Idempotency-Key' => $idem])
-            ->acceptJson()
-            ->post("{$this->base}/invoices", $data);
+        try {
+            $resp = Http::withToken($this->token)
+                ->withHeaders(['Idempotency-Key' => $idem])
+                ->acceptJson()
+                ->post("{$this->base}/invoices", $data);
+        } catch (\Throwable $e) {
+            Log::error('Billing createInvoice exception', [
+                'message' => $e->getMessage(),
+            ]);
+            return null;
+        }
 
         if ($resp->successful() && isset($resp['data']['id'])) {
             return $resp['data']['id'];

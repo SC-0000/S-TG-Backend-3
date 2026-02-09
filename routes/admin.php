@@ -57,7 +57,7 @@ use App\Http\Controllers\QuestionController;
 
 // Admin Access Management
 
-Route::middleware(['auth', 'role:admin,parent,user,super_admin'])->group(function () {
+Route::middleware(['auth', 'role:admin,super_admin'])->group(function () {
 
     // Organization Management
     Route::resource('organizations', OrganizationController::class);

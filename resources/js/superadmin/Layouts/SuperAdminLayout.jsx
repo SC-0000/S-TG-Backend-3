@@ -8,6 +8,7 @@ import EptLogo from '@/admin/assets/EPT Logo web.png';
 import { apiClient } from '@/api';
 import { clearAuthToken, getCurrentUser, setCurrentUser } from '@/stores/authStore';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navigationSections = [
     {
@@ -42,6 +43,21 @@ const navigationSections = [
 ];
 
 export default function SuperAdminLayout({ children }) {
+    const { isAuthenticated, loading, initialized } = useAuth();
+
+    useEffect(() => {
+        if (!initialized || loading || isAuthenticated) return;
+
+        const target = import.meta.env.VITE_AUTH_LOGIN_URL || '/authenticate-user';
+        const loginUrl = /^https?:\/\//i.test(target)
+            ? target
+            : (target.startsWith('/') ? target : `/${target}`);
+
+        if (typeof window !== 'undefined' && window.location.href !== loginUrl) {
+            window.location.href = loginUrl;
+        }
+    }, [initialized, loading, isAuthenticated]);
+
     const { showError } = useToast();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [user, setUser] = useState(getCurrentUser());

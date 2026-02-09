@@ -21,6 +21,11 @@ class SetOrganizationContext
                 $orgId = (int) $requestedOrg;
             } else {
                 $orgId = $user->current_organization_id;
+                if (! $orgId) {
+                    $orgId = $user->children()
+                        ->whereNotNull('organization_id')
+                        ->value('organization_id');
+                }
 
                 if ($requestedOrg && (int) $requestedOrg !== (int) $orgId) {
                     abort(403, 'Organization scope mismatch.');

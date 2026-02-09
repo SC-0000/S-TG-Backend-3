@@ -60,6 +60,10 @@ class AuthController extends ApiController
         if (! $user) {
             return $this->error('Unauthenticated.', [], 401);
         }
+        
+        // Eager load current organization with settings
+        $user->load('currentOrganization');
+        
         $features = $user
             ->subscriptions
             ->flatMap->features

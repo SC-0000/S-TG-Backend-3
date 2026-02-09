@@ -6,6 +6,8 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import LoadingSpinner from './components/LoadingSpinner';
+import { apiClient } from './api/client';
+import { getToken } from './api/token';
 
 const pageImports = import.meta.glob('./**/Pages/**/*.jsx');
 
@@ -93,6 +95,28 @@ const routes = [
   { pattern: /^\/submissions\/(\d+)$/, component: './parent/Pages/Submissions/Show.jsx' },
   { pattern: /^\/submissions$/, component: './parent/Pages/Assessments/MySubmissions.jsx' },
 
+
+  // Admin submissions
+  { pattern: /^\/admin\/submissions$/, component: './admin/Pages/Submissions/Index.jsx' },
+  { pattern: /^\/admin\/submissions\/(\d+)$/, component: './admin/Pages/Submissions/AdminShow.jsx' },
+  { pattern: /^\/admin\/submissions\/(\d+)\/grade$/, component: './admin/Pages/Submissions/Grade.jsx' },
+
+  // Admin live sessions
+  { pattern: /^\/admin\/live-sessions$/, component: './admin/Pages/LiveSessions/Index.jsx' },
+  { pattern: /^\/admin\/live-sessions\/create$/, component: './admin/Pages/LiveSessions/Create.jsx' },
+  { pattern: /^\/admin\/live-sessions\/(\d+)\/edit$/, component: './admin/Pages/LiveSessions/Edit.jsx' },
+  { pattern: /^\/admin\/live-sessions\/(\d+)\/teach$/, component: './admin/Pages/Teacher/LiveLesson/TeacherPanel.jsx' },
+
+  // Admin transactions
+  { pattern: /^\/admin\/transactions$/, component: './admin/Pages/Transactions/Index.jsx' },
+
+  // Admin portal feedback
+  { pattern: /^\/admin\/portal-feedbacks$/, component: './admin/Pages/PortalFeedback/Index.jsx' },
+  { pattern: /^\/admin\/portal-feedbacks\/(\d+)$/, component: './admin/Pages/PortalFeedback/Show.jsx' },
+
+  // Admin feedback index (alias)
+  { pattern: /^\/admin\/feedbacks$/, component: './admin/Pages/Feedback/IndexFeedback.jsx' },
+
   // Live sessions (parent)
   { pattern: /^\/live-sessions\/(\d+)\/join$/, component: './parent/Pages/ContentLessons/LivePlayer.jsx' },
   { pattern: /^\/live-sessions$/, component: './parent/Pages/LiveSessions/Browse.jsx' },
@@ -155,8 +179,8 @@ const routes = [
 
   // Admin applications
   { pattern: /^\/applications$/, component: './admin/Pages/Applications/IndexApplication.jsx' },
-  { pattern: /^\/applications\/(\d+)$/, component: './admin/Pages/Applications/ShowApplication.jsx' },
-  { pattern: /^\/applications\/(\d+)\/edit$/, component: './admin/Pages/Applications/EditApplication.jsx' },
+  { pattern: /^\/applications\/([^/]+)$/, component: './admin/Pages/Applications/ShowApplication.jsx' },
+  { pattern: /^\/applications\/([^/]+)\/edit$/, component: './admin/Pages/Applications/EditApplication.jsx' },
 
   // Admin dashboard
   { pattern: /^\/admin-dashboard$/, component: './admin/Pages/Dashboard/AdminDashboard.jsx' },
@@ -249,6 +273,7 @@ const routes = [
   { pattern: /^\/admin\/lessons\/create$/, component: './admin/Pages/Lessons/Create.jsx' },
   { pattern: /^\/admin\/lessons\/(\d+)$/, component: './admin/Pages/Lessons/Show.jsx' },
   { pattern: /^\/admin\/lessons\/(\d+)\/edit$/, component: './admin/Pages/Lessons/Edit.jsx' },
+  { pattern: /^\/admin\/assigned-lessons$/, component: './admin/Pages/Lessons/AssignedLessons.jsx' },
   { pattern: /^\/admin\/notifications$/, component: './admin/Pages/Notifications/Index.jsx' },
   { pattern: /^\/admin\/notifications\/create$/, component: './admin/Pages/Notifications/Create.jsx' },
   { pattern: /^\/admin\/notifications\/(\d+)$/, component: './admin/Pages/Notifications/Show.jsx' },
@@ -283,6 +308,7 @@ const routes = [
   { pattern: /^\/teacher\/questions\/create$/, component: './admin/Pages/Questions/Create.jsx' },
   { pattern: /^\/teacher\/questions\/(\d+)$/, component: './admin/Pages/Questions/Show.jsx' },
   { pattern: /^\/teacher\/questions\/(\d+)\/edit$/, component: './admin/Pages/Questions/Edit.jsx' },
+  { pattern: /^\/teacher\/live-sessions\/(\d+)\/teach$/, component: './admin/Pages/Teacher/LiveLesson/TeacherPanel.jsx' },
 
   // Superadmin portal
   { pattern: /^\/superadmin\/dashboard$/, component: './superadmin/Pages/Dashboard/Index.jsx' },
@@ -394,15 +420,48 @@ const AppShell = ({ basePath }) => {
   return Component.layout ? Component.layout(page) : page;
 };
 
-const mount = () => {
-  const el = document.getElementById('app');
-  if (!el) return;
+const App = ({ basePath }) => {
+  const [organizationBranding, setOrganizationBranding] = useState(null);
+  const [brandingLoaded, setBrandingLoaded] = useState(false);
 
-  const basePath = normalizeBasePath(el.getAttribute('data-base-path') || '');
-  window.__API_APP_BASE__ = basePath;
+  useEffect(() => {
+    const fetchOrganizationBranding = async () => {
+      try {
+        const token = getToken();
+        if (!token) {
+          setBrandingLoaded(true);
+          return;
+        }
 
-  createRoot(el).render(
-    <ThemeProvider>
+        const response = await apiClient.get('/me', { useToken: true });
+        const userData = response?.data?.user ?? response?.data;
+        
+        // Extract organization branding from user data
+        // The branding might be in user.organization.settings.branding
+        const branding = userData?.organization?.settings?.branding || null;
+        
+        console.log('🎨 Fetched organization branding:', branding);
+        setOrganizationBranding(branding);
+      } catch (error) {
+        console.error('Failed to fetch organization branding:', error);
+      } finally {
+        setBrandingLoaded(true);
+      }
+    };
+
+    fetchOrganizationBranding();
+  }, []);
+
+  if (!brandingLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" color="blue" />
+      </div>
+    );
+  }
+
+  return (
+    <ThemeProvider organizationBranding={organizationBranding}>
       <AuthProvider>
         <ToastProvider>
           <AppShell basePath={basePath} />
@@ -410,6 +469,16 @@ const mount = () => {
       </AuthProvider>
     </ThemeProvider>
   );
+};
+
+const mount = () => {
+  const el = document.getElementById('app');
+  if (!el) return;
+
+  const basePath = normalizeBasePath(el.getAttribute('data-base-path') || '');
+  window.__API_APP_BASE__ = basePath;
+
+  createRoot(el).render(<App basePath={basePath} />);
 };
 
 mount();

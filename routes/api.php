@@ -188,128 +188,7 @@ Route::middleware(['throttle:api'])->group(function () {
         Route::get('/content-lessons/{lesson}/slides', [ApiContentLessonController::class, 'slides'])->name('api.v1.content-lessons.slides');
         Route::get('/lesson-slides/{slide}', [ApiLessonSlideController::class, 'show'])->name('api.v1.lesson-slides.show');
 
-        Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
-            Route::prefix('services')->group(function () {
-                Route::get('/', [ApiAdminServiceController::class, 'index'])->name('api.v1.admin.services.index');
-                Route::get('/create-data', [ApiAdminServiceController::class, 'createData'])->name('api.v1.admin.services.create-data');
-                Route::post('/', [ApiAdminServiceController::class, 'store'])->name('api.v1.admin.services.store');
-                Route::get('/{service}', [ApiAdminServiceController::class, 'show'])->name('api.v1.admin.services.show');
-                Route::get('/{service}/edit-data', [ApiAdminServiceController::class, 'editData'])->name('api.v1.admin.services.edit-data');
-                Route::put('/{service}', [ApiAdminServiceController::class, 'update'])->name('api.v1.admin.services.update');
-                Route::delete('/{service}', [ApiAdminServiceController::class, 'destroy'])->name('api.v1.admin.services.destroy');
-            });
-            Route::prefix('feedbacks')->group(function () {
-                Route::get('/', [ApiAdminFeedbackController::class, 'index'])->name('api.v1.admin.feedbacks.index');
-                Route::post('/', [ApiAdminFeedbackController::class, 'store'])->name('api.v1.admin.feedbacks.store');
-                Route::get('/{feedback}', [ApiAdminFeedbackController::class, 'show'])->name('api.v1.admin.feedbacks.show');
-                Route::put('/{feedback}', [ApiAdminFeedbackController::class, 'update'])->name('api.v1.admin.feedbacks.update');
-                Route::delete('/{feedback}', [ApiAdminFeedbackController::class, 'destroy'])->name('api.v1.admin.feedbacks.destroy');
-            });
-            Route::get('/journey-categories', [\App\Http\Controllers\Api\Admin\JourneyCategoryController::class, 'index'])
-                ->name('api.v1.admin.journey-categories.index');
-            Route::post('/journey-categories', [\App\Http\Controllers\Api\Admin\JourneyCategoryController::class, 'store'])
-                ->name('api.v1.admin.journey-categories.store');
-            Route::prefix('journeys')->group(function () {
-                Route::get('/', [ApiAdminJourneyController::class, 'index'])->name('api.v1.admin.journeys.index');
-                Route::post('/', [ApiAdminJourneyController::class, 'store'])->name('api.v1.admin.journeys.store');
-                Route::get('/overview', [ApiAdminJourneyController::class, 'overview'])->name('api.v1.admin.journeys.overview');
-            });
-            Route::prefix('lessons')->group(function () {
-                Route::get('/', [ApiAdminLessonController::class, 'index'])->name('api.v1.admin.lessons.index');
-                Route::get('/assigned', [ApiAdminLessonController::class, 'assigned'])->name('api.v1.admin.lessons.assigned');
-                Route::get('/create-data', [ApiAdminLessonController::class, 'createData'])->name('api.v1.admin.lessons.create-data');
-                Route::post('/', [ApiAdminLessonController::class, 'store'])->name('api.v1.admin.lessons.store');
-                Route::get('/{lesson}', [ApiAdminLessonController::class, 'show'])->name('api.v1.admin.lessons.show');
-                Route::get('/{lesson}/edit-data', [ApiAdminLessonController::class, 'editData'])->name('api.v1.admin.lessons.edit-data');
-                Route::put('/{lesson}', [ApiAdminLessonController::class, 'update'])->name('api.v1.admin.lessons.update');
-                Route::delete('/{lesson}', [ApiAdminLessonController::class, 'destroy'])->name('api.v1.admin.lessons.destroy');
-            });
-            Route::prefix('courses')->group(function () {
-                Route::get('/', [ApiAdminCourseController::class, 'index'])->name('api.v1.admin.courses.index');
-                Route::get('/{course}', [ApiAdminCourseController::class, 'show'])->name('api.v1.admin.courses.show');
-                Route::get('/{course}/edit-data', [ApiAdminCourseController::class, 'editData'])->name('api.v1.admin.courses.edit-data');
-                Route::post('/', [ApiAdminCourseController::class, 'store'])->name('api.v1.admin.courses.store');
-                Route::put('/{course}', [ApiAdminCourseController::class, 'update'])->name('api.v1.admin.courses.update');
-                Route::delete('/{course}', [ApiAdminCourseController::class, 'destroy'])->name('api.v1.admin.courses.destroy');
-                Route::post('/{course}/publish', [ApiAdminCourseController::class, 'publish'])->name('api.v1.admin.courses.publish');
-                Route::post('/{course}/archive', [ApiAdminCourseController::class, 'archive'])->name('api.v1.admin.courses.archive');
-                Route::post('/{course}/duplicate', [ApiAdminCourseController::class, 'duplicate'])->name('api.v1.admin.courses.duplicate');
-
-                Route::post('/{course}/modules', [ApiAdminModuleController::class, 'store'])->name('api.v1.admin.modules.store');
-                Route::post('/{course}/modules/reorder', [ApiAdminModuleController::class, 'reorder'])->name('api.v1.admin.modules.reorder');
-            });
-
-            Route::prefix('modules')->group(function () {
-                Route::put('/{module}', [ApiAdminModuleController::class, 'update'])->name('api.v1.admin.modules.update');
-                Route::delete('/{module}', [ApiAdminModuleController::class, 'destroy'])->name('api.v1.admin.modules.destroy');
-                Route::post('/{module}/publish', [ApiAdminModuleController::class, 'publish'])->name('api.v1.admin.modules.publish');
-                Route::post('/{module}/duplicate', [ApiAdminModuleController::class, 'duplicate'])->name('api.v1.admin.modules.duplicate');
-                Route::post('/{module}/lessons/attach', [ApiAdminModuleController::class, 'attachLesson'])->name('api.v1.admin.modules.lessons.attach');
-                Route::delete('/{module}/lessons/{lessonId}/detach', [ApiAdminModuleController::class, 'detachLesson'])->name('api.v1.admin.modules.lessons.detach');
-                Route::post('/{module}/assessments/attach', [ApiAdminModuleController::class, 'attachAssessment'])->name('api.v1.admin.modules.assessments.attach');
-                Route::delete('/{module}/assessments/{assessmentId}/detach', [ApiAdminModuleController::class, 'detachAssessment'])->name('api.v1.admin.modules.assessments.detach');
-            });
-
-            Route::prefix('content-lessons')->group(function () {
-                Route::get('/', [ApiAdminContentLessonController::class, 'index'])->name('api.v1.admin.content-lessons.index');
-                Route::get('/{lesson}', [ApiAdminContentLessonController::class, 'show'])->name('api.v1.admin.content-lessons.show');
-                Route::post('/', [ApiAdminContentLessonController::class, 'storeStandalone'])->name('api.v1.admin.content-lessons.store-standalone');
-                Route::post('/{module}', [ApiAdminContentLessonController::class, 'store'])->name('api.v1.admin.content-lessons.store');
-                Route::put('/{lesson}', [ApiAdminContentLessonController::class, 'update'])->name('api.v1.admin.content-lessons.update');
-                Route::delete('/{lesson}', [ApiAdminContentLessonController::class, 'destroy'])->name('api.v1.admin.content-lessons.destroy');
-                Route::post('/{module}/reorder', [ApiAdminContentLessonController::class, 'reorder'])->name('api.v1.admin.content-lessons.reorder');
-                Route::post('/{lesson}/publish', [ApiAdminContentLessonController::class, 'publish'])->name('api.v1.admin.content-lessons.publish');
-                Route::post('/{lesson}/duplicate', [ApiAdminContentLessonController::class, 'duplicate'])->name('api.v1.admin.content-lessons.duplicate');
-                Route::post('/{lesson}/assessments/attach', [ApiAdminContentLessonController::class, 'attachAssessment'])->name('api.v1.admin.content-lessons.assessments.attach');
-                Route::delete('/{lesson}/assessments/{assessmentId}/detach', [ApiAdminContentLessonController::class, 'detachAssessment'])->name('api.v1.admin.content-lessons.assessments.detach');
-            });
-
-            Route::prefix('lesson-slides')->group(function () {
-                Route::post('/{lesson}', [ApiAdminLessonSlideController::class, 'store'])->name('api.v1.admin.lesson-slides.store');
-                Route::put('/{slide}', [ApiAdminLessonSlideController::class, 'update'])->name('api.v1.admin.lesson-slides.update');
-                Route::delete('/{slide}', [ApiAdminLessonSlideController::class, 'destroy'])->name('api.v1.admin.lesson-slides.destroy');
-                Route::post('/{lesson}/reorder', [ApiAdminLessonSlideController::class, 'reorder'])->name('api.v1.admin.lesson-slides.reorder');
-                Route::post('/{slide}/duplicate', [ApiAdminLessonSlideController::class, 'duplicate'])->name('api.v1.admin.lesson-slides.duplicate');
-                Route::post('/{slide}/blocks', [ApiAdminLessonSlideController::class, 'addBlock'])->name('api.v1.admin.lesson-slides.blocks.add');
-                Route::put('/{slide}/blocks/{blockId}', [ApiAdminLessonSlideController::class, 'updateBlock'])->name('api.v1.admin.lesson-slides.blocks.update');
-                Route::delete('/{slide}/blocks/{blockId}', [ApiAdminLessonSlideController::class, 'deleteBlock'])->name('api.v1.admin.lesson-slides.blocks.delete');
-            });
-
-            Route::post('/upload-image', [ApiImageUploadController::class, 'upload'])->name('api.v1.admin.upload-image');
-            Route::prefix('notifications')->group(function () {
-                Route::get('/', [ApiAdminNotificationController::class, 'index'])->name('api.v1.admin.notifications.index');
-                Route::get('/create-data', [ApiAdminNotificationController::class, 'createData'])->name('api.v1.admin.notifications.create-data');
-                Route::post('/', [ApiAdminNotificationController::class, 'store'])->name('api.v1.admin.notifications.store');
-                Route::get('/{notification}', [ApiAdminNotificationController::class, 'show'])->name('api.v1.admin.notifications.show');
-                Route::put('/{notification}', [ApiAdminNotificationController::class, 'update'])->name('api.v1.admin.notifications.update');
-                Route::delete('/{notification}', [ApiAdminNotificationController::class, 'destroy'])->name('api.v1.admin.notifications.destroy');
-            });
-
-            Route::prefix('children')->group(function () {
-                Route::get('/', [ApiAdminChildController::class, 'index'])->name('api.v1.admin.children.index');
-                Route::get('/create-data', [ApiAdminChildController::class, 'createData'])->name('api.v1.admin.children.create-data');
-                Route::post('/', [ApiAdminChildController::class, 'store'])->name('api.v1.admin.children.store');
-                Route::get('/{child}', [ApiAdminChildController::class, 'show'])->name('api.v1.admin.children.show');
-                Route::put('/{child}', [ApiAdminChildController::class, 'update'])->name('api.v1.admin.children.update');
-                Route::delete('/{child}', [ApiAdminChildController::class, 'destroy'])->name('api.v1.admin.children.destroy');
-            });
-
-            Route::prefix('teachers')->group(function () {
-                Route::get('/', [ApiAdminTeacherController::class, 'index'])->name('api.v1.admin.teachers.index');
-                Route::get('/assignments', [ApiAdminTeacherController::class, 'assignments'])->name('api.v1.admin.teachers.assignments');
-                Route::get('/{teacher}', [ApiAdminTeacherController::class, 'show'])->name('api.v1.admin.teachers.show');
-            });
-
-            Route::prefix('teacher-profiles')->group(function () {
-                Route::get('/create-data', [ApiAdminTeacherController::class, 'createData'])->name('api.v1.admin.teacher-profiles.create-data');
-                Route::post('/', [ApiAdminTeacherController::class, 'storeProfile'])->name('api.v1.admin.teacher-profiles.store');
-                Route::get('/{teacher}', [ApiAdminTeacherController::class, 'showProfile'])->name('api.v1.admin.teacher-profiles.show');
-                Route::get('/{teacher}/edit-data', [ApiAdminTeacherController::class, 'editData'])->name('api.v1.admin.teacher-profiles.edit-data');
-                Route::put('/{teacher}', [ApiAdminTeacherController::class, 'updateProfile'])->name('api.v1.admin.teacher-profiles.update');
-                Route::delete('/{teacher}', [ApiAdminTeacherController::class, 'destroyProfile'])->name('api.v1.admin.teacher-profiles.destroy');
-            });
-        });
-
+        
         Route::prefix('teacher')->middleware('role:teacher,admin')->group(function () {
             Route::get('/courses', [ApiTeacherCourseController::class, 'index'])->name('api.v1.teacher.courses.index');
         });
@@ -742,6 +621,16 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::get('/{product}', [ApiAdminProductController::class, 'show'])->name('api.v1.admin.products.show');
                 Route::put('/{product}', [ApiAdminProductController::class, 'update'])->name('api.v1.admin.products.update');
                 Route::delete('/{product}', [ApiAdminProductController::class, 'destroy'])->name('api.v1.admin.products.destroy');
+            });
+
+            Route::prefix('services')->group(function () {
+                Route::get('/', [ApiAdminServiceController::class, 'index'])->name('api.v1.admin.services.index');
+                Route::post('/', [ApiAdminServiceController::class, 'store'])->name('api.v1.admin.services.store');
+                Route::get('/create-data', [ApiAdminServiceController::class, 'createData'])->name('api.v1.admin.services.create-data');
+                Route::get('/{service}/edit-data', [ApiAdminServiceController::class, 'editData'])->name('api.v1.admin.services.edit-data');
+                Route::get('/{service}', [ApiAdminServiceController::class, 'show'])->name('api.v1.admin.services.show');
+                Route::put('/{service}', [ApiAdminServiceController::class, 'update'])->name('api.v1.admin.services.update');
+                Route::delete('/{service}', [ApiAdminServiceController::class, 'destroy'])->name('api.v1.admin.services.destroy');
             });
 
             Route::get('/teachers', [ApiAdminTeacherController::class, 'index'])->name('api.v1.admin.teachers.index');

@@ -13,7 +13,10 @@ class ServiceController extends ApiController
 {
     private function resolveOrgId(Request $request): ?int
     {
-        $orgId = $request->header('X-Organization-Id') ?? $request->query('organization_id');
+        $orgId = $request->header('X-Organization-Id')
+            ?? $request->query('organization_id')
+            ?? $request->attributes->get('organization_id');
+
         return $orgId ? (int) $orgId : null;
     }
 
@@ -171,6 +174,7 @@ class ServiceController extends ApiController
             'organization_id' => $service->organization_id,
             'is_global' => (bool) $service->is_global,
             'service_name' => $service->service_name,
+            '_type' => $service->_type,
             'type' => $service->_type,
             'service_level' => $service->service_level,
             'availability' => (bool) $service->availability,

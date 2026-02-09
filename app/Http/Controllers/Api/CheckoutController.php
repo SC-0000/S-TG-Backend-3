@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class CheckoutController extends ApiController
 {
@@ -37,25 +38,80 @@ class CheckoutController extends ApiController
 
         $data = $request->validated();
 
-        $customerId = $this->ensureBillingCustomer($user, $billing);
+        $customerId = null;
+        try {
+            $customerId = $this->ensureBillingCustomer($user, $billing);
+        } catch (\Throwable $e) {
+            Log::error('Checkout: ensureBillingCustomer failed', [
+                'user_id' => $user->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         if (! $customerId) {
-            return $this->error('Could not create billing customer.', [], 500);
+            if ($this->allowOfflineBilling()) {
+                $transaction = $this->createTransactionFromCart($cart, $data, $user);
+                $offlineInvoice = 'offline_' . Str::uuid()->toString();
+                $transaction->invoice_id = $offlineInvoice;
+                $transaction->status = 'completed';
+                $transaction->save();
+                $this->queueReceiptEmails($transaction);
+                $this->grantAccessForTransaction($transaction, $cart, $data['serviceChildren'] ?? [], $offlineInvoice);
+
+                return $this->success([
+                    'transaction_id' => $transaction->id,
+                    'invoice_id' => $offlineInvoice,
+                    'status' => $transaction->status,
+                    'offline_billing' => true,
+                ]);
+            }
+
+            return $this->error('Billing service unavailable. Please try again later.', [], 503);
         }
 
         $transaction = $this->createTransactionFromCart($cart, $data, $user);
 
-        $invoiceId = $this->createInvoiceForTransaction($transaction, $customerId, $billing);
+        $invoiceId = null;
+        try {
+            $invoiceId = $this->createInvoiceForTransaction($transaction, $customerId, $billing);
+        } catch (\Throwable $e) {
+            Log::error('Checkout: createInvoiceForTransaction failed', [
+                'transaction_id' => $transaction->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         if ($invoiceId) {
             $transaction->invoice_id = $invoiceId;
             $transaction->status = 'completed';
             $transaction->save();
+            $this->queueReceiptEmails($transaction);
+            $this->grantAccessForTransaction($transaction, $cart, $data['serviceChildren'] ?? [], $invoiceId);
+
+            return $this->success([
+                'transaction_id' => $transaction->id,
+                'invoice_id' => $invoiceId,
+                'status' => $transaction->status,
+            ]);
+        }
+
+        if ($this->allowOfflineBilling()) {
+            $offlineInvoice = 'offline_' . Str::uuid()->toString();
+            $transaction->invoice_id = $offlineInvoice;
+            $transaction->status = 'completed';
+            $transaction->save();
+            $this->queueReceiptEmails($transaction);
+            $this->grantAccessForTransaction($transaction, $cart, $data['serviceChildren'] ?? [], $offlineInvoice);
+
+            return $this->success([
+                'transaction_id' => $transaction->id,
+                'invoice_id' => $offlineInvoice,
+                'status' => $transaction->status,
+                'offline_billing' => true,
+            ]);
         }
 
         $this->queueReceiptEmails($transaction);
-
-        if ($invoiceId) {
-            $this->grantAccessForTransaction($transaction, $cart, $data['serviceChildren'] ?? [], $invoiceId);
-        }
 
         return $this->success([
             'transaction_id' => $transaction->id,
@@ -78,9 +134,34 @@ class CheckoutController extends ApiController
 
         $data = $request->validated();
 
-        $customerId = $this->ensureBillingCustomer($user, $billing);
+        $customerId = null;
+        try {
+            $customerId = $this->ensureBillingCustomer($user, $billing);
+        } catch (\Throwable $e) {
+            Log::error('Guest checkout: ensureBillingCustomer failed', [
+                'user_id' => $user->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         if (! $customerId) {
-            return $this->error('Could not create billing customer.', [], 500);
+            if ($this->allowOfflineBilling()) {
+                $transaction = $this->createTransactionFromCart($cart, $data, $user, true);
+                $offlineInvoice = 'offline_' . Str::uuid()->toString();
+                $transaction->invoice_id = $offlineInvoice;
+                $transaction->status = 'completed';
+                $transaction->save();
+
+                return $this->success([
+                    'transaction_id' => $transaction->id,
+                    'invoice_id' => $offlineInvoice,
+                    'customer_id' => null,
+                    'api_key' => config('services.billing.publishable_key'),
+                    'offline_billing' => true,
+                ]);
+            }
+
+            return $this->error('Billing service unavailable. Please try again later.', [], 503);
         }
 
         $flexibleSelections = [];
@@ -106,7 +187,31 @@ class CheckoutController extends ApiController
         $transaction->meta = $meta;
         $transaction->save();
 
-        $invoiceId = $this->createInvoiceForTransaction($transaction, $customerId, $billing);
+        $invoiceId = null;
+        try {
+            $invoiceId = $this->createInvoiceForTransaction($transaction, $customerId, $billing);
+        } catch (\Throwable $e) {
+            Log::error('Guest checkout: createInvoiceForTransaction failed', [
+                'transaction_id' => $transaction->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        if (! $invoiceId && $this->allowOfflineBilling()) {
+            $invoiceId = 'offline_' . Str::uuid()->toString();
+            $transaction->invoice_id = $invoiceId;
+            $transaction->status = 'completed';
+            $transaction->save();
+
+            return $this->success([
+                'transaction_id' => $transaction->id,
+                'invoice_id' => $invoiceId,
+                'customer_id' => $customerId,
+                'api_key' => config('services.billing.publishable_key'),
+                'offline_billing' => true,
+            ]);
+        }
+
         if ($invoiceId) {
             $transaction->invoice_id = $invoiceId;
             $transaction->save();
@@ -279,7 +384,10 @@ class CheckoutController extends ApiController
     {
         $serviceStartTimes = $transaction->items
             ->filter(fn ($item) => $item->item_type === Service::class)
-            ->map(fn ($item) => Service::find($item->item_id)->start_datetime)
+            ->map(function ($item) {
+                $service = Service::find($item->item_id);
+                return $service?->start_datetime;
+            })
             ->filter()
             ->map(fn ($dt) => Carbon::parse($dt));
 
@@ -429,4 +537,9 @@ class CheckoutController extends ApiController
             ]);
         }
     }
+    private function allowOfflineBilling(): bool
+    {
+        return config('app.env') !== 'production';
+    }
+
 }

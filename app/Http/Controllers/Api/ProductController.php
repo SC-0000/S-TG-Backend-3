@@ -11,7 +11,10 @@ class ProductController extends ApiController
 {
     private function resolveOrgId(Request $request): ?int
     {
-        $orgId = $request->header('X-Organization-Id') ?? $request->query('organization_id');
+        $orgId = $request->header('X-Organization-Id')
+            ?? $request->query('organization_id')
+            ?? $request->attributes->get('organization_id');
+
         return $orgId ? (int) $orgId : null;
     }
 

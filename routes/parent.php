@@ -79,7 +79,6 @@ Route::middleware(['auth', 'role:admin,parent,guest_parent,super_admin'])->group
         ->name('parent.subscriptions.assign');
 
     // Parent Services Detail Page
-    Route::get('/portal/services/{service}', [ServiceController::class, 'parentShow'])->name('parent.services.show');
 
    Route::post('/lesson/{lesson}/attendance', [AttendanceController::class,'store'])
             ->name('portal.attendance.store');
@@ -119,7 +118,6 @@ Route::get('/calendar/{token}.ics', CalendarFeed::class)
     Route::post('/portal/feedback/create', [ParentFeedbackController::class, 'store'])
          ->name('portal.feedback.store');
     Route::get('/portal', [ PortalController::class, 'index'])->middleware('redirect.incomplete.guests')->name('parentportal.index');
-Route::get('/portal/products', [PortalController::class, 'productsIndex'])->name('portal.products.index');
 Route::get('/portal/tracker', [ TrackerController::class, 'show'])->middleware('redirect.incomplete.guests')->name('parentportal.show');
 Route::get('/portal/lessons', [AssessmentController::class, 'portalIndex'])->name('portal.lessons.index');
 Route::get('/portal/assessments', [AssessmentController::class, 'portalIndex'])->name('portal.assessments.index');

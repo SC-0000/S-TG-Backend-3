@@ -13,6 +13,12 @@ class UserResource extends ApiResource
             'role' => $this->role,
             'current_organization_id' => $this->current_organization_id,
             'email_verified_at' => $this->email_verified_at,
+            
+            // Include organization with branding when available
+            'organization' => $this->when(
+                $this->currentOrganization,
+                new OrganizationResource($this->currentOrganization)
+            ),
         ];
     }
 }

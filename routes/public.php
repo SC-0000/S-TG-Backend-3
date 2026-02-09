@@ -229,19 +229,21 @@ Route::view('/children/{child}/edit', 'app-api')->name('children.edit');
 
 
 Route::view('/applications/create', 'app-api')->name('applications.create');
-Route::post('/applications', [ApplicationController::class, 'store'])->name('applications.store');
+Route::post('/applications', [ApplicationController::class, 'store'])->middleware('throttle:6,1')->name('applications.store');
 Route::view('/applications/verify/{token}', 'app-api')->name('application.verify');
-Route::post('/application/resend-verification', [ApplicationController::class, 'resendVerificationEmail'])->name('application.resend_verification');
+Route::post('/application/resend-verification', [ApplicationController::class, 'resendVerificationEmail'])->middleware('throttle:6,1')->name('application.resend_verification');
 Route::view('/application/verification', 'app-api')->name('application.verification');
 Route::view('/email/verified', 'app-api')->name('email.verified');
-Route::view('/applications', 'app-api')
-    ->name('applications.index');
-Route::view('/applications/{id}/edit', 'app-api')
-    ->name('applications.edit');
-Route::put('/applications/{id}', [ApplicationController::class, 'reviewApplication'])->name('applications.review');
-Route::delete('/applications/{id}', [ApplicationController::class, 'destroy'])->name('applications.destroy');
-Route::view('/applications/{id}', 'app-api')
-    ->name('applications.show');
+Route::middleware(['auth', 'role:admin,super_admin'])->group(function () {
+    Route::view('/applications', 'app-api')
+        ->name('applications.index');
+    Route::view('/applications/{id}/edit', 'app-api')
+        ->name('applications.edit');
+    Route::put('/applications/{id}', [ApplicationController::class, 'reviewApplication'])->name('applications.review');
+    Route::delete('/applications/{id}', [ApplicationController::class, 'destroy'])->name('applications.destroy');
+    Route::view('/applications/{id}', 'app-api')
+        ->name('applications.show');
+});
 
 Route::view('/feedbacks/{id}', 'app-api')
     ->name('feedbacks.show');
@@ -268,9 +270,11 @@ Route::view('/contact', 'app-api')->name('contact');
 
 
 
-    Route::view('register', 'app-api')->name('register');
+    Route::middleware(['auth', 'role:admin,super_admin'])->group(function () {
+        Route::view('register', 'app-api')->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+        Route::post('register', [RegisteredUserController::class, 'store']);
+    });
 
     // Teacher Registration Routes (with OTP verification)
     Route::view('/teacher/register', 'app-api')->name('teacher.register.form');

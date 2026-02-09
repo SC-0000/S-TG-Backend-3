@@ -19,6 +19,8 @@ class ProfileController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
+        $user->load('currentOrganization');
+
         return $this->success([
             'user' => new UserResource($user),
         ]);
@@ -40,6 +42,7 @@ class ProfileController extends ApiController
         }
 
         $user->save();
+        $user->load('currentOrganization');
 
         return $this->success([
             'user' => new UserResource($user),
