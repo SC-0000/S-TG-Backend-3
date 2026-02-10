@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
         $middleware->api(append: [
+            \Illuminate\Http\Middleware\HandleCors::class,
             \App\Http\Middleware\SetRequestId::class,
             \App\Http\Middleware\SetOrganizationContext::class,
         ]);
