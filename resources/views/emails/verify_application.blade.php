@@ -1,6 +1,6 @@
 @extends('emails.layout')
 
-@section('title', 'Email Verification - Eleven Plus Tutor')
+@section('title', 'Email Verification - ' . ($brandName ?? config('app.name')))
 
 @section('content')
     <p>Hello {{ $application->applicant_name }},</p>

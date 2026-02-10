@@ -234,7 +234,7 @@ Route::view('/applications/verify/{token}', 'app-api')->name('application.verify
 Route::post('/application/resend-verification', [ApplicationController::class, 'resendVerificationEmail'])->middleware('throttle:6,1')->name('application.resend_verification');
 Route::view('/application/verification', 'app-api')->name('application.verification');
 Route::view('/email/verified', 'app-api')->name('email.verified');
-Route::middleware(['auth', 'role:admin,super_admin'])->group(function () {
+Route::middleware(['auth', 'role:super_admin'])->group(function () {
     Route::view('/applications', 'app-api')
         ->name('applications.index');
     Route::view('/applications/{id}/edit', 'app-api')
@@ -270,7 +270,7 @@ Route::view('/contact', 'app-api')->name('contact');
 
 
 
-    Route::middleware(['auth', 'role:admin,super_admin'])->group(function () {
+    Route::middleware(['auth', 'role:super_admin'])->group(function () {
         Route::view('register', 'app-api')->name('register');
 
         Route::post('register', [RegisteredUserController::class, 'store']);

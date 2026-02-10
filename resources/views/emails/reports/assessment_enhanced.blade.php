@@ -478,7 +478,7 @@
 
 <div class="footer-note">
     <p style="margin: 0 0 10px 0;"><strong>Questions about this report?</strong></p>
-    <p style="margin: 0;">Contact your tutor at Eleven Plus Tutor for additional support and personalized guidance.</p>
+    <p style="margin: 0;">Contact your tutor at {{ $brandName }} for additional support and personalized guidance.</p>
 </div>
 
 @endsection

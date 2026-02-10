@@ -317,35 +317,39 @@ export default function Branding() {
                 if (!org) throw new Error('Organization not found.');
                 setOrganization(org);
                 const settings = org.settings || {};
+                const branding = settings?.branding || {};
+                const brandingColors = branding?.colors || {};
+                const brandingContact = branding?.contact || {};
+                const brandingSocial = branding?.social || {};
 
                 setData((prev) => ({
                     ...prev,
-                    'branding.organization_name': settings?.branding?.organization_name || '',
-                    'branding.tagline': settings?.branding?.tagline || '',
-                    'branding.description': settings?.branding?.description || '',
-                    'theme.colors.primary': settings?.theme?.colors?.primary || prev['theme.colors.primary'],
-                    'theme.colors.accent': settings?.theme?.colors?.accent || prev['theme.colors.accent'],
-                    'theme.colors.accent_soft': settings?.theme?.colors?.accent_soft || prev['theme.colors.accent_soft'],
-                    'theme.colors.secondary': settings?.theme?.colors?.secondary || prev['theme.colors.secondary'],
-                    'theme.colors.heavy': settings?.theme?.colors?.heavy || prev['theme.colors.heavy'],
-                    'contact.email': settings?.contact?.email || '',
-                    'contact.phone': settings?.contact?.phone || '',
-                    'contact.business_hours': settings?.contact?.business_hours || '',
-                    'contact.address.line1': settings?.contact?.address?.line1 || '',
-                    'contact.address.city': settings?.contact?.address?.city || '',
-                    'contact.address.country': settings?.contact?.address?.country || '',
-                    'social_media.facebook': settings?.social_media?.facebook || '',
-                    'social_media.twitter': settings?.social_media?.twitter || '',
-                    'social_media.instagram': settings?.social_media?.instagram || '',
-                    'social_media.linkedin': settings?.social_media?.linkedin || '',
-                    'social_media.youtube': settings?.social_media?.youtube || '',
+                    'branding.organization_name': branding?.organization_name || branding?.name || org?.name || '',
+                    'branding.tagline': branding?.tagline || '',
+                    'branding.description': branding?.description || '',
+                    'theme.colors.primary': settings?.theme?.colors?.primary || brandingColors?.primary || prev['theme.colors.primary'],
+                    'theme.colors.accent': settings?.theme?.colors?.accent || brandingColors?.accent || prev['theme.colors.accent'],
+                    'theme.colors.accent_soft': settings?.theme?.colors?.accent_soft || brandingColors?.accent_soft || prev['theme.colors.accent_soft'],
+                    'theme.colors.secondary': settings?.theme?.colors?.secondary || brandingColors?.secondary || prev['theme.colors.secondary'],
+                    'theme.colors.heavy': settings?.theme?.colors?.heavy || brandingColors?.heavy || prev['theme.colors.heavy'],
+                    'contact.email': settings?.contact?.email || brandingContact?.email || '',
+                    'contact.phone': settings?.contact?.phone || brandingContact?.phone || '',
+                    'contact.business_hours': settings?.contact?.business_hours || brandingContact?.business_hours || '',
+                    'contact.address.line1': settings?.contact?.address?.line1 || brandingContact?.address?.line1 || '',
+                    'contact.address.city': settings?.contact?.address?.city || brandingContact?.address?.city || '',
+                    'contact.address.country': settings?.contact?.address?.country || brandingContact?.address?.country || '',
+                    'social_media.facebook': settings?.social_media?.facebook || brandingSocial?.facebook || '',
+                    'social_media.twitter': settings?.social_media?.twitter || brandingSocial?.twitter || '',
+                    'social_media.instagram': settings?.social_media?.instagram || brandingSocial?.instagram || '',
+                    'social_media.linkedin': settings?.social_media?.linkedin || brandingSocial?.linkedin || '',
+                    'social_media.youtube': settings?.social_media?.youtube || brandingSocial?.youtube || '',
                     'email.from_name': settings?.email?.from_name || '',
                     'email.from_email': settings?.email?.from_email || '',
                     'email.header_color': settings?.email?.header_color || prev['email.header_color'],
                     'email.button_color': settings?.email?.button_color || prev['email.button_color'],
                     'email.footer_text': settings?.email?.footer_text || '',
                     'email.footer_disclaimer': settings?.email?.footer_disclaimer || '',
-                    'theme.custom_css': settings?.theme?.custom_css || '',
+                    'theme.custom_css': settings?.theme?.custom_css || branding?.custom_css || '',
                 }));
             } catch (error) {
                 if (!mounted) return;

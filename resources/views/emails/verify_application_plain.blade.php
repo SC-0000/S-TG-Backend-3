@@ -9,5 +9,5 @@ If you did not submit an application, please ignore this email.
 Thank you!
 
 --
-Eleven Plus Tutor
-Contact us at: ept@pa.team
+{{ $brandName ?? config('app.name') }}
+Contact us at: {{ $supportEmail ?? config('mail.from.address') }}

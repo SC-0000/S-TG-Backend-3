@@ -1,6 +1,6 @@
 @extends('emails.layout')
 
-@section('title', 'Assessment Report - Eleven Plus Tutor')
+@section('title', 'Assessment Report - ' . ($brandName ?? config('app.name')))
 
 @section('content')
     <h1>Assessment Report</h1>
@@ -15,5 +15,5 @@
     <p>Please find the detailed report attached.</p>
 
     <p>Thanks,<br />
-    Eleven Plus Tutor</p>
+    {{ $brandName }}</p>
 @endsection

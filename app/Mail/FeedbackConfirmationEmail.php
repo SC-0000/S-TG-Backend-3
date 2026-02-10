@@ -3,35 +3,32 @@
 namespace App\Mail;
 
 use App\Models\Feedback;
-use Illuminate\Mail\Mailable;
-use Illuminate\Queue\SerializesModels;
+use App\Models\Organization;
 
-class FeedbackConfirmationEmail extends Mailable
+class FeedbackConfirmationEmail extends BrandedMailable
 {
-    use SerializesModels;
-
     public $feedback;
 
     /**
      * Create a new message instance.
      *
-     * @param  \App\Models\Feedback  $feedback
-     * @return void
+     * @param Feedback $feedback
+     * @param Organization|null $organization
      */
-    public function __construct(Feedback $feedback)
+    public function __construct(Feedback $feedback, ?Organization $organization = null)
     {
         $this->feedback = $feedback;
+        $this->organization = $organization
+            ?? $this->resolveOrganization($feedback->organization_id);
     }
 
-    /**
-     * Build the message.
-     *
-     * @return $this
-     */
     public function build()
     {
-        return $this->subject('Thank you for your feedback!')
+        return $this->subject('Feedback Confirmation')
                     ->view('emails.feedback_confirmation')
-                    ->text('emails.feedback_confirmation_plain');
+                    ->text('emails.feedback_confirmation_plain')
+                    ->with($this->brandingData([
+                        'feedback' => $this->feedback,
+                    ]));
     }
 }

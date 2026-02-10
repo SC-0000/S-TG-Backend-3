@@ -1,3 +1,18 @@
+@php
+    $organization = $organization ?? null;
+    $brandName = $brandName ?? ($organization?->getSetting("branding.organization_name") ?? config("app.name"));
+    $brandTagline = $brandTagline ?? $organization?->getSetting("branding.tagline");
+    $brandDescription = $brandDescription ?? $organization?->getSetting("branding.description");
+    $brandLogoUrl = $brandLogoUrl ?? $organization?->getSetting("branding.logo_url");
+    $contactEmail = $contactEmail ?? ($organization?->getSetting("contact.email") ?? config("mail.from.address"));
+    $contactWebsite = $contactWebsite ?? ($organization?->getSetting("contact.website") ?? config("app.url"));
+    $emailHeaderColor = $emailHeaderColor ?? ($organization?->getSetting("email.header_color") ?? "#2563eb");
+    $emailHeaderColorSecondary = $emailHeaderColorSecondary ?? ($organization?->getSetting("email.header_color_secondary") ?? "#1d4ed8");
+    $emailButtonColor = $emailButtonColor ?? ($organization?->getSetting("email.button_color") ?? $emailHeaderColor);
+    $emailButtonColorSecondary = $emailButtonColorSecondary ?? ($organization?->getSetting("email.button_color_secondary") ?? $emailHeaderColorSecondary);
+    $footerText = $footerText ?? ($organization?->getSetting("email.footer_text") ?? ("© " . date("Y") . " " . $brandName . ". All rights reserved."));
+    $footerDisclaimer = $footerDisclaimer ?? $organization?->getSetting("email.footer_disclaimer");
+@endphp
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -6,7 +21,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no" />
-    <title>@yield('title', 'Eleven Plus Tutor')</title>
+    <title>@yield('title', $brandName)</title>
     
     <!--[if mso]>
     <noscript>
@@ -87,7 +102,7 @@
         
         /* Header Styles */
         .email-header {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, {{ $emailHeaderColor }} 0%, {{ $emailHeaderColorSecondary }} 100%);
             padding: 30px 40px;
             text-align: center;
             position: relative;
@@ -185,7 +200,7 @@
         .btn {
             display: inline-block;
             padding: 16px 32px;
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, {{ $emailButtonColor }} 0%, {{ $emailButtonColorSecondary }} 100%);
             color: #ffffff !important;
             text-decoration: none !important;
             border-radius: 8px;
@@ -440,16 +455,24 @@
             <!-- Header -->
             <div class="email-header">
                 <div class="logo-container">
-                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjUwIiB2aWV3Qm94PSIwIDAgMjAwIDUwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjUwIiBmaWxsPSIjZmZmZmZmIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMzAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOCIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiMyNTYzZWIiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkVsZXZlbiBQbHVzIFR1dG9yPC90ZXh0Pgo8L3N2Zz4K" 
-                         alt="Eleven Plus Tutor" 
-                         class="logo"
-                         style="display: block; margin: 0 auto;" />
+                    @if(!empty($brandLogoUrl))
+                        <img src="{{ asset($brandLogoUrl) }}" 
+                             alt="{{ $brandName }}" 
+                             class="logo"
+                             style="display: block; margin: 0 auto;" />
+                    @endif
                 </div>
                 @hasSection('header-title')
                     <h1 class="header-title">@yield('header-title')</h1>
+                @else
+                    <h1 class="header-title">{{ $brandName }}</h1>
                 @endif
                 @hasSection('header-subtitle')
                     <p class="header-subtitle">@yield('header-subtitle')</p>
+                @else
+                    @if(!empty($brandTagline))
+                        <p class="header-subtitle">{{ $brandTagline }}</p>
+                    @endif
                 @endif
             </div>
             
@@ -461,23 +484,32 @@
             <!-- Footer -->
             <div class="email-footer">
                 <div class="footer-content">
-                    <div class="footer-brand">Eleven Plus Tutor</div>
-                    <p>Empowering students to achieve their academic goals with expert tutoring and comprehensive assessment tools.</p>
+                    <div class="footer-brand">{{ $brandName }}</div>
+                    @if(!empty($brandDescription))
+                        <p>{{ $brandDescription }}</p>
+                    @endif
                     
                     <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
                     
                     <p>
                         <strong>Contact us:</strong><br />
-                        Email: <a href="mailto:ept@pa.team">ept@pa.team</a><br />
-                        Visit our website: <a href="{{ config('app.url') }}">{{ config('app.url') }}</a>
+                        @if(!empty($contactEmail))
+                            Email: <a href="mailto:{{ $contactEmail }}">{{ $contactEmail }}</a><br />
+                        @endif
+                        @if(!empty($contactWebsite))
+                            Visit our website: <a href="{{ $contactWebsite }}">{{ $contactWebsite }}</a>
+                        @endif
                     </p>
                     
                     <p style="margin-top: 20px;">
-                        &copy; {{ date('Y') }} Eleven Plus Tutor. All rights reserved.<br />
+                        {{ $footerText }}<br />
                         <small style="color: #9ca3af;">
-                            This email was sent to you because you have an account with Eleven Plus Tutor.
+                            This email was sent to you because you have an account with {{ $brandName }}.
                             @hasSection('unsubscribe')
                                 <br /><a href="@yield('unsubscribe')" style="color: #9ca3af;">Unsubscribe</a>
+                            @endif
+                            @if(!empty($footerDisclaimer))
+                                <br />{{ $footerDisclaimer }}
                             @endif
                         </small>
                     </p>

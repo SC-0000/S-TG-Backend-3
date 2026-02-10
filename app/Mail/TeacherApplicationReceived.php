@@ -2,32 +2,31 @@
 
 namespace App\Mail;
 
+use App\Models\Organization;
 use Illuminate\Bus\Queueable;
-use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
-class TeacherApplicationReceived extends Mailable
+class TeacherApplicationReceived extends BrandedMailable
 {
     use Queueable, SerializesModels;
 
-    public $teacherName;
+    public $name;
     public $email;
 
-    /**
-     * Create a new message instance.
-     */
-    public function __construct($teacherName, $email)
+    public function __construct(string $name, string $email, ?Organization $organization = null)
     {
-        $this->teacherName = $teacherName;
+        $this->name = $name;
         $this->email = $email;
+        $this->organization = $organization ?? $this->resolveOrganization();
     }
 
-    /**
-     * Build the message.
-     */
     public function build()
     {
-        return $this->subject('Teacher Application Received')
-                    ->view('emails.teacher_application_received');
+        return $this->subject('Application Received')
+                    ->view('emails.teacher_application_received')
+                    ->with($this->brandingData([
+                        'name' => $this->name,
+                        'email' => $this->email,
+                    ]));
     }
 }

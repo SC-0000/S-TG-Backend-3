@@ -42,6 +42,6 @@
     @endcomponent
     
     <p style="text-align: center; color: #6b7280; font-size: 14px;">
-        <strong>Need help?</strong> Contact our support team at <a href="mailto:ept@pa.team">ept@pa.team</a>
+        <strong>Need help?</strong> Contact our support team at <a href="mailto:{{ $supportEmail ?? config('mail.from.address') }}">{{ $supportEmail ?? config('mail.from.address') }}</a>
     </p>
 @endsection

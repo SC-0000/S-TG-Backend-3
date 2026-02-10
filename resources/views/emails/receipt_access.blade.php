@@ -36,7 +36,7 @@
         
         <p>You can now access your lessons and assessments immediately. Start your learning journey today!</p>
     @else
-        <p>Thank you for choosing Eleven Plus Tutor! This email serves as your receipt for Transaction #{{ $transaction->id }}.</p>
+        <p>Thank you for choosing {{ $brandName }}! This email serves as your receipt for Transaction #{{ $transaction->id }}.</p>
     @endif
     
     @component('emails.components.card', ['title' => '📋 Order Summary'])
@@ -111,10 +111,10 @@
     @endcomponent
     
     @component('emails.components.alert', ['type' => 'warning'])
-        <strong>Security Notice:</strong> If you did not make this purchase, please contact our support team immediately at <a href="mailto:ept@pa.team" style="color: #d97706;">ept@pa.team</a>
+        <strong>Security Notice:</strong> If you did not make this purchase, please contact our support team immediately at <a href="mailto:{{ $supportEmail ?? config('mail.from.address') }}" style="color: #d97706;">{{ $supportEmail ?? config('mail.from.address') }}</a>
     @endcomponent
     
     <p style="text-align: center; margin-top: 30px;">
-        Thank you for choosing <strong>Eleven Plus Tutor</strong> for your educational journey!
+        Thank you for choosing <strong>{{ $brandName }}</strong> for your educational journey!
     </p>
 @endsection

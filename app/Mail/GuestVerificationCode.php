@@ -2,9 +2,9 @@
 
 namespace App\Mail;
 
-use Illuminate\Mail\Mailable;
+use App\Models\Organization;
 
-class GuestVerificationCode extends Mailable
+class GuestVerificationCode extends BrandedMailable
 {
     public $code;
     public $email;
@@ -14,11 +14,13 @@ class GuestVerificationCode extends Mailable
      *
      * @param string $code
      * @param string|null $email
+     * @param Organization|null $organization
      */
-    public function __construct(string $code, ?string $email = null)
+    public function __construct(string $code, ?string $email = null, ?Organization $organization = null)
     {
         $this->code = $code;
         $this->email = $email;
+        $this->organization = $organization ?? $this->resolveOrganization();
     }
 
     /**
@@ -31,9 +33,9 @@ class GuestVerificationCode extends Mailable
         return $this->subject('Your verification code')
                     ->view('emails.guest_verification_code')
                     ->text('emails.guest_verification_code_plain')
-                    ->with([
+                    ->with($this->brandingData([
                         'code' => $this->code,
                         'email' => $this->email,
-                    ]);
+                    ]));
     }
 }

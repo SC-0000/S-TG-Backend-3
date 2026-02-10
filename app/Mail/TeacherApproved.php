@@ -2,31 +2,29 @@
 
 namespace App\Mail;
 
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
-use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
-class TeacherApproved extends Mailable
+class TeacherApproved extends BrandedMailable
 {
     use Queueable, SerializesModels;
 
-    public $teacher;
+    public $user;
 
-    /**
-     * Create a new message instance.
-     */
-    public function __construct(User $teacher)
+    public function __construct(User $user, ?Organization $organization = null)
     {
-        $this->teacher = $teacher;
+        $this->user = $user;
+        $this->organization = $organization ?? $this->resolveOrganization(null, $user);
     }
 
-    /**
-     * Build the message.
-     */
     public function build()
     {
-        return $this->subject('Welcome! Your Teacher Account is Approved')
-                    ->view('emails.teacher_approved');
+        return $this->subject('Your application has been approved')
+                    ->view('emails.teacher_approved')
+                    ->with($this->brandingData([
+                        'user' => $this->user,
+                    ]));
     }
 }

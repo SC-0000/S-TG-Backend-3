@@ -138,14 +138,10 @@ class CheckoutController extends Controller
         Cache::put($codeKey, (string)$code, now()->addMinutes(10));
         Cache::put($lastKey, time(), now()->addMinutes(10));
 
-        // Send email synchronously using raw text to avoid requiring a queue worker or view templates.
+        // Send branded verification email.
         try {
-            Mail::raw("Your verification code is: {$code}", function ($message) use ($email) {
-                $message->to($email)
-                        ->subject('Your verification code');
-            });
-            // Log the fact we sent the code and include the code for local debugging (safe in dev).
-            Log::info('sendGuestCode: verification email sent (raw)', ['email' => $email]);
+            Mail::to($email)->send(new \App\Mail\GuestVerificationCode((string) $code, $email));
+            Log::info('sendGuestCode: verification email sent', ['email' => $email]);
             Log::info('sendGuestCode: debug-code', ['email' => $email, 'code' => (string)$code]);
         } catch (\Throwable $e) {
             Log::warning('sendGuestCode: failed to send verification email', ['email' => $email, 'error' => $e->getMessage()]);

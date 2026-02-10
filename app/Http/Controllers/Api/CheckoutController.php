@@ -245,9 +245,7 @@ class CheckoutController extends ApiController
         Cache::put($lastKey, time(), now()->addMinutes(10));
 
         try {
-            Mail::raw("Your verification code is: {$code}", function ($message) use ($email) {
-                $message->to($email)->subject('Your verification code');
-            });
+            Mail::to($email)->send(new \App\Mail\GuestVerificationCode((string) $code, $email));
         } catch (\Throwable $e) {
             Log::warning('sendGuestCode: failed to send verification email', ['email' => $email, 'error' => $e->getMessage()]);
             return $this->error('Could not send verification email.', [], 500);

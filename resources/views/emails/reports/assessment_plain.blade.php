@@ -10,4 +10,4 @@ Scored: {{ $submission->marks_obtained }}/{{ $submission->total_marks }}
 Please find the detailed report attached.
 
 Thanks,
-Eleven Plus Tutor
+{{ $brandName ?? config('app.name') }}

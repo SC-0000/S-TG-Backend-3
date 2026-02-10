@@ -1,6 +1,6 @@
 @extends('emails.layout')
 
-@section('title', 'Feedback Confirmation - Eleven Plus Tutor')
+@section('title', 'Feedback Confirmation - ' . ($brandName ?? config('app.name')))
 
 @section('content')
     <p>Hello {{ $feedback->name }},</p>

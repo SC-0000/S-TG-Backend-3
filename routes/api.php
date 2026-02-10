@@ -115,7 +115,9 @@ Route::middleware(['throttle:api'])->group(function () {
     Route::prefix('v1')->group(function () {
         Route::prefix('auth')->group(function () {
             Route::post('/login', [AuthController::class, 'login'])->name('api.v1.auth.login');
-            Route::post('/register', [AuthController::class, 'register'])->name('api.v1.auth.register');
+            Route::post('/register', [AuthController::class, 'register'])
+                ->middleware(['auth:sanctum', 'role:super_admin'])
+                ->name('api.v1.auth.register');
             Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->name('api.v1.auth.password.forgot');
             Route::post('/password/reset', [AuthController::class, 'resetPassword'])->name('api.v1.auth.password.reset');
             Route::post('/teacher/send-otp', [TeacherRegistrationController::class, 'sendOtp'])->name('api.v1.auth.teacher.send-otp');
@@ -128,6 +130,7 @@ Route::middleware(['throttle:api'])->group(function () {
 
         Route::prefix('public')->group(function () {
             Route::get('/home', [PublicContentController::class, 'home'])->name('api.v1.public.home');
+            Route::get('/branding/{organization}', [\App\Http\Controllers\Api\Public\BrandingController::class, 'show'])->name('api.v1.public.branding.show');
             Route::get('/about', [PublicContentController::class, 'about'])->name('api.v1.public.about');
             Route::get('/contact', [PublicContentController::class, 'contact'])->name('api.v1.public.contact');
             Route::get('/pages', [PublicContentController::class, 'pages'])->name('api.v1.public.pages');

@@ -23,7 +23,7 @@ Complete your profile to unlock the full parent portal and certificates:
 {{ route('authenticate-user') }}
 @endif
 
-If you did not make this purchase, contact support immediately.
+If you did not make this purchase, contact support immediately at {{ $supportEmail ?? config('mail.from.address') }}.
 
 Regards,
-The Team
+The {{ $brandName ?? config('app.name') }} Team

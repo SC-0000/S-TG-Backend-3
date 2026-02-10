@@ -1,6 +1,6 @@
 @extends('emails.layout')
 
-@section('title', 'Your Login Credentials - Eleven Plus Tutor')
+@section('title', 'Your Login Credentials - ' . ($brandName ?? config('app.name')))
 
 @section('content')
     <p>Hello {{ $userName }},</p>

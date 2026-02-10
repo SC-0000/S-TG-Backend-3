@@ -10,6 +10,48 @@ import {
 } from 'lucide-react';
 import { BanknotesIcon } from '@heroicons/react/24/outline';
 
+
+const routeMap = {
+    'admin.courses.index': '/admin/courses',
+    'admin.content-lessons.index': '/admin/content-lessons',
+    'lessons.index': '/admin/lessons',
+    'assessments.index': '/assessments',
+    'admin.questions.index': '/admin/questions',
+    'admin.articles.index': '/admin/articles',
+    'faqs.index': '/faqs',
+    'children.index': '/children',
+    'teachers.index': '/teachers',
+    'teacher.applications.index': '/applications',
+    'admin.teacher-student-assignments.index': '/admin/teacher-student-assignments',
+    'subscriptions.index': '/subscriptions',
+    'transactions.index': '/transactions',
+    'user_subscriptions.index': '/user-subscriptions',
+    'admin.access.index': '/access',
+    'admin.live-sessions.index': '/admin/live-sessions',
+    'homework.index': '/homework',
+    'submissions.index': '/submissions',
+    'attendance.overview': '/attendance',
+    'admin_tasks.index': '/admin-tasks',
+    'feedbacks.index': '/feedbacks',
+    'portal.feedback.index': '/admin/portal-feedbacks',
+    'services.admin.index': '/admin/services',
+    'products.index': '/products',
+    'journeys.index': '/journeys',
+    'journey-categories.index': '/journey-categories',
+    'slides.index': '/slides',
+    'alerts.index': '/alerts',
+    'testimonials.index': '/testimonials',
+    'milestones.index': '/milestones',
+    'applications.index': '/applications',
+};
+
+const route = (name) => {
+    if (typeof window !== 'undefined' && typeof window.route === 'function') {
+        return window.route(name);
+    }
+    return routeMap[name] || '#';
+};
+
 const adminFeatures = [
     {
         category: 'Content Management',

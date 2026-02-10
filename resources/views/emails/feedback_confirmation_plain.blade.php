@@ -10,5 +10,5 @@ We will review your feedback and get back to you as soon as possible. If you hav
 Thank you for your input!
 
 --
-Eleven Plus Tutor
-Contact us at: ept@pa.team
+{{ $brandName ?? config('app.name') }}
+Contact us at: {{ $supportEmail ?? config('mail.from.address') }}

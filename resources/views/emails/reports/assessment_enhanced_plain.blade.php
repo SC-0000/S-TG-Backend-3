@@ -82,4 +82,4 @@ Question Type Performance:
 
 ================================================================
 Questions about this report?
-Contact your tutor at Eleven Plus Tutor for additional support and personalized guidance.
+Contact your tutor at {{ $brandName ?? config('app.name') }} for additional support and personalized guidance.

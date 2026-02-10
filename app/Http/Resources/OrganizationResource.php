@@ -23,59 +23,74 @@ class OrganizationResource extends ApiResource
         $logoDarkUrl = $this->getSetting('branding.logo_dark_url');
         $faviconUrl = $this->getSetting('branding.favicon_url') ?? $this->getSetting('branding.favicon');
 
+        $brandingName = $this->getSetting('branding.organization_name')
+            ?? $this->getSetting('branding.name')
+            ?? $this->name;
+
+        $themeColors = $this->getSetting('theme.colors');
+        $brandingColors = $this->getSetting('branding.colors');
+        $resolvedColors = $themeColors ?: ($brandingColors ?: [
+            'primary' => '#411183',
+            'primary_50' => '#F8F6FF',
+            'primary_100' => '#F0EBFF',
+            'primary_200' => '#E1D6FF',
+            'primary_300' => '#C9B8FF',
+            'primary_400' => '#A688FF',
+            'primary_500' => '#8B5CF6',
+            'primary_600' => '#7C3AED',
+            'primary_700' => '#6D28D9',
+            'primary_800' => '#5B21B6',
+            'primary_900' => '#411183',
+            'primary_950' => '#2E0F5C',
+            'accent' => '#1F6DF2',
+            'accent_50' => '#EFF6FF',
+            'accent_100' => '#DBEAFE',
+            'accent_200' => '#BFDBFE',
+            'accent_300' => '#93C5FD',
+            'accent_400' => '#60A5FA',
+            'accent_500' => '#3B82F6',
+            'accent_600' => '#2563EB',
+            'accent_700' => '#1D4ED8',
+            'accent_800' => '#1E40AF',
+            'accent_900' => '#1F6DF2',
+            'accent_950' => '#172554',
+            'accent_soft' => '#f77052',
+            'accent_soft_50' => '#FFF7F5',
+            'accent_soft_100' => '#FFEDE8',
+            'accent_soft_200' => '#FFD9D0',
+            'accent_soft_300' => '#FFBAA8',
+            'accent_soft_400' => '#FF9580',
+            'accent_soft_500' => '#FFA996',
+            'accent_soft_600' => '#FF6B47',
+            'accent_soft_700' => '#F04A23',
+            'accent_soft_800' => '#C73E1D',
+            'accent_soft_900' => '#A3341A',
+            'secondary' => '#B4C8E8',
+            'heavy' => '#1F6DF2',
+        ]);
+
+        $contactSettings = $this->getSetting('contact', []);
+        $brandingContact = $this->getSetting('branding.contact', []);
+        $resolvedContact = array_replace_recursive($brandingContact ?: [], $contactSettings ?: []);
+
+        $socialSettings = $this->getSetting('social_media', []);
+        $brandingSocial = $this->getSetting('branding.social', [])
+            ?: $this->getSetting('branding.social_media', []);
+        $resolvedSocial = array_replace_recursive($brandingSocial ?: [], $socialSettings ?: []);
+
         $branding = [
-            'name' => $this->getSetting('branding.organization_name'),
+            'name' => $brandingName,
             'tagline' => $this->getSetting('branding.tagline'),
             'description' => $this->getSetting('branding.description'),
             'logo_url' => $normalizeUrl($logoUrl),
             'logo_dark_url' => $normalizeUrl($logoDarkUrl),
-            'favicon_url' => $normalizeUrl($faviconUrl),
-            'colors' => $this->getSetting('theme.colors', [
-                'primary' => '#411183',
-                'primary_50' => '#F8F6FF',
-                'primary_100' => '#F0EBFF',
-                'primary_200' => '#E1D6FF',
-                'primary_300' => '#C9B8FF',
-                'primary_400' => '#A688FF',
-                'primary_500' => '#8B5CF6',
-                'primary_600' => '#7C3AED',
-                'primary_700' => '#6D28D9',
-                'primary_800' => '#5B21B6',
-                'primary_900' => '#411183',
-                'primary_950' => '#2E0F5C',
-                'accent' => '#1F6DF2',
-                'accent_50' => '#EFF6FF',
-                'accent_100' => '#DBEAFE',
-                'accent_200' => '#BFDBFE',
-                'accent_300' => '#93C5FD',
-                'accent_400' => '#60A5FA',
-                'accent_500' => '#3B82F6',
-                'accent_600' => '#2563EB',
-                'accent_700' => '#1D4ED8',
-                'accent_800' => '#1E40AF',
-                'accent_900' => '#1F6DF2',
-                'accent_950' => '#172554',
-                'accent_soft' => '#f77052',
-                'accent_soft_50' => '#FFF7F5',
-                'accent_soft_100' => '#FFEDE8',
-                'accent_soft_200' => '#FFD9D0',
-                'accent_soft_300' => '#FFBAA8',
-                'accent_soft_400' => '#FF9580',
-                'accent_soft_500' => '#FFA996',
-                'accent_soft_600' => '#FF6B47',
-                'accent_soft_700' => '#F04A23',
-                'accent_soft_800' => '#C73E1D',
-                'accent_soft_900' => '#A3341A',
-                'secondary' => '#B4C8E8',
-                'heavy' => '#1F6DF2',
-            ]),
-            'contact' => [
-                'phone' => $this->getSetting('contact.phone'),
-                'email' => $this->getSetting('contact.email'),
-                'address' => $this->getSetting('contact.address'),
-                'business_hours' => $this->getSetting('contact.business_hours'),
+            'favicon_url' => $normalizeUrl($faviconUrl),            'colors' => $resolvedColors,            'contact' => [
+                'phone' => data_get($resolvedContact, 'phone'),
+                'email' => data_get($resolvedContact, 'email'),
+                'address' => data_get($resolvedContact, 'address'),
+                'business_hours' => data_get($resolvedContact, 'business_hours'),
             ],
-            'social' => $this->getSetting('social_media', []),
+            'social' => $resolvedSocial,
             'custom_css' => $this->getSetting('theme.custom_css'),
         ];
 

@@ -27,7 +27,7 @@ What's Next?
 
 -----------------------------------
 
-Need help? Contact our support team at ept@pa.team
+Need help? Contact our support team at {{ $supportEmail ?? config('mail.from.address') }}
 
 -----------------------------------
 

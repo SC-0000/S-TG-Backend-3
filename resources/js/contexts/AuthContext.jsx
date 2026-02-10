@@ -77,7 +77,7 @@ export const AuthProvider = ({ children, initialUser = null }) => {
     const register = useCallback(async (registrationData) => {
         try {
             const response = await apiClient.post('/auth/register', registrationData, {
-                useToken: false,
+                useToken: true,
             });
             
             const payload = response?.data ?? response;

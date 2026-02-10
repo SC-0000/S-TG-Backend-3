@@ -2,12 +2,12 @@
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Mail\Mailable;
-use Illuminate\Queue\SerializesModels;
+use App\Models\Organization;
 use App\Models\Transaction;
+use Illuminate\Bus\Queueable;
+use Illuminate\Queue\SerializesModels;
 
-class ReceiptAccessMail extends Mailable
+class ReceiptAccessMail extends BrandedMailable
 {
     use Queueable, SerializesModels;
 
@@ -19,11 +19,13 @@ class ReceiptAccessMail extends Mailable
      *
      * @param Transaction $transaction
      * @param string $messageType
+     * @param Organization|null $organization
      */
-    public function __construct(Transaction $transaction, string $messageType = 'receipt')
+    public function __construct(Transaction $transaction, string $messageType = 'receipt', ?Organization $organization = null)
     {
         $this->transaction = $transaction;
         $this->messageType = $messageType;
+        $this->organization = $organization ?? $this->resolveOrganizationFromTransaction($transaction);
     }
 
     /**
@@ -39,9 +41,30 @@ class ReceiptAccessMail extends Mailable
 
         return $this->subject($subject)
                     ->view('emails.receipt_access')
-                    ->with([
+                    ->with($this->brandingData([
                         'transaction' => $this->transaction,
                         'messageType' => $this->messageType,
-                    ]);
+                    ]));
+    }
+
+    protected function resolveOrganizationFromTransaction(Transaction $transaction): ?Organization
+    {
+        try {
+            $item = $transaction->items()->with('item')->get()->pluck('item')->filter()->first();
+            if ($item && isset($item->organization_id) && $item->organization_id) {
+                return Organization::find($item->organization_id);
+            }
+        } catch (\Throwable $e) {
+            // Ignore and fall back.
+        }
+
+        if ($transaction->user) {
+            $resolved = $this->resolveOrganization(null, $transaction->user);
+            if ($resolved) {
+                return $resolved;
+            }
+        }
+
+        return $this->resolveOrganization();
     }
 }

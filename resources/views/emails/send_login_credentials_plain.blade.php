@@ -12,5 +12,5 @@ If you have any questions or need help, feel free to reach out.
 Thank you!
 
 --
-Eleven Plus Tutor
-Contact us at: ept@pa.team
+{{ $brandName ?? config('app.name') }}
+Contact us at: {{ $supportEmail ?? config('mail.from.address') }}
