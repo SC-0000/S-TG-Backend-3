@@ -251,7 +251,6 @@ Route::delete('/admin-tasks/{id}', [AdminTaskController::class, 'destroy'])->nam
 
 // Teacher Application Management Routes
 Route::prefix('teacher-applications')->name('teacher.applications.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\TeacherController::class, 'index'])->name('index');
     Route::get('/pending', [\App\Http\Controllers\TeacherController::class, 'getPendingApplications'])->name('pending');
     Route::post('/{task}/approve', [\App\Http\Controllers\TeacherController::class, 'approve'])->name('approve');
     Route::post('/{task}/reject', [\App\Http\Controllers\TeacherController::class, 'reject'])->name('reject');

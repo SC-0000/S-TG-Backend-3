@@ -325,7 +325,7 @@ class ContentLessonController extends Controller
             'title' => $validated['title'],
             'year_group' => $validated['year_group'] ?? null,
             'description' => $validated['description'] ?? null,
-            'order_position' => $validated['order_position'] ?? $module->lessons()->max('order_position') + 1,
+            'order_position' => $validated['order_position'] ?? (($module->lessons()->max('content_lesson_module.order_position') ?? 0) + 1),
             'lesson_type' => $validated['lesson_type'] ?? 'interactive',
             'delivery_mode' => $validated['delivery_mode'] ?? 'self_paced',
             'status' => 'draft',
@@ -618,7 +618,7 @@ class ContentLessonController extends Controller
         $newLesson->status = 'draft';
         
         $primaryModule = $lesson->modules()->first();
-        $newLesson->order_position = $primaryModule->lessons()->max('order_position') + 1;
+        $newLesson->order_position = ($primaryModule->lessons()->max('content_lesson_module.order_position') ?? 0) + 1;
         $newLesson->save();
         
         // Attach to the same modules

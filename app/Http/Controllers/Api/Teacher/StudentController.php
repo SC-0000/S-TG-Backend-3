@@ -30,7 +30,7 @@ class StudentController extends ApiController
                 },
             ]);
 
-        ApiQuery::applyFilters($query, $request, [
+        ApiQuery::applyFilters($query->getQuery(), $request, [
             'year_group' => true,
         ]);
 

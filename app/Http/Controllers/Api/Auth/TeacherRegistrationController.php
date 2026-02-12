@@ -111,11 +111,12 @@ class TeacherRegistrationController extends ApiController
         ]);
 
         $task = AdminTask::create([
+            'organization_id' => $validated['organization_id'],
             'task_type' => 'teacher_approval',
             'title' => 'New Teacher Application: ' . $user->name,
             'description' => 'Review and approve teacher application from ' . $user->email,
             'status' => 'pending',
-            'related_entity' => route('teacher.applications.index'),
+            'related_entity' => url('/teacher-applications'),
             'metadata' => [
                 'user_id' => $user->id,
                 'name' => $user->name,

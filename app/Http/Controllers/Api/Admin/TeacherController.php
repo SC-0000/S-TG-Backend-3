@@ -34,12 +34,22 @@ class TeacherController extends ApiController
             ->get()
             ->keyBy('user_id');
 
-        $data = $teachers->getCollection()->map(function (User $teacher) use ($profiles) {
+        $orgs = Organization::whereIn('id', $teachers->pluck('current_organization_id')->filter())
+            ->get(['id', 'name'])
+            ->keyBy('id');
+
+        $data = $teachers->getCollection()->map(function (User $teacher) use ($profiles, $orgs) {
             $profile = $profiles->get($teacher->id);
+            $metadata = $teacher->metadata ?? [];
+            $org = $teacher->current_organization_id ? $orgs->get($teacher->current_organization_id) : null;
             return [
                 'id' => $teacher->id,
                 'name' => $teacher->name,
                 'email' => $teacher->email,
+                'mobile_number' => $teacher->mobile_number,
+                'status' => $metadata['status'] ?? null,
+                'organization_id' => $teacher->current_organization_id,
+                'organization_name' => $org?->name,
                 'profile_id' => $profile?->id,
                 'title' => $profile?->title,
                 'category' => $profile?->category,
@@ -87,11 +97,17 @@ class TeacherController extends ApiController
             ->latest()
             ->get();
 
+        $organization = $teacher->current_organization_id ? Organization::find($teacher->current_organization_id) : null;
+
         $teacherData = [
             'id' => $teacher->id,
             'name' => $teacher->name,
             'email' => $teacher->email,
+            'mobile_number' => $teacher->mobile_number,
             'role' => $teacher->role,
+            'metadata' => $teacher->metadata ?? [],
+            'organization_id' => $teacher->current_organization_id,
+            'organization_name' => $organization?->name,
             'profile_id' => $profile?->id,
             'profile' => [
                 'id' => $profile?->id,
@@ -171,7 +187,7 @@ class TeacherController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        $users = User::select('id', 'name')->orderBy('name')->get();
+        $users = User::select('id', 'name', 'email', 'mobile_number')->orderBy('name')->get();
 
         return $this->success(['users' => $users]);
     }
@@ -218,7 +234,7 @@ class TeacherController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        $users = User::select('id', 'name')->orderBy('name')->get();
+        $users = User::select('id', 'name', 'email', 'mobile_number')->orderBy('name')->get();
 
         return $this->success([
             'teacher' => $teacher,

@@ -17,6 +17,33 @@ class AdminLessonSlideController extends ApiController
         return $orgId ? (int) $orgId : null;
     }
 
+    public function show(Request $request, LessonSlide $slide): JsonResponse
+    {
+        $orgId = $this->resolveOrgId($request);
+        if ($orgId && $slide->lesson && (int) $slide->lesson->organization_id !== (int) $orgId) {
+            return $this->error('Not found.', [], 404);
+        }
+
+        $slide->load('lesson:id,organization_id');
+
+        return $this->success([
+            'id' => $slide->id,
+            'uid' => $slide->uid,
+            'lesson_id' => $slide->lesson_id,
+            'title' => $slide->title,
+            'order_position' => $slide->order_position,
+            'blocks' => $slide->blocks,
+            'template_id' => $slide->template_id,
+            'layout_settings' => $slide->layout_settings,
+            'teacher_notes' => $slide->teacher_notes,
+            'estimated_seconds' => $slide->estimated_seconds,
+            'auto_advance' => (bool) $slide->auto_advance,
+            'min_time_seconds' => $slide->min_time_seconds,
+            'settings' => $slide->settings,
+        ]);
+    }
+
+
     public function store(Request $request, ContentLesson $lesson): JsonResponse
     {
         $orgId = $this->resolveOrgId($request);
@@ -45,7 +72,7 @@ class AdminLessonSlideController extends ApiController
             'template_id' => $validated['template_id'] ?? null,
             'layout_settings' => $validated['layout_settings'] ?? null,
             'teacher_notes' => $validated['teacher_notes'] ?? null,
-            'estimated_seconds' => $validated['estimated_seconds'] ?? null,
+            'estimated_seconds' => $validated['estimated_seconds'] ?? 60,
             'auto_advance' => $request->boolean('auto_advance'),
             'min_time_seconds' => $validated['min_time_seconds'] ?? null,
             'settings' => $validated['settings'] ?? null,

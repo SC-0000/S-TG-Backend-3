@@ -6,6 +6,11 @@ Route::view('/app/{path?}', 'app-api')
     ->where('path', '.*')
     ->name('app.api');
 
+// Teacher applications SPA entry (no session middleware; API auth handles access)
+Route::view('/teacher-applications', 'app-api')->name('teacher.applications.index');
+Route::view('/admin/teacher-applications', 'app-api');
+Route::view('/superadmin/teacher-applications', 'app-api');
+
 // Generic /dashboard route that redirects based on user role
 Route::get('/dashboard', function () {
     $user = auth()->user();

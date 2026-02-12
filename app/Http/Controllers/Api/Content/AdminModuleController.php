@@ -163,7 +163,7 @@ class AdminModuleController extends ApiController
         }
 
         $module->lessons()->attach($validated['lesson_id'], [
-            'order_position' => $validated['order_position'] ?? ($module->lessons()->max('order_position') + 1),
+            'order_position' => $validated['order_position'] ?? (($module->lessons()->max('content_lesson_module.order_position') ?? 0) + 1),
         ]);
 
         return $this->success(['message' => 'Lesson attached successfully.']);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Api\Auth\TeacherRegistrationController as ApiTeacherRegistrationController;
 use App\Models\User;
 use App\Models\AdminTask;
 use App\Mail\TeacherApplicationReceived;
@@ -21,6 +22,9 @@ class TeacherController extends Controller
      */
     public function sendOtp(Request $request)
     {
+        if ($request->expectsJson()) {
+            return app(ApiTeacherRegistrationController::class)->sendOtp($request);
+        }
         $request->validate([
             'email' => 'required|email|unique:users,email',
         ], [
@@ -51,6 +55,9 @@ class TeacherController extends Controller
      */
     public function verifyOtp(Request $request)
     {
+        if ($request->expectsJson()) {
+            return app(ApiTeacherRegistrationController::class)->verifyOtp($request);
+        }
         $request->validate([
             'email' => 'required|email',
             'otp' => 'required|string|size:6',
@@ -98,6 +105,9 @@ class TeacherController extends Controller
      */
     public function register(Request $request)
     {
+        if ($request->expectsJson()) {
+            return app(ApiTeacherRegistrationController::class)->register($request);
+        }
         Log::info('Register teacher request received', [
             'email' => $request->input('email'),
             'ip' => $request->ip(),
@@ -170,11 +180,12 @@ log::info('Email verified for teacher registration', [
 
             // Create an AdminTask for approval
             $task = AdminTask::create([
+                'organization_id' => $request->organization_id,
                 'task_type' => 'teacher_approval',
                 'title' => 'New Teacher Application: ' . $user->name,
                 'description' => 'Review and approve teacher application from ' . $user->email,
                 'status' => 'pending',
-                'related_entity' => route('teacher.applications.index'),
+                'related_entity' => url('/teacher-applications'),
                 'metadata' => [
                     'user_id' => $user->id,
                     'name' => $user->name,

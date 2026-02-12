@@ -21,7 +21,7 @@ const routeMap = {
     'faqs.index': '/faqs',
     'children.index': '/children',
     'teachers.index': '/teachers',
-    'teacher.applications.index': '/applications',
+    'teacher.applications.index': '/superadmin/teacher-applications',
     'admin.teacher-student-assignments.index': '/admin/teacher-student-assignments',
     'subscriptions.index': '/subscriptions',
     'transactions.index': '/transactions',

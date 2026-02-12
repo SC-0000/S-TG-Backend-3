@@ -70,7 +70,7 @@ class QuestionBankController extends BaseQuestionController
         $data = QuestionResource::collection($questions->items())->resolve();
 
         return $this->paginated($questions, $data, [
-            'question_types' => QuestionTypeRegistry::getAllTypes(),
+            'question_types' => QuestionTypeRegistry::getAvailableTypes(),
         ]);
     }
 
