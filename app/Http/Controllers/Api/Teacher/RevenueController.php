@@ -21,9 +21,12 @@ class RevenueController extends ApiController
 
         $orgId = $request->attributes->get('organization_id') ?: $teacher->current_organization_id;
 
-        $childIds = $teacher->assignedStudents()
-            ->when($orgId, fn ($q) => $q->wherePivot('organization_id', $orgId))
-            ->pluck('children.id');
+        $childQuery = $teacher->assignedStudents();
+        if ($orgId) {
+            $childQuery->where('child_teacher.organization_id', $orgId);
+        }
+
+        $childIds = $childQuery->pluck('children.id');
 
         if ($childIds->isEmpty()) {
             return $this->success([

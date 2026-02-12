@@ -6,7 +6,6 @@ use App\Http\Controllers\Api\ApiController;
 use App\Http\Resources\TeacherStudentResource;
 use App\Models\Child;
 use App\Support\ApiPagination;
-use App\Support\ApiQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -30,9 +29,16 @@ class StudentController extends ApiController
                 },
             ]);
 
-        ApiQuery::applyFilters($query->getQuery(), $request, [
-            'year_group' => true,
-        ]);
+        $filters = (array) $request->query('filter', []);
+
+        if (isset($filters['year_group']) && $filters['year_group'] !== '') {
+            $query->where('children.year_group', $filters['year_group']);
+        }
+
+        $orgFilter = $filters['organization_id'] ?? $request->query('organization_id');
+        if ($orgFilter !== null && $orgFilter !== '') {
+            $query->wherePivot('organization_id', $orgFilter);
+        }
 
         if ($request->filled('search')) {
             $search = $request->query('search');

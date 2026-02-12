@@ -192,12 +192,6 @@ Route::middleware(['throttle:api'])->group(function () {
         Route::get('/content-lessons/{lesson}/slides', [ApiContentLessonController::class, 'slides'])->name('api.v1.content-lessons.slides');
         Route::get('/lesson-slides/{slide}', [ApiLessonSlideController::class, 'show'])->name('api.v1.lesson-slides.show');
 
-        
-        Route::prefix('teacher')->middleware('role:teacher,admin')->group(function () {
-            Route::get('/courses', [ApiTeacherCourseController::class, 'index'])->name('api.v1.teacher.courses.index');
-
-        
-        });
     });
 });
 
@@ -810,69 +804,6 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::post('/{attendance}/approve', [ApiAdminAttendanceController::class, 'approve'])->name('api.v1.admin.attendance.approve');
             });
 
-            
-            Route::prefix('journey-categories')->group(function () {
-                Route::get('/', [ApiAdminJourneyCategoryController::class, 'index'])->name('api.v1.teacher.journey-categories.index');
-            });
-
-            Route::prefix('courses')->group(function () {
-                Route::get('/', [ApiAdminCourseController::class, 'index'])->name('api.v1.teacher.courses.index');
-                Route::post('/', [ApiAdminCourseController::class, 'store'])->name('api.v1.teacher.courses.store');
-                Route::get('/{course}', [ApiAdminCourseController::class, 'show'])->name('api.v1.teacher.courses.show');
-                Route::get('/{course}/edit-data', [ApiAdminCourseController::class, 'editData'])->name('api.v1.teacher.courses.edit-data');
-                Route::put('/{course}', [ApiAdminCourseController::class, 'update'])->name('api.v1.teacher.courses.update');
-                Route::delete('/{course}', [ApiAdminCourseController::class, 'destroy'])->name('api.v1.teacher.courses.destroy');
-                Route::post('/{course}/publish', [ApiAdminCourseController::class, 'publish'])->name('api.v1.teacher.courses.publish');
-                Route::post('/{course}/archive', [ApiAdminCourseController::class, 'archive'])->name('api.v1.teacher.courses.archive');
-                Route::post('/{course}/duplicate', [ApiAdminCourseController::class, 'duplicate'])->name('api.v1.teacher.courses.duplicate');
-
-                Route::post('/{course}/modules', [ApiAdminModuleController::class, 'store'])->name('api.v1.teacher.courses.modules.store');
-                Route::post('/{course}/modules/reorder', [ApiAdminModuleController::class, 'reorder'])->name('api.v1.teacher.courses.modules.reorder');
-            });
-
-            Route::prefix('modules')->group(function () {
-                Route::put('/{module}', [ApiAdminModuleController::class, 'update'])->name('api.v1.teacher.modules.update');
-                Route::delete('/{module}', [ApiAdminModuleController::class, 'destroy'])->name('api.v1.teacher.modules.destroy');
-                Route::post('/{module}/publish', [ApiAdminModuleController::class, 'publish'])->name('api.v1.teacher.modules.publish');
-                Route::post('/{module}/duplicate', [ApiAdminModuleController::class, 'duplicate'])->name('api.v1.teacher.modules.duplicate');
-                Route::post('/{module}/lessons', [ApiAdminModuleController::class, 'attachLesson'])->name('api.v1.teacher.modules.lessons.attach');
-                Route::delete('/{module}/lessons/{lesson}', [ApiAdminModuleController::class, 'detachLesson'])->name('api.v1.teacher.modules.lessons.detach');
-                Route::post('/{module}/assessments', [ApiAdminModuleController::class, 'attachAssessment'])->name('api.v1.teacher.modules.assessments.attach');
-                Route::delete('/{module}/assessments/{assessment}', [ApiAdminModuleController::class, 'detachAssessment'])->name('api.v1.teacher.modules.assessments.detach');
-            });
-
-            Route::prefix('content-lessons')->group(function () {
-                Route::get('/', [ApiAdminContentLessonController::class, 'index'])->name('api.v1.teacher.content-lessons.index');
-                Route::post('/', [ApiAdminContentLessonController::class, 'storeStandalone'])->name('api.v1.teacher.content-lessons.store');
-                Route::post('/{module}', [ApiAdminContentLessonController::class, 'store'])->name('api.v1.teacher.content-lessons.store-module');
-                Route::get('/{lesson}', [ApiAdminContentLessonController::class, 'show'])->name('api.v1.teacher.content-lessons.show');
-                Route::put('/{lesson}', [ApiAdminContentLessonController::class, 'update'])->name('api.v1.teacher.content-lessons.update');
-                Route::delete('/{lesson}', [ApiAdminContentLessonController::class, 'destroy'])->name('api.v1.teacher.content-lessons.destroy');
-                Route::post('/{lesson}/publish', [ApiAdminContentLessonController::class, 'publish'])->name('api.v1.teacher.content-lessons.publish');
-                Route::post('/{lesson}/duplicate', [ApiAdminContentLessonController::class, 'duplicate'])->name('api.v1.teacher.content-lessons.duplicate');
-            });
-
-            Route::prefix('lesson-slides')->group(function () {
-                Route::post('/{lesson}', [ApiAdminLessonSlideController::class, 'store'])->name('api.v1.teacher.lesson-slides.store');
-                Route::get('/{slide}', [ApiAdminLessonSlideController::class, 'show'])->name('api.v1.teacher.lesson-slides.show');
-                Route::put('/{slide}', [ApiAdminLessonSlideController::class, 'update'])->name('api.v1.teacher.lesson-slides.update');
-                Route::delete('/{slide}', [ApiAdminLessonSlideController::class, 'destroy'])->name('api.v1.teacher.lesson-slides.destroy');
-                Route::post('/{slide}/duplicate', [ApiAdminLessonSlideController::class, 'duplicate'])->name('api.v1.teacher.lesson-slides.duplicate');
-                Route::post('/{slide}/blocks', [ApiAdminLessonSlideController::class, 'addBlock'])->name('api.v1.teacher.lesson-slides.blocks.add');
-                Route::put('/{slide}/blocks/{blockId}', [ApiAdminLessonSlideController::class, 'updateBlock'])->name('api.v1.teacher.lesson-slides.blocks.update');
-                Route::delete('/{slide}/blocks/{blockId}', [ApiAdminLessonSlideController::class, 'deleteBlock'])->name('api.v1.teacher.lesson-slides.blocks.delete');
-            });
-
-            Route::prefix('lessons')->group(function () {
-                Route::get('/', [ApiAdminLessonController::class, 'index'])->name('api.v1.teacher.lessons.index');
-                Route::post('/', [ApiAdminLessonController::class, 'store'])->name('api.v1.teacher.lessons.store');
-                Route::get('/create-data', [ApiAdminLessonController::class, 'createData'])->name('api.v1.teacher.lessons.create-data');
-                Route::get('/assigned', [ApiAdminLessonController::class, 'assigned'])->name('api.v1.teacher.lessons.assigned');
-                Route::get('/{lesson}/edit-data', [ApiAdminLessonController::class, 'editData'])->name('api.v1.teacher.lessons.edit-data');
-                Route::get('/{lesson}', [ApiAdminLessonController::class, 'show'])->name('api.v1.teacher.lessons.show');
-                Route::put('/{lesson}', [ApiAdminLessonController::class, 'update'])->name('api.v1.teacher.lessons.update');
-                Route::delete('/{lesson}', [ApiAdminLessonController::class, 'destroy'])->name('api.v1.teacher.lessons.destroy');
-            });
 
 Route::prefix('ai-upload')->group(function () {
                 Route::get('/', [ApiAdminAIUploadController::class, 'index'])->name('api.v1.admin.ai-upload.index');

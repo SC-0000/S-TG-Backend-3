@@ -73,9 +73,7 @@ class DashboardController extends ApiController
             ->whereDate('created_at', today());
 
         if ($orgId) {
-            $query->whereHas('user', function ($q) use ($orgId) {
-                $q->where('current_organization_id', $orgId);
-            });
+            $query->where('organization_id', $orgId);
         }
 
         return (float) ($query->sum('total') ?? 0);
@@ -88,9 +86,7 @@ class DashboardController extends ApiController
             ->whereYear('created_at', now()->year);
 
         if ($orgId) {
-            $query->whereHas('user', function ($q) use ($orgId) {
-                $q->where('current_organization_id', $orgId);
-            });
+            $query->where('organization_id', $orgId);
         }
 
         return (float) ($query->sum('total') ?? 0);
@@ -186,9 +182,7 @@ class DashboardController extends ApiController
                 ->whereDate('created_at', $date);
 
             if ($orgId) {
-                $query->whereHas('user', function ($q) use ($orgId) {
-                    $q->where('current_organization_id', $orgId);
-                });
+                $query->where('organization_id', $orgId);
             }
 
             return [

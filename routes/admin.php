@@ -108,8 +108,7 @@ Route::middleware(['auth', 'role:admin,super_admin'])->group(function () {
      // Teachers
      Route::get('/teachers/assignments', [TeacherController::class, 'assignments'])->name('teachers.assignments');
      Route::resource('teachers', TeacherController::class);
-     Route::get('/admin-dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
-     Route::get('/admin-dashboard/debug', [DashboardController::class, 'debug'])->name('admin.dashboard.debug');
+     // Admin dashboard routes are served by the SPA (public.php) to avoid session auth redirects.
 
      Route::resource('subscriptions', SubscriptionController::class)
           ->except(['show']);
