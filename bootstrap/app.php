@@ -12,12 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
         then: function () {
-            // Super Admin Routes
-            Route::middleware('web')
-                ->group(base_path('routes/superadmin.php'));
+            // No additional web routes; API-only backend.
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->web(prepend: [
+            \App\Http\Middleware\RedirectToFrontend::class,
+        ]);
         $middleware->web(append: [
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);

@@ -1,0 +1,110 @@
+# Backend View Routes -> Frontend Route Match Report
+
+Total backend view routes scanned: 101
+Matched in frontend: 88
+Missing in frontend: 13
+
+## Missing in Frontend
+- /access/{path?}
+- /admin/{path?}
+- /attendance/{path?}
+- /feedback/success/{feedback}
+- /flags/{path?}
+- /journey-categories/{path?}
+- /live-sessions/{path?}
+- /milestones/{path?}
+- /portal/{path?}
+- /subscriptions/{path?}
+- /superadmin/{path?}
+- /teacher/{path?}
+- /user-subscriptions/{path?}
+
+## Matched in Frontend
+- / -> /^/$/
+- /about -> /^/about$/
+- /admin-dashboard -> /^/admin-dashboard$/
+- /admin-dashboard/debug -> /^/admin-dashboard/debug$/
+- /admin-tasks/{path?} -> /^/admin-tasks/(\d+)$/
+- /admin/homework-submissions/{path?} -> /^/admin/homework-submissions/(\d+)$/
+- /admin/homework/{path?} -> /^/admin/homework/(\d+)$/
+- /ai/chat -> /^/ai/chat$/
+- /alerts/{id} -> /^/alerts/(\d+)$/
+- /alerts/{path?} -> /^/alerts/(\d+)$/
+- /application/verification -> /^/application/verification$/
+- /applications -> /^/applications$/
+- /applications/create -> /^/applications/create$/
+- /applications/verify/{token} -> /^/applications/verify/([^/]+)$/
+- /applications/{id} -> /^/applications/([^/]+)$/
+- /applications/{id}/edit -> /^/applications/([^/]+)/edit$/
+- /articles -> /^/articles$/
+- /articles/{id} -> /^/articles/([^/]+)$/
+- /articles/{id}/edit -> /^/articles/(\d+)/edit$/
+- /assessments -> /^/assessments$/
+- /assessments/create -> /^/assessments/create$/
+- /assessments/{assessment} -> /^/assessments/(\d+)$/
+- /assessments/{assessment}/attempt -> /^/assessments/(\d+)/attempt$/
+- /assessments/{assessment}/edit -> /^/assessments/(\d+)/edit$/
+- /assessments/{path?} -> /^/assessments/(\d+)$/
+- /billing/invoice -> /^/billing/invoice$/
+- /billing/pay/{invoice} -> /^/billing/pay/([^/]+)$/
+- /billing/portal -> /^/billing/portal$/
+- /billing/receipt/{invoice} -> /^/billing/receipt/([^/]+)$/
+- /billing/setup -> /^/billing/setup$/
+- /billing/subs -> /^/billing/subs$/
+- /checkout -> /^/checkout$/
+- /children -> /^/children$/
+- /children/create -> /^/children/create$/
+- /children/{child} -> /^/children/(\d+)$/
+- /children/{child}/edit -> /^/children/(\d+)/edit$/
+- /contact -> /^/contact$/
+- /courses/{path?} -> /^/courses/(\d+)$/
+- /email/verified -> /^/email/verified$/
+- /faqs/{id} -> /^/faqs/([^/]+)$/
+- /faqs/{path?} -> /^/faqs/([^/]+)$/
+- /feedbacks/{id} -> /^/feedbacks/(\d+)$/
+- /feedbacks/{path?} -> /^/feedbacks/(\d+)$/
+- /guest/complete-profile -> /^/guest/complete-profile$/
+- /homework/submissions/{path?} -> /^/homework/submissions/(\d+)$/
+- /homework/{path?} -> /^/homework/(\d+)$/
+- /journeys/{path?} -> /^/journeys/(\d+)$/
+- /lessons/{path?} -> /^/lessons/(\d+)$/
+- /login -> /^/login$/
+- /my-live-sessions/{path?} -> /^/my-live-sessions/(\d+)$/
+- /my-purchases -> /^/my-purchases$/
+- /notifications/{path?} -> /^/notifications/(\d+)$/
+- /organizations/{path?} -> /^/organizations/(\d+)$/
+- /payment-widget -> /^/payment-widget$/
+- /portal/assessments/browse -> /^/portal/assessments/browse$/
+- /portal/faqs -> /^/portal/faqs$/
+- /portal/lessons/browse -> /^/portal/lessons/browse$/
+- /portal/notifications -> /^/portal/notifications$/
+- /portal/products -> /^/portal/products$/
+- /portal/services -> /^/portal/services$/
+- /portal/services/{service} -> /^/portal/services/(\d+)$/
+- /products -> /^/products$/
+- /products/create -> /^/products/create$/
+- /products/{product} -> /^/products/(\d+)$/
+- /products/{product}/edit -> /^/products/(\d+)/edit$/
+- /profile -> /^/profile$/
+- /questions/{path?} -> /^/questions/(\d+)$/
+- /services -> /^/services$/
+- /services/{service} -> /^/services/([^/]+)$/
+- /slides/{path?} -> /^/slides/(\d+)$/
+- /slides/{slide_id} -> /^/slides/(\d+)$/
+- /submissions/{path?} -> /^/submissions/(\d+)$/
+- /subscription-plans -> /^/subscription-plans$/
+- /tasks/{path?} -> /^/tasks/(\d+)$/
+- /teacher/register -> /^/teacher/register$/
+- /teachers/{path?} -> /^/teachers/(\d+)$/
+- /testimonials/{id} -> /^/testimonials/(\d+)$/
+- /testimonials/{path?} -> /^/testimonials/(\d+)$/
+- /transactions -> /^/transactions$/
+- /transactions/{transaction} -> /^/transactions/(?!create$)([^/]+)$/
+- /users/{user}/subscriptions -> /^/users/(\d+)/subscriptions$/
+- /widget-test -> /^/widget-test$/
+- authenticate-user -> /^/authenticate-user$/
+- confirm-password -> /^/confirm-password$/
+- forgot-password -> /^/forgot-password$/
+- register -> /^/register$/
+- reset-password/{token} -> /^/reset-password/([^/]+)$/
+- submissions/{submission} -> /^/submissions/(\d+)$/

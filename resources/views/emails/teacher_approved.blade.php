@@ -19,7 +19,7 @@
     </ul>
 
     <p style="text-align: center;">
-        <a href="{{ route('login') }}" class="btn">Login to Your Account</a>
+        <a href="{{ rtrim(config('app.frontend_url'), '/') . '/login' }}" class="btn">Login to Your Account</a>
     </p>
 
     <p>We're excited to have you on our team!</p>

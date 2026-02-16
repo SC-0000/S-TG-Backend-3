@@ -2,37 +2,19 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::view('/app/{path?}', 'app-api')
-    ->where('path', '.*')
-    ->name('app.api');
-
-// Teacher applications SPA entry (no session middleware; API auth handles access)
-Route::view('/teacher-applications', 'app-api')->name('teacher.applications.index');
-Route::view('/admin/teacher-applications', 'app-api');
-Route::view('/superadmin/teacher-applications', 'app-api');
-
-// Generic /dashboard route that redirects based on user role
-Route::get('/dashboard', function () {
-    $user = auth()->user();
-    
-    if (!$user) {
-        return redirect('/login');
+Route::get('/{path?}', function () {
+    $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+    if ($frontendUrl === '') {
+        abort(404);
     }
-    
-    return match($user->role) {
-        'admin' => redirect()->route('admin.dashboard'),
-        'teacher' => redirect()->route('teacher.dashboard'),
-        'parent', 'guest_parent' => redirect()->route('portal.assessments.index'),
-        'super_admin' => redirect()->route('superadmin.dashboard'),
-        default => redirect('/'),
-    };
-})->middleware('auth')->name('dashboard');
 
-require __DIR__.'/public.php';
-require __DIR__.'/admin.php';
-require __DIR__.'/teacher.php';
-require __DIR__.'/parent.php';
+    $path = request()->path();
+    $path = $path === '/' ? '' : $path;
+    $target = $frontendUrl . '/' . ltrim($path, '/');
+    $query = request()->getQueryString();
+    if ($query) {
+        $target .= '?' . $query;
+    }
 
-Route::fallback(function () {
-    return view('app-api');
-});
+    return redirect()->away($target, 302);
+})->where('path', '.*');

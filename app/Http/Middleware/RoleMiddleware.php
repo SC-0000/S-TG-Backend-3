@@ -29,6 +29,10 @@ class RoleMiddleware
                 ], 401);
             }
 
+            $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+            if ($frontendUrl !== '') {
+                return redirect()->away($frontendUrl . '/login');
+            }
             return redirect()->route('login');
         }
         
