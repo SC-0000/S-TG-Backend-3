@@ -3,6 +3,10 @@
 use Illuminate\Support\Facades\Route;
 
 Route::get('/{path?}', function () {
+    if (request()->is('api/*')) {
+        abort(404);
+    }
+
     $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
     if ($frontendUrl === '') {
         abort(404);
