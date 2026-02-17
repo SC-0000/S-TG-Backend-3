@@ -143,7 +143,7 @@ class PortalController extends ApiController
         $calendarAssessments = $this->assessmentsForAccess($accessRecords, null, null, $childIds, $assessmentChildMap)->values();
         $incompleteContentLessons = $this->incompleteContentLessonsForAccess($accessRecords, $childIds);
 
-        $https = route('calendar.feed', ['token' => encrypt($user->id)]);
+        $https = route('api.v1.portal.calendar-feed', ['token' => encrypt($user->id)]);
         $feedUrl = preg_replace('#^https?://#', 'webcal://', $https);
 
         return $this->success([

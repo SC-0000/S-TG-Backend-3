@@ -183,11 +183,11 @@ class LessonController extends ApiController
 
         $lesson = Lesson::create($data);
 
-        $relatedLink = route('lessons.admin.show', $lesson->id);
+        $relatedLink = route('api.v1.admin.lessons.show', $lesson->id);
         if (!empty($data['instructor_id'])) {
             $instructor = User::find($data['instructor_id']);
             if ($instructor && $instructor->role === 'teacher') {
-                $relatedLink = route('teacher.lessons.show', $lesson->id);
+                $relatedLink = route('api.v1.teacher.lessons.show', $lesson->id);
             }
         }
 

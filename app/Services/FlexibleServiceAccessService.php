@@ -128,8 +128,8 @@ class FlexibleServiceAccessService
     ): array {
         // Get required counts from service configuration
         $required = $service->selection_config ?? [];
-        $requiredLessons = $required['live_sessions'] ?? 0;
-        $requiredAssessments = $required['assessments'] ?? 0;
+        $requiredLessons = (int) ($required['live_sessions'] ?? 0);
+        $requiredAssessments = (int) ($required['assessments'] ?? 0);
         
         // Validate lesson count
         if (count($selectedLessons) !== $requiredLessons) {
