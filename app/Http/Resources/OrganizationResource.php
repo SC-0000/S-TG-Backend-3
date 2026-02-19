@@ -98,6 +98,8 @@ class OrganizationResource extends ApiResource
             'id' => $this->id,
             'name' => $this->name,
             'slug' => $this->slug,
+            'public_domain' => $this->public_domain,
+            'portal_domain' => $this->portal_domain,
             'status' => $this->status,
             'settings' => [
                 'branding' => $branding,

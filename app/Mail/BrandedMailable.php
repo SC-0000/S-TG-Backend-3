@@ -9,6 +9,7 @@ use Illuminate\Mail\Mailable;
 class BrandedMailable extends Mailable
 {
     protected ?Organization $organization = null;
+    protected bool $emailSettingsApplied = false;
 
     public function setOrganization(?Organization $organization): static
     {
@@ -57,6 +58,7 @@ class BrandedMailable extends Mailable
     protected function brandingData(array $extra = []): array
     {
         $org = $this->organization;
+        $this->applyEmailSettingsFromOrg($org);
 
         $brandName = $org?->getSetting('branding.organization_name') ?? config('app.name');
         $brandTagline = $org?->getSetting('branding.tagline');
@@ -105,5 +107,91 @@ class BrandedMailable extends Mailable
             'supportEmail' => $contactEmail,
             'supportWebsite' => $contactWebsite,
         ], $extra);
+    }
+
+    protected function applyEmailSettingsFromOrg(?Organization $org): void
+    {
+        if ($this->emailSettingsApplied) {
+            return;
+        }
+        $this->emailSettingsApplied = true;
+
+        if (! $org) {
+            return;
+        }
+
+        $fromEmail = $org->getSetting('email.from_email');
+        $fromName = $org->getSetting('email.from_name');
+        $replyTo = $org->getSetting('email.reply_to_email');
+
+        if ($fromEmail) {
+            $this->from($fromEmail, $fromName ?: null);
+        }
+
+        if ($replyTo) {
+            $this->replyTo($replyTo);
+        }
+
+        $mailer = strtolower((string) $org->getSetting('email.mailer'));
+        if (! in_array($mailer, ['smtp', 'mailgun', 'postmark', 'ses'], true)) {
+            return;
+        }
+
+        $mailerName = 'org_dynamic';
+
+        if ($mailer === 'smtp') {
+            config([
+                "mail.mailers.{$mailerName}" => [
+                    'transport' => 'smtp',
+                    'host' => $org->getSetting('email.smtp_host'),
+                    'port' => (int) ($org->getSetting('email.smtp_port') ?: 587),
+                    'encryption' => $org->getSetting('email.smtp_encryption') ?: 'tls',
+                    'username' => $org->getSetting('email.smtp_username'),
+                    'password' => $org->getSetting('email.smtp_password'),
+                    'timeout' => null,
+                    'auth_mode' => null,
+                ],
+            ]);
+        }
+
+        if ($mailer === 'mailgun') {
+            config([
+                'services.mailgun' => [
+                    'domain' => $org->getSetting('email.mailgun_domain'),
+                    'secret' => $org->getSetting('email.mailgun_secret'),
+                    'endpoint' => $org->getSetting('email.mailgun_endpoint') ?: 'api.mailgun.net',
+                ],
+                "mail.mailers.{$mailerName}" => [
+                    'transport' => 'mailgun',
+                ],
+            ]);
+        }
+
+        if ($mailer === 'postmark') {
+            config([
+                'services.postmark' => [
+                    'token' => $org->getSetting('email.postmark_token'),
+                ],
+                "mail.mailers.{$mailerName}" => [
+                    'transport' => 'postmark',
+                ],
+            ]);
+        }
+
+        if ($mailer === 'ses') {
+            config([
+                'services.ses' => [
+                    'key' => $org->getSetting('email.ses_key'),
+                    'secret' => $org->getSetting('email.ses_secret'),
+                    'region' => $org->getSetting('email.ses_region'),
+                ],
+                "mail.mailers.{$mailerName}" => [
+                    'transport' => 'ses',
+                ],
+            ]);
+        }
+
+        config(['mail.default' => $mailerName]);
+        $this->mailer($mailerName);
     }
 }

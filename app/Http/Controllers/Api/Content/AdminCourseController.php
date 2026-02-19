@@ -134,11 +134,15 @@ class AdminCourseController extends ApiController
             'organization',
         ]);
 
+        $filterOrgId = $course->organization_id ?? $orgId;
+
         $allLessons = ContentLesson::select('id', 'uid', 'title', 'description', 'estimated_minutes')
+            ->when($filterOrgId, fn ($q, $orgId) => $q->where('organization_id', $orgId))
             ->orderBy('title')
             ->get();
 
         $allAssessments = Assessment::select('id', 'uid', 'title', 'description')
+            ->when($filterOrgId, fn ($q, $orgId) => $q->where('organization_id', $orgId))
             ->orderBy('title')
             ->get();
 
@@ -171,8 +175,11 @@ class AdminCourseController extends ApiController
                 ];
             });
 
-        $teachers = User::where('role', 'teacher')
-            ->orWhere('role', 'admin')
+        $teachers = User::where(function ($q) {
+                $q->where('role', 'teacher')
+                  ->orWhere('role', 'admin');
+            })
+            ->when($filterOrgId, fn ($q, $orgId) => $q->where('current_organization_id', $orgId))
             ->select('id', 'name', 'email')
             ->orderBy('name')
             ->get();

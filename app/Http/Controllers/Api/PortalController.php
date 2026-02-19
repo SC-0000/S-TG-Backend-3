@@ -423,6 +423,8 @@ class PortalController extends ApiController
                     'status' => $session->status,
                     'scheduled_start_time' => $start?->toISOString(),
                     'scheduled_end_time' => $end?->toISOString(),
+                    'start_time' => $start?->toISOString(),
+                    'end_time' => $end?->toISOString(),
                     'course_id' => $session->course_id,
                     'lesson_id' => $session->lesson_id,
                     'child_ids' => array_values(array_unique($lessonChildMap[$session->id] ?? [])),

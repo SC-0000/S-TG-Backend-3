@@ -62,7 +62,12 @@ class ServiceController extends ApiController
         }
 
         $isSuperAdmin = $user->isSuperAdmin();
-        $orgId = $user->current_organization_id;
+        $orgId = null;
+        if ($isSuperAdmin && $request->filled('organization_id')) {
+            $orgId = $request->integer('organization_id');
+        } elseif (! $isSuperAdmin) {
+            $orgId = $user->current_organization_id;
+        }
 
         $preselected = [];
         if ($request->query('lesson_id')) {
@@ -71,19 +76,19 @@ class ServiceController extends ApiController
 
         return $this->success([
             'lessons' => Lesson::select('id', 'title', 'lesson_mode', 'start_time', 'end_time', 'organization_id', 'is_global')
-                ->when(! $isSuperAdmin && $orgId, fn ($q) => $q->visibleToOrg($orgId))
+                ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
                 ->get(),
             'assessments' => Assessment::select('id', 'title', 'organization_id', 'is_global')
-                ->when(! $isSuperAdmin && $orgId, fn ($q) => $q->visibleToOrg($orgId))
+                ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
                 ->get(),
             'courses' => Course::select('id', 'title', 'description', 'organization_id', 'is_global')
-                ->when(! $isSuperAdmin && $orgId, fn ($q) => $q->visibleToOrg($orgId))
+                ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
                 ->get(),
             'childrenByYear' => Child::select('id', 'child_name', 'year_group', 'organization_id')
-                ->when(! $isSuperAdmin && $orgId, fn ($q) => $q->where('organization_id', $orgId))
+                ->when($orgId, fn ($q) => $q->where('organization_id', $orgId))
                 ->orderBy('year_group')
                 ->get()
                 ->groupBy('year_group'),
@@ -215,7 +220,16 @@ class ServiceController extends ApiController
         }
 
         $isSuperAdmin = $user->isSuperAdmin();
-        $orgId = $user->current_organization_id;
+        $orgId = null;
+        if ($isSuperAdmin) {
+            if ($request->filled('organization_id')) {
+                $orgId = $request->integer('organization_id');
+            } elseif ($service->organization_id) {
+                $orgId = $service->organization_id;
+            }
+        } else {
+            $orgId = $user->current_organization_id;
+        }
 
         $service->load([
             'lessons:id,organization_id,is_global',
@@ -228,19 +242,19 @@ class ServiceController extends ApiController
         return $this->success([
             'service' => $this->mapService($service, true),
             'lessons' => Lesson::select('id', 'title', 'lesson_mode', 'start_time', 'end_time', 'organization_id', 'is_global')
-                ->when(! $isSuperAdmin && $orgId, fn ($q) => $q->visibleToOrg($orgId))
+                ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
                 ->get(),
             'assessments' => Assessment::select('id', 'title', 'organization_id', 'is_global')
-                ->when(! $isSuperAdmin && $orgId, fn ($q) => $q->visibleToOrg($orgId))
+                ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
                 ->get(),
             'courses' => Course::select('id', 'title', 'description', 'organization_id', 'is_global')
-                ->when(! $isSuperAdmin && $orgId, fn ($q) => $q->visibleToOrg($orgId))
+                ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
                 ->get(),
             'childrenByYear' => Child::select('id', 'child_name', 'year_group', 'organization_id')
-                ->when(! $isSuperAdmin && $orgId, fn ($q) => $q->where('organization_id', $orgId))
+                ->when($orgId, fn ($q) => $q->where('organization_id', $orgId))
                 ->orderBy('year_group')
                 ->get()
                 ->groupBy('year_group'),

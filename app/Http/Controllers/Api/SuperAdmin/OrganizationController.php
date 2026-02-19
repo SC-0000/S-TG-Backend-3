@@ -46,6 +46,8 @@ class OrganizationController extends ApiController
         $organization = Organization::create([
             'name' => $validated['name'],
             'slug' => $validated['slug'] ?? null,
+            'public_domain' => $this->normalizeDomain($validated['public_domain'] ?? null),
+            'portal_domain' => $this->normalizeDomain($validated['portal_domain'] ?? null),
             'status' => $validated['status'],
             'settings' => $validated['settings'] ?? [],
             'owner_id' => $request->user()->id,
@@ -139,6 +141,8 @@ class OrganizationController extends ApiController
         $organization->update([
             'name' => $validated['name'],
             'slug' => $validated['slug'] ?? $organization->slug,
+            'public_domain' => $this->normalizeDomain($validated['public_domain'] ?? $organization->public_domain),
+            'portal_domain' => $this->normalizeDomain($validated['portal_domain'] ?? $organization->portal_domain),
             'status' => $validated['status'],
             'settings' => $validated['settings'] ?? $organization->settings,
         ]);
@@ -211,5 +215,28 @@ class OrganizationController extends ApiController
         ]);
 
         return $this->success(['message' => 'User role updated successfully.']);
+    }
+
+    private function normalizeDomain(?string $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim(strtolower($value));
+        if ($value === '') {
+            return null;
+        }
+
+        if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            $host = parse_url($value, PHP_URL_HOST);
+            if (is_string($host) && $host !== '') {
+                return $host;
+            }
+        }
+
+        $value = preg_replace('#/.*$#', '', $value) ?? $value;
+
+        return $value ?: null;
     }
 }

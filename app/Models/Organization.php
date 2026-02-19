@@ -14,6 +14,8 @@ class Organization extends Model
     protected $fillable = [
         'name',
         'slug',
+        'public_domain',
+        'portal_domain',
         'status',
         'owner_id',
         'settings',

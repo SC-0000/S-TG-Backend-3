@@ -68,6 +68,19 @@ class OrganizationBrandingController extends ApiController
             'email.from_name',
             'email.from_email',
             'email.reply_to_email',
+            'email.mailer',
+            'email.smtp_host',
+            'email.smtp_port',
+            'email.smtp_username',
+            'email.smtp_password',
+            'email.smtp_encryption',
+            'email.mailgun_domain',
+            'email.mailgun_secret',
+            'email.mailgun_endpoint',
+            'email.postmark_token',
+            'email.ses_key',
+            'email.ses_secret',
+            'email.ses_region',
             'email.header_color',
             'email.button_color',
             'email.footer_text',
@@ -193,7 +206,11 @@ class OrganizationBrandingController extends ApiController
             return filter_var($value, FILTER_VALIDATE_URL) !== false;
         }
 
-        if (str_contains($field, 'email')) {
+        if (
+            str_ends_with($field, 'from_email')
+            || str_ends_with($field, 'reply_to_email')
+            || $field === 'contact.email'
+        ) {
             return filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
         }
 

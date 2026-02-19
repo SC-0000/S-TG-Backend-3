@@ -131,6 +131,7 @@ Route::middleware(['throttle:api'])->group(function () {
 
         Route::prefix('public')->group(function () {
             Route::get('/home', [PublicContentController::class, 'home'])->name('api.v1.public.home');
+            Route::get('/branding/by-domain', [\App\Http\Controllers\Api\Public\BrandingController::class, 'byDomain'])->name('api.v1.public.branding.by-domain');
             Route::get('/branding/{organization}', [\App\Http\Controllers\Api\Public\BrandingController::class, 'show'])->name('api.v1.public.branding.show');
             Route::get('/about', [PublicContentController::class, 'about'])->name('api.v1.public.about');
             Route::get('/contact', [PublicContentController::class, 'contact'])->name('api.v1.public.contact');
@@ -669,8 +670,10 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::delete('/{module}', [ApiAdminModuleController::class, 'destroy'])->name('api.v1.admin.modules.destroy');
                 Route::post('/{module}/publish', [ApiAdminModuleController::class, 'publish'])->name('api.v1.admin.modules.publish');
                 Route::post('/{module}/duplicate', [ApiAdminModuleController::class, 'duplicate'])->name('api.v1.admin.modules.duplicate');
+                Route::post('/{module}/lessons/attach', [ApiAdminModuleController::class, 'attachLesson'])->name('api.v1.admin.modules.lessons.attach-legacy');
                 Route::post('/{module}/lessons', [ApiAdminModuleController::class, 'attachLesson'])->name('api.v1.admin.modules.lessons.attach');
                 Route::delete('/{module}/lessons/{lesson}', [ApiAdminModuleController::class, 'detachLesson'])->name('api.v1.admin.modules.lessons.detach');
+                Route::post('/{module}/assessments/attach', [ApiAdminModuleController::class, 'attachAssessment'])->name('api.v1.admin.modules.assessments.attach-legacy');
                 Route::post('/{module}/assessments', [ApiAdminModuleController::class, 'attachAssessment'])->name('api.v1.admin.modules.assessments.attach');
                 Route::delete('/{module}/assessments/{assessment}', [ApiAdminModuleController::class, 'detachAssessment'])->name('api.v1.admin.modules.assessments.detach');
             });
@@ -993,8 +996,10 @@ Route::prefix('ai-upload')->group(function () {
                 Route::delete('/{module}', [ApiAdminModuleController::class, 'destroy'])->name('api.v1.teacher.modules.destroy');
                 Route::post('/{module}/publish', [ApiAdminModuleController::class, 'publish'])->name('api.v1.teacher.modules.publish');
                 Route::post('/{module}/duplicate', [ApiAdminModuleController::class, 'duplicate'])->name('api.v1.teacher.modules.duplicate');
+                Route::post('/{module}/lessons/attach', [ApiAdminModuleController::class, 'attachLesson'])->name('api.v1.teacher.modules.lessons.attach-legacy');
                 Route::post('/{module}/lessons', [ApiAdminModuleController::class, 'attachLesson'])->name('api.v1.teacher.modules.lessons.attach');
                 Route::delete('/{module}/lessons/{lesson}', [ApiAdminModuleController::class, 'detachLesson'])->name('api.v1.teacher.modules.lessons.detach');
+                Route::post('/{module}/assessments/attach', [ApiAdminModuleController::class, 'attachAssessment'])->name('api.v1.teacher.modules.assessments.attach-legacy');
                 Route::post('/{module}/assessments', [ApiAdminModuleController::class, 'attachAssessment'])->name('api.v1.teacher.modules.assessments.attach');
                 Route::delete('/{module}/assessments/{assessment}', [ApiAdminModuleController::class, 'detachAssessment'])->name('api.v1.teacher.modules.assessments.detach');
             });
