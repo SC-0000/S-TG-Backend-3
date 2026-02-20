@@ -113,6 +113,10 @@ use App\Http\Controllers\Api\ParentFlagController as ApiParentFlagController;
 */
 
 Route::middleware(['throttle:api'])->group(function () {
+    Route::get('/email/verify/{id}/{hash}', EmailVerificationController::class)
+        ->middleware(['signed', 'throttle:6,1'])
+        ->name('verification.verify');
+
     Route::prefix('v1')->group(function () {
         Route::prefix('auth')->group(function () {
             Route::post('/login', [AuthController::class, 'login'])->name('api.v1.auth.login');
