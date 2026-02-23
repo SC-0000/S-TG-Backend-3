@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\FeedbackConfirmationEmail;
+use App\Support\MailContext;
 use Illuminate\Http\Request;
 use App\Models\Feedback;
 use Illuminate\Support\Facades\Mail;
@@ -56,7 +57,8 @@ class FeedbackController extends Controller
         $feedback=Feedback::create($validatedData);
 
         // Send confirmation email to the user who submitted the feedback
-    Mail::to($feedback->user_email)->send(new FeedbackConfirmationEmail($feedback));
+    $organization = MailContext::resolveOrganization($feedback->organization_id ?? null, null, $feedback);
+    Mail::to($feedback->user_email)->send(new FeedbackConfirmationEmail($feedback, $organization));
 
     // Redirect with success message
     return redirect()->route('feedback.success', ['feedback' => $feedback->id])

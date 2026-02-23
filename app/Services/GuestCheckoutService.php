@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Mail\SendLoginCredentials;
 use App\Mail\VerifyApplicationEmail;
+use App\Support\MailContext;
 
 class GuestCheckoutService
 {
@@ -91,7 +92,8 @@ class GuestCheckoutService
         // Prefer magic-link / passwordless flows; here we send credentials as a fallback.
         try {
             // If your SendLoginCredentials expects ($user, $password) adjust accordingly.
-            Mail::to($user->email)->queue(new SendLoginCredentials($user, $tempPassword));
+            $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
+            Mail::to($user->email)->queue(new SendLoginCredentials($user, $tempPassword, $organization));
         } catch (\Throwable $e) {
             // Don't block checkout on email failure; log or handle via monitoring.
                 Log::warning('Failed to queue SendLoginCredentials for guest user', [

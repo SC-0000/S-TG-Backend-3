@@ -14,6 +14,7 @@ use App\Mail\AssessmentReportMail;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Support\Facades\Log;
 use OpenAI\Laravel\Facades\OpenAI;
+use App\Support\MailContext;
 
 class GenerateAssessmentReportJob implements ShouldQueue, ShouldBeUnique
 {
@@ -82,8 +83,9 @@ class GenerateAssessmentReportJob implements ShouldQueue, ShouldBeUnique
         ]);
         
         // Send enhanced email (no PDF attachment)
+        $organization = MailContext::resolveOrganization($submission->child->organization_id ?? null, $submission->child->user ?? null, $submission);
         Mail::to($submission->child->user->email)->bcc('zaid.a@pa.team')
-            ->send(new AssessmentReportMail($submission, $reportText, $formattedQuestions, $insights));
+            ->send(new AssessmentReportMail($submission, $reportText, $formattedQuestions, $insights, $organization));
             
         Log::info('Enhanced email report sent', [
             'submission_id' => $submission->id,

@@ -10,6 +10,7 @@ use App\Models\AdminTask;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\ApiPagination;
+use App\Support\MailContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -115,7 +116,8 @@ class TeacherApplicationController extends ApiController
         $task->completed_at = now();
         $task->save();
 
-        Mail::to($applicant->email)->send(new TeacherApproved($applicant));
+        $organization = MailContext::resolveOrganization($applicant->current_organization_id, $applicant);
+        Mail::to($applicant->email)->send(new TeacherApproved($applicant, $organization));
 
         $task->setRelation('applicant', $applicant);
 
@@ -152,7 +154,8 @@ class TeacherApplicationController extends ApiController
         $task->completed_at = now();
         $task->save();
 
-        Mail::to($applicant->email)->send(new TeacherRejected($applicant->name));
+        $organization = MailContext::resolveOrganization($applicant->current_organization_id, $applicant);
+        Mail::to($applicant->email)->send(new TeacherRejected($applicant->name, $organization));
 
         $task->setRelation('applicant', $applicant);
 

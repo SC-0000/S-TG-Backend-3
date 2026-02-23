@@ -59,6 +59,7 @@ class BrandedMailable extends Mailable
     {
         $org = $this->organization;
         $this->applyEmailSettingsFromOrg($org);
+        $portalBaseUrl = $this->portalBaseUrl($org);
 
         $brandName = $org?->getSetting('branding.organization_name') ?? config('app.name');
         $brandTagline = $org?->getSetting('branding.tagline');
@@ -86,6 +87,7 @@ class BrandedMailable extends Mailable
 
         return array_merge([
             'organization' => $org,
+            'portalBaseUrl' => $portalBaseUrl,
             'brandName' => $brandName,
             'brandTagline' => $brandTagline,
             'brandDescription' => $brandDescription,
@@ -109,6 +111,50 @@ class BrandedMailable extends Mailable
         ], $extra);
     }
 
+    protected function portalBaseUrl(?Organization $org = null): ?string
+    {
+        $organization = $org ?? $this->organization;
+        $value = $organization?->portal_domain;
+        if (! $value || ! is_string($value)) {
+            return null;
+        }
+
+        $raw = trim($value);
+        if ($raw === '') {
+            return null;
+        }
+
+        $scheme = null;
+        $host = null;
+        if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://')) {
+            $parsed = parse_url($raw);
+            $scheme = $parsed['scheme'] ?? null;
+            $host = $parsed['host'] ?? null;
+        } else {
+            $host = preg_replace('#/.*$#', '', $raw);
+        }
+
+        if (! $host) {
+            return null;
+        }
+
+        if (! $scheme) {
+            $isLocal = str_starts_with($host, 'localhost') || str_starts_with($host, '127.0.0.1');
+            $scheme = $isLocal ? 'http' : 'https';
+        }
+
+        return $scheme . '://' . $host;
+    }
+
+    protected function portalUrl(string $path, ?Organization $org = null): ?string
+    {
+        $base = $this->portalBaseUrl($org);
+        if (! $base) {
+            return null;
+        }
+        return rtrim($base, '/') . '/' . ltrim($path, '/');
+    }
+
     protected function applyEmailSettingsFromOrg(?Organization $org): void
     {
         if ($this->emailSettingsApplied) {
@@ -123,6 +169,7 @@ class BrandedMailable extends Mailable
         $fromEmail = $org->getSetting('email.from_email');
         $fromName = $org->getSetting('email.from_name');
         $replyTo = $org->getSetting('email.reply_to_email');
+        $mailer = strtolower((string) $org->getSetting('email.mailer'));
 
         if ($fromEmail) {
             $this->from($fromEmail, $fromName ?: null);
@@ -132,14 +179,24 @@ class BrandedMailable extends Mailable
             $this->replyTo($replyTo);
         }
 
-        $mailer = strtolower((string) $org->getSetting('email.mailer'));
         if (! in_array($mailer, ['smtp', 'mailgun', 'postmark', 'ses'], true)) {
             return;
         }
 
         $mailerName = 'org_dynamic';
 
+        // Ensure we don't reuse a previously-resolved mailer transport.
+        try {
+            app('mail.manager')->forgetMailers();
+        } catch (\Throwable $e) {
+            // Ignore cache reset failures.
+        }
+
         if ($mailer === 'smtp') {
+            $smtpPassword = $org->getSetting('email.smtp_password');
+            if (is_string($smtpPassword)) {
+                $smtpPassword = preg_replace('/\s+/', '', $smtpPassword);
+            }
             config([
                 "mail.mailers.{$mailerName}" => [
                     'transport' => 'smtp',
@@ -147,7 +204,7 @@ class BrandedMailable extends Mailable
                     'port' => (int) ($org->getSetting('email.smtp_port') ?: 587),
                     'encryption' => $org->getSetting('email.smtp_encryption') ?: 'tls',
                     'username' => $org->getSetting('email.smtp_username'),
-                    'password' => $org->getSetting('email.smtp_password'),
+                    'password' => $smtpPassword,
                     'timeout' => null,
                     'auth_mode' => null,
                 ],
@@ -193,5 +250,6 @@ class BrandedMailable extends Mailable
 
         config(['mail.default' => $mailerName]);
         $this->mailer($mailerName);
+
     }
 }

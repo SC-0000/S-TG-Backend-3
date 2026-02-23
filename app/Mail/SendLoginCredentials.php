@@ -28,8 +28,11 @@ class SendLoginCredentials extends BrandedMailable
             ?? trim(($this->user->first_name ?? '') . ' ' . ($this->user->last_name ?? ''))
             ?: ($this->user->email ?? 'there');
         $userEmail = $this->user->email ?? '';
-        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
-        $loginUrl = $frontendUrl !== '' ? $frontendUrl . '/login' : route('login');
+        $loginUrl = $this->portalUrl('/login', $this->organization);
+        if (! $loginUrl) {
+            $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+            $loginUrl = $frontendUrl !== '' ? $frontendUrl . '/login' : route('login');
+        }
 
         return $this->subject('Your Login Credentials')
                     ->view('emails.send_login_credentials')

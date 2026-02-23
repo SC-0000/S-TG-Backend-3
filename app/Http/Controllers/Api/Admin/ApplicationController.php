@@ -11,6 +11,7 @@ use App\Models\Child;
 use App\Models\Permission;
 use App\Models\User;
 use App\Services\BillingService;
+use App\Support\MailContext;
 use App\Support\ApiPagination;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -138,7 +139,8 @@ class ApplicationController extends ApiController
                 ]);
             }
 
-            Mail::to($user->email)->send(new SendLoginCredentials($user, $password));
+            $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
+            Mail::to($user->email)->send(new SendLoginCredentials($user, $password, $organization));
 
             $application->update(['user_id' => $user->id]);
 

@@ -9,6 +9,7 @@ use App\Mail\TeacherApplicationReceived;
 use App\Mail\TeacherApproved;
 use App\Mail\TeacherRejected;
 use App\Mail\GuestVerificationCode;
+use App\Support\MailContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -42,7 +43,8 @@ class TeacherController extends Controller
         ]);
 
         // Send OTP via email
-        Mail::to($request->email)->send(new GuestVerificationCode($otp));
+        $organization = MailContext::resolveOrganization(null, null, null, $request);
+        Mail::to($request->email)->send(new GuestVerificationCode($otp, $request->email, $organization));
 
         return response()->json([
             'success' => true,
@@ -203,7 +205,8 @@ log::info('Email verified for teacher registration', [
             ]);
 
             // Send confirmation email to teacher
-            Mail::to($user->email)->send(new TeacherApplicationReceived($user->name, $user->email));
+            $organization = MailContext::resolveOrganization($user->current_organization_id, $user);
+            Mail::to($user->email)->send(new TeacherApplicationReceived($user->name, $user->email, $organization));
 
             Log::info('Teacher application received email sent', [
                 'user_id' => $user->id,
@@ -341,7 +344,8 @@ log::info('Email verified for teacher registration', [
         $task->save();
 
         // Send approval email
-        Mail::to($user->email)->send(new TeacherApproved($user));
+        $organization = MailContext::resolveOrganization($user->current_organization_id, $user);
+        Mail::to($user->email)->send(new TeacherApproved($user, $organization));
 
         return redirect()->back()->with('success', 'Teacher approved successfully.');
     }
@@ -381,7 +385,8 @@ log::info('Email verified for teacher registration', [
         $task->save();
 
         // Send rejection email
-        Mail::to($user->email)->send(new TeacherRejected($user->name));
+        $organization = MailContext::resolveOrganization($user->current_organization_id, $user);
+        Mail::to($user->email)->send(new TeacherRejected($user->name, $organization));
 
         return redirect()->back()->with('success', 'Teacher application rejected.');
     }

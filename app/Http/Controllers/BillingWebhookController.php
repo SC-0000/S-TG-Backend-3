@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Support\MailContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Models\Transaction;
@@ -140,8 +141,9 @@ class BillingWebhookController extends Controller
             try {
                 // send receipt if not already sent
                 if (empty($transaction->email_sent_receipt)) {
+                    $organization = MailContext::resolveOrganization($transaction->organization_id ?? null, $transaction->user ?? null, $transaction);
                     Mail::to($transaction->user_email ?? $transaction->user->email)
-                        ->queue(new \App\Mail\ReceiptAccessMail($transaction, 'receipt'));
+                        ->queue(new \App\Mail\ReceiptAccessMail($transaction, 'receipt', $organization));
                     $updated = DB::table('transactions')
                         ->where('id', $transaction->id)
                         ->where('email_sent_receipt', false)
@@ -153,8 +155,9 @@ class BillingWebhookController extends Controller
 
                 // send access notification if not already sent
                 if (empty($transaction->email_sent_access)) {
+                    $organization = MailContext::resolveOrganization($transaction->organization_id ?? null, $transaction->user ?? null, $transaction);
                     Mail::to($transaction->user_email ?? $transaction->user->email)
-                        ->queue(new \App\Mail\ReceiptAccessMail($transaction, 'access_granted'));
+                        ->queue(new \App\Mail\ReceiptAccessMail($transaction, 'access_granted', $organization));
                     $updated = DB::table('transactions')
                         ->where('id', $transaction->id)
                         ->where('email_sent_access', false)

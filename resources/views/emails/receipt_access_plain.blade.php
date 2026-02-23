@@ -15,12 +15,12 @@ Order summary:
 
 Total: £{{ number_format($transaction->total,2) }}
 
-View your transaction: {{ route('transactions.show', $transaction->id) }}
+View your transaction: {{ rtrim($portalBaseUrl ?? config('app.frontend_url'), '/') . '/transactions/' . $transaction->id }}
 Invoice: {{ $transaction->invoice_id ?? 'N/A' }}
 
 @if(optional($transaction->user)->role === \App\Models\User::ROLE_GUEST_PARENT)
 Complete your profile to unlock the full parent portal and certificates:
-{{ route('authenticate-user') }}
+{{ rtrim($portalBaseUrl ?? config('app.frontend_url'), '/') . '/authenticate-user' }}
 @endif
 
 If you did not make this purchase, contact support immediately at {{ $supportEmail ?? config('mail.from.address') }}.

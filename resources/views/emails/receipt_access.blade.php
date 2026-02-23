@@ -71,7 +71,10 @@
         @endcomponent
         
         <div style="text-align: center;">
-            @component('emails.components.button', ['href' => route('transactions.show', $transaction->id), 'variant' => 'primary'])
+            @php
+                $receiptUrl = rtrim($portalBaseUrl ?? config('app.frontend_url'), '/') . '/transactions/' . $transaction->id;
+            @endphp
+            @component('emails.components.button', ['href' => $receiptUrl, 'variant' => 'primary'])
                 View Full Receipt
             @endcomponent
         </div>
@@ -89,7 +92,10 @@
         @endcomponent
         
         <div style="text-align: center; margin: 25px 0;">
-            @component('emails.components.button', ['href' => route('authenticate-user'), 'variant' => 'secondary'])
+            @php
+                $profileUrl = rtrim($portalBaseUrl ?? config('app.frontend_url'), '/') . '/authenticate-user';
+            @endphp
+            @component('emails.components.button', ['href' => $profileUrl, 'variant' => 'secondary'])
                 Complete Your Profile
             @endcomponent
         </div>

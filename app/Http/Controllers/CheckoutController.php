@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use App\Support\MailContext;
 
 class CheckoutController extends Controller
 {
@@ -140,7 +141,8 @@ class CheckoutController extends Controller
 
         // Send branded verification email.
         try {
-            Mail::to($email)->send(new \App\Mail\GuestVerificationCode((string) $code, $email));
+            $organization = MailContext::resolveOrganization(null, null, null, $request);
+            Mail::to($email)->send(new \App\Mail\GuestVerificationCode((string) $code, $email, $organization));
             Log::info('sendGuestCode: verification email sent', ['email' => $email]);
             Log::info('sendGuestCode: debug-code', ['email' => $email, 'code' => (string)$code]);
         } catch (\Throwable $e) {
@@ -845,7 +847,8 @@ class CheckoutController extends Controller
 
                     // Queue receipt and atomically set flag if it wasn't set already
                     if (empty($transaction->email_sent_receipt)) {
-                        Mail::to($email)->queue(new \App\Mail\ReceiptAccessMail($transaction, 'receipt'));
+                        $organization = MailContext::resolveOrganization($transaction->organization_id ?? null, $transaction->user ?? null, $transaction);
+                        Mail::to($email)->queue(new \App\Mail\ReceiptAccessMail($transaction, 'receipt', $organization));
                         // atomic update: only set flag if still false
                         $updated = DB::table('transactions')
                             ->where('id', $transaction->id)
@@ -858,7 +861,8 @@ class CheckoutController extends Controller
 
                     // Queue access notification and atomically set flag if it wasn't set already
                     if (empty($transaction->email_sent_access)) {
-                        Mail::to($email)->queue(new \App\Mail\ReceiptAccessMail($transaction, 'access_granted'));
+                        $organization = MailContext::resolveOrganization($transaction->organization_id ?? null, $transaction->user ?? null, $transaction);
+                        Mail::to($email)->queue(new \App\Mail\ReceiptAccessMail($transaction, 'access_granted', $organization));
                         $updated = DB::table('transactions')
                             ->where('id', $transaction->id)
                             ->where('email_sent_access', false)

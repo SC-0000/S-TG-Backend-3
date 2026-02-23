@@ -19,6 +19,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Support\MailContext;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
@@ -245,7 +246,8 @@ class CheckoutController extends ApiController
         Cache::put($lastKey, time(), now()->addMinutes(10));
 
         try {
-            Mail::to($email)->send(new \App\Mail\GuestVerificationCode((string) $code, $email));
+            $organization = MailContext::resolveOrganization(null, null, null, $request);
+            Mail::to($email)->send(new \App\Mail\GuestVerificationCode((string) $code, $email, $organization));
         } catch (\Throwable $e) {
             Log::warning('sendGuestCode: failed to send verification email', ['email' => $email, 'error' => $e->getMessage()]);
             return $this->error('Could not send verification email.', [], 500);
@@ -425,7 +427,8 @@ class CheckoutController extends ApiController
             }
 
             if (empty($transaction->email_sent_receipt)) {
-                Mail::to($email)->queue(new ReceiptAccessMail($transaction, 'receipt'));
+                $organization = MailContext::resolveOrganization($transaction->organization_id ?? null, $transaction->user ?? null, $transaction);
+                Mail::to($email)->queue(new ReceiptAccessMail($transaction, 'receipt', $organization));
                 DB::table('transactions')
                     ->where('id', $transaction->id)
                     ->where('email_sent_receipt', false)
@@ -433,7 +436,8 @@ class CheckoutController extends ApiController
             }
 
             if (empty($transaction->email_sent_access)) {
-                Mail::to($email)->queue(new ReceiptAccessMail($transaction, 'access_granted'));
+                $organization = MailContext::resolveOrganization($transaction->organization_id ?? null, $transaction->user ?? null, $transaction);
+                Mail::to($email)->queue(new ReceiptAccessMail($transaction, 'access_granted', $organization));
                 DB::table('transactions')
                     ->where('id', $transaction->id)
                     ->where('email_sent_access', false)

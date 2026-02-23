@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\VerifyApplicationEmail;
+use App\Support\MailContext;
 use App\Models\AdminTask;
 use App\Models\Child;
 use App\Models\Permission;
@@ -139,8 +140,9 @@ class ApplicationController extends Controller
         ));
 
         /* ───────────── 5) EMAIL VERIFICATION  ───────────── */
+        $organization = MailContext::resolveOrganization($application->organization_id ?? null, $application->user ?? null, $application);
         Mail::to($application->email)
-            ->send(new VerifyApplicationEmail($application));
+            ->send(new VerifyApplicationEmail($application, $organization));
 
         return redirect()
             ->route('application.verification')
@@ -205,8 +207,9 @@ class ApplicationController extends Controller
                 ]);
             }
             
+            $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
             Mail::to($user->email)
-                ->send(new SendLoginCredentials($user, $password));
+                ->send(new SendLoginCredentials($user, $password, $organization));
 
             $application->update(['user_id' => $user->id]);
 
@@ -304,8 +307,9 @@ class ApplicationController extends Controller
                 ]);
             }
             
+            $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
             Mail::to($user->email)
-                ->send(new SendLoginCredentials($user, $password));
+                ->send(new SendLoginCredentials($user, $password, $organization));
 
             $application->update(['user_id' => $user->id]);
 
@@ -523,7 +527,8 @@ class ApplicationController extends Controller
 
         if ($application) {
             // Send the verification email
-            Mail::to($application->email)->send(new VerifyApplicationEmail($application));
+            $organization = MailContext::resolveOrganization($application->organization_id ?? null, $application->user ?? null, $application);
+            Mail::to($application->email)->send(new VerifyApplicationEmail($application, $organization));
 
             return redirect()->route('application.verification')
                 ->with('status', 'verification-link-sent')

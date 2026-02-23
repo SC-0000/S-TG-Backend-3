@@ -108,6 +108,7 @@ class AdminTaskController extends Controller
         $orgId = Auth::user()?->current_organization_id;
         
         $tasks = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))
+        ->where('task_type', '!=', 'teacher_approval')
         ->where(function ($query) use ($teacherId) {
             $query->whereNull('assigned_to')
                   ->orWhere('assigned_to', $teacherId);
@@ -128,6 +129,7 @@ class AdminTaskController extends Controller
         $orgId = Auth::user()?->current_organization_id;
         
         $task = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))
+        ->where('task_type', '!=', 'teacher_approval')
         ->where(function ($query) use ($teacherId) {
             $query->whereNull('assigned_to')
                   ->orWhere('assigned_to', $teacherId);
@@ -147,6 +149,7 @@ class AdminTaskController extends Controller
         $orgId = Auth::user()?->current_organization_id;
         
         $task = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))
+        ->where('task_type', '!=', 'teacher_approval')
         ->where(function ($query) use ($teacherId) {
             $query->whereNull('assigned_to')
                   ->orWhere('assigned_to', $teacherId);
@@ -173,6 +176,7 @@ class AdminTaskController extends Controller
         $orgId = Auth::user()?->current_organization_id;
         
         $count = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))
+        ->where('task_type', '!=', 'teacher_approval')
         ->where(function ($query) use ($teacherId) {
             $query->whereNull('assigned_to')
                   ->orWhere('assigned_to', $teacherId);

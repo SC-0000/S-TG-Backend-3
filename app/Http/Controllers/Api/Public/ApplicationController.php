@@ -11,6 +11,7 @@ use App\Models\Child;
 use App\Models\Permission;
 use App\Models\User;
 use App\Services\BillingService;
+use App\Support\MailContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -115,7 +116,8 @@ class ApplicationController extends ApiController
             $extra
         ));
 
-        Mail::to($application->email)->send(new VerifyApplicationEmail($application));
+        $organization = MailContext::resolveOrganization($application->organization_id ?? null, $application->user ?? null, $application);
+        Mail::to($application->email)->send(new VerifyApplicationEmail($application, $organization));
 
         return $this->success([
             'message' => 'Application submitted. Check your e-mail to verify.',
@@ -167,7 +169,8 @@ class ApplicationController extends ApiController
                 ]);
             }
 
-            Mail::to($user->email)->send(new SendLoginCredentials($user, $password));
+            $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
+            Mail::to($user->email)->send(new SendLoginCredentials($user, $password, $organization));
 
             $application->update(['user_id' => $user->id]);
         }
@@ -200,7 +203,8 @@ class ApplicationController extends ApiController
             return $this->error('Application not found.', [], 404);
         }
 
-        Mail::to($application->email)->send(new VerifyApplicationEmail($application));
+        $organization = MailContext::resolveOrganization($application->organization_id ?? null, $application->user ?? null, $application);
+        Mail::to($application->email)->send(new VerifyApplicationEmail($application, $organization));
 
         return $this->success([
             'message' => 'Verification email resent successfully.',
