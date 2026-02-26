@@ -871,13 +871,18 @@ class LiveLessonController extends Controller
 
         $session = LiveLessonSession::findOrFail($sessionId);
 
+        if ($session->annotations_locked && $validated['user_role'] !== 'teacher') {
+            return response()->json(['error' => 'Annotations are locked by the teacher.'], 403);
+        }
+
         // Broadcast annotation stroke
         broadcast(new AnnotationStroke(
             $session,
             $validated['slide_id'],
             $validated['stroke_data'],
             auth()->id(),
-            $validated['user_role']
+            $validated['user_role'],
+            auth()->user()?->name
         ))->toOthers();
 
         return response()->json(['success' => true]);
@@ -907,6 +912,32 @@ class LiveLessonController extends Controller
         ))->toOthers();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Toggle annotation lock for students
+     */
+    public function toggleAnnotationLock(Request $request, $sessionId)
+    {
+        $validated = $request->validate([
+            'locked' => 'required|boolean'
+        ]);
+
+        $session = LiveLessonSession::findOrFail($sessionId);
+        $session->update([
+            'annotations_locked' => $validated['locked']
+        ]);
+
+        broadcast(new \App\Events\AnnotationLockChanged(
+            $session,
+            $validated['locked'],
+            auth()->id()
+        ))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'annotations_locked' => $validated['locked']
+        ]);
     }
 
     /**

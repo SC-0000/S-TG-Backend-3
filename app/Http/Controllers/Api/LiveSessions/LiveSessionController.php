@@ -282,12 +282,17 @@ class LiveSessionController extends ApiController
             'user_role' => 'required|in:teacher,student',
         ]);
 
+        if ($session->annotations_locked && $validated['user_role'] !== 'teacher') {
+            return $this->error('Annotations are locked by the teacher.', [], 403);
+        }
+
         broadcast(new AnnotationStroke(
             $session,
             $validated['slide_id'],
             $validated['stroke_data'],
             $request->user()?->id,
-            $validated['user_role']
+            $validated['user_role'],
+            $request->user()?->name
         ))->toOthers();
 
         return $this->success(['message' => 'Annotation broadcasted.']);
@@ -306,6 +311,32 @@ class LiveSessionController extends ApiController
         broadcast(new AnnotationClear($session, $validated['slide_id'], $request->user()?->id))->toOthers();
 
         return $this->success(['message' => 'Annotations cleared.']);
+    }
+
+    public function toggleAnnotationLock(Request $request, LiveLessonSession $session): JsonResponse
+    {
+        if ($response = $this->ensureSessionScope($request, $session, requireTeacher: true)) {
+            return $response;
+        }
+
+        $validated = $request->validate([
+            'locked' => 'required|boolean',
+        ]);
+
+        $session->update([
+            'annotations_locked' => $validated['locked'],
+        ]);
+        $session->refresh();
+
+        broadcast(new \App\Events\AnnotationLockChanged(
+            $session,
+            $session->annotations_locked,
+            $request->user()?->id ?? 0
+        ))->toOthers();
+
+        return $this->success([
+            'annotations_locked' => $session->annotations_locked,
+        ]);
     }
 
     public function toggleNavigationLock(Request $request, LiveLessonSession $session): JsonResponse

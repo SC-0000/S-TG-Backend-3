@@ -1,6 +1,14 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Broadcasting\BroadcastController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+
+Route::match(['get', 'post'], '/broadcasting/auth', [BroadcastController::class, 'authenticate'])
+    ->middleware(\App\Http\Middleware\AuthBroadcastToken::class)
+    ->withoutMiddleware([VerifyCsrfToken::class]);
+
+require base_path('routes/channels.php');
 
 Route::get('/{path?}', function () {
     if (request()->is('api/*')) {

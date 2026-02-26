@@ -22,6 +22,7 @@ class LiveLessonSessionResource extends ApiResource
             'current_slide_id' => $this->current_slide_id,
             'pacing_mode' => $this->pacing_mode,
             'navigation_locked' => (bool) $this->navigation_locked,
+            'annotations_locked' => (bool) $this->annotations_locked,
             'audio_enabled' => (bool) $this->audio_enabled,
             'video_enabled' => (bool) $this->video_enabled,
             'allow_student_questions' => (bool) $this->allow_student_questions,

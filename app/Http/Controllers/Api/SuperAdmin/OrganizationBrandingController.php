@@ -85,6 +85,17 @@ class OrganizationBrandingController extends ApiController
             'email.button_color',
             'email.footer_text',
             'email.footer_disclaimer',
+            'email.admin_task_notifications.enabled',
+            'email.admin_task_notifications.tasks.parent_concern',
+            'email.admin_task_notifications.tasks.application_review',
+            'email.admin_task_notifications.tasks.teacher_approval',
+            'email.admin_task_notifications.tasks.grade_assessment_submission',
+            'email.admin_task_notifications.tasks.lesson_assigned',
+            'email.admin_task_notifications.tasks.live_session_scheduled',
+            'email.admin_task_notifications.tasks.live_session_created_by_teacher',
+            'email.admin_task_notifications.tasks.your_upcoming_live_session',
+            'email.admin_task_notifications.tasks.new_student_assigned',
+            'email.admin_task_notifications.tasks.flag_review',
             'theme.custom_css',
         ];
 
@@ -195,6 +206,10 @@ class OrganizationBrandingController extends ApiController
     private function validateField(string $field, $value): bool
     {
         if ($value === null) {
+            return true;
+        }
+
+        if (is_bool($value) || $value === 0 || $value === 1) {
             return true;
         }
 

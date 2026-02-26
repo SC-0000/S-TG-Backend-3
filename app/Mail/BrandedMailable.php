@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Mail\Mailable;
+use Illuminate\Support\Facades\Log;
 
 class BrandedMailable extends Mailable
 {
@@ -192,64 +193,109 @@ class BrandedMailable extends Mailable
             // Ignore cache reset failures.
         }
 
+        $fallbackMailer = env('MAIL_MAILER', 'smtp');
+        if ($fallbackMailer === 'smtp' && !config('mail.mailers.smtp.host')) {
+            $fallbackMailer = 'log';
+        }
+
+        $configured = false;
+
         if ($mailer === 'smtp') {
-            $smtpPassword = $org->getSetting('email.smtp_password');
-            if (is_string($smtpPassword)) {
-                $smtpPassword = preg_replace('/\s+/', '', $smtpPassword);
+            $smtpHost = $org->getSetting('email.smtp_host');
+            if (!$smtpHost) {
+                Log::warning('BrandedMailable: SMTP host missing, falling back to default mailer.', [
+                    'organization_id' => $org->id,
+                ]);
+            } else {
+                $smtpPassword = $org->getSetting('email.smtp_password');
+                if (is_string($smtpPassword)) {
+                    $smtpPassword = preg_replace('/\s+/', '', $smtpPassword);
+                }
+                config([
+                    "mail.mailers.{$mailerName}" => [
+                        'transport' => 'smtp',
+                        'host' => $smtpHost,
+                        'port' => (int) ($org->getSetting('email.smtp_port') ?: 587),
+                        'encryption' => $org->getSetting('email.smtp_encryption') ?: 'tls',
+                        'username' => $org->getSetting('email.smtp_username'),
+                        'password' => $smtpPassword,
+                        'timeout' => null,
+                        'auth_mode' => null,
+                    ],
+                ]);
+                $configured = true;
             }
-            config([
-                "mail.mailers.{$mailerName}" => [
-                    'transport' => 'smtp',
-                    'host' => $org->getSetting('email.smtp_host'),
-                    'port' => (int) ($org->getSetting('email.smtp_port') ?: 587),
-                    'encryption' => $org->getSetting('email.smtp_encryption') ?: 'tls',
-                    'username' => $org->getSetting('email.smtp_username'),
-                    'password' => $smtpPassword,
-                    'timeout' => null,
-                    'auth_mode' => null,
-                ],
-            ]);
         }
 
         if ($mailer === 'mailgun') {
-            config([
-                'services.mailgun' => [
-                    'domain' => $org->getSetting('email.mailgun_domain'),
-                    'secret' => $org->getSetting('email.mailgun_secret'),
-                    'endpoint' => $org->getSetting('email.mailgun_endpoint') ?: 'api.mailgun.net',
-                ],
-                "mail.mailers.{$mailerName}" => [
-                    'transport' => 'mailgun',
-                ],
-            ]);
+            if (!$org->getSetting('email.mailgun_domain') || !$org->getSetting('email.mailgun_secret')) {
+                Log::warning('BrandedMailable: Mailgun config missing, falling back to default mailer.', [
+                    'organization_id' => $org->id,
+                ]);
+            } else {
+                config([
+                    'services.mailgun' => [
+                        'domain' => $org->getSetting('email.mailgun_domain'),
+                        'secret' => $org->getSetting('email.mailgun_secret'),
+                        'endpoint' => $org->getSetting('email.mailgun_endpoint') ?: 'api.mailgun.net',
+                    ],
+                    "mail.mailers.{$mailerName}" => [
+                        'transport' => 'mailgun',
+                    ],
+                ]);
+                $configured = true;
+            }
         }
 
         if ($mailer === 'postmark') {
-            config([
-                'services.postmark' => [
-                    'token' => $org->getSetting('email.postmark_token'),
-                ],
-                "mail.mailers.{$mailerName}" => [
-                    'transport' => 'postmark',
-                ],
-            ]);
+            if (!$org->getSetting('email.postmark_token')) {
+                Log::warning('BrandedMailable: Postmark token missing, falling back to default mailer.', [
+                    'organization_id' => $org->id,
+                ]);
+            } else {
+                config([
+                    'services.postmark' => [
+                        'token' => $org->getSetting('email.postmark_token'),
+                    ],
+                    "mail.mailers.{$mailerName}" => [
+                        'transport' => 'postmark',
+                    ],
+                ]);
+                $configured = true;
+            }
         }
 
         if ($mailer === 'ses') {
-            config([
-                'services.ses' => [
-                    'key' => $org->getSetting('email.ses_key'),
-                    'secret' => $org->getSetting('email.ses_secret'),
-                    'region' => $org->getSetting('email.ses_region'),
-                ],
-                "mail.mailers.{$mailerName}" => [
-                    'transport' => 'ses',
-                ],
-            ]);
+            if (
+                !$org->getSetting('email.ses_key')
+                || !$org->getSetting('email.ses_secret')
+                || !$org->getSetting('email.ses_region')
+            ) {
+                Log::warning('BrandedMailable: SES config missing, falling back to default mailer.', [
+                    'organization_id' => $org->id,
+                ]);
+            } else {
+                config([
+                    'services.ses' => [
+                        'key' => $org->getSetting('email.ses_key'),
+                        'secret' => $org->getSetting('email.ses_secret'),
+                        'region' => $org->getSetting('email.ses_region'),
+                    ],
+                    "mail.mailers.{$mailerName}" => [
+                        'transport' => 'ses',
+                    ],
+                ]);
+                $configured = true;
+            }
         }
 
-        config(['mail.default' => $mailerName]);
-        $this->mailer($mailerName);
+        if ($configured) {
+            config(['mail.default' => $mailerName]);
+            $this->mailer($mailerName);
+        } else {
+            config(['mail.default' => $fallbackMailer]);
+            $this->mailer($fallbackMailer);
+        }
 
     }
 }

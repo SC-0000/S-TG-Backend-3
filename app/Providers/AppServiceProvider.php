@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use App\Models\Assessment;
 use App\Models\AssessmentSubmission;
+use App\Models\AdminTask;
 use App\Models\Lesson;
+use App\Observers\AdminTaskObserver;
 use App\Observers\AssessmentSubmissionObserver;
 use App\Observers\UidObserver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -30,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
         Lesson::observe(UidObserver::class);
         Assessment::observe(UidObserver::class);
         AssessmentSubmission::observe(AssessmentSubmissionObserver::class);
+        AdminTask::observe(AdminTaskObserver::class);
 
         RateLimiter::for('api', function (Request $request) {
             $key = $request->user()?->id ?? $request->ip();

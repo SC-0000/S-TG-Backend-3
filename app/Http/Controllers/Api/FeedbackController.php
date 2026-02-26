@@ -13,6 +13,49 @@ use Illuminate\Http\Request;
 
 class FeedbackController extends ApiController
 {
+    private function portalBaseUrl(?\App\Models\Organization $organization, ?Request $request = null): ?string
+    {
+        $value = $organization?->portal_domain;
+        if (! $value || ! is_string($value)) {
+            $value = (string) config('app.frontend_url');
+        }
+
+        $raw = trim($value);
+        if ($raw === '') {
+            return null;
+        }
+
+        $scheme = null;
+        $host = null;
+        if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://')) {
+            $parsed = parse_url($raw);
+            $scheme = $parsed['scheme'] ?? null;
+            $host = $parsed['host'] ?? null;
+        } else {
+            $host = preg_replace('#/.*$#', '', $raw);
+        }
+
+        if (! $host) {
+            return null;
+        }
+
+        if (! $scheme) {
+            $isLocal = str_starts_with($host, 'localhost') || str_starts_with($host, '127.0.0.1');
+            $scheme = $isLocal ? 'http' : 'https';
+        }
+
+        return $scheme . '://' . $host;
+    }
+
+    private function portalUrl(string $path, ?\App\Models\Organization $organization, ?Request $request = null): ?string
+    {
+        $base = $this->portalBaseUrl($organization, $request);
+        if (! $base) {
+            return null;
+        }
+        return rtrim($base, '/') . '/' . ltrim($path, '/');
+    }
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -74,11 +117,14 @@ class FeedbackController extends ApiController
             'user_ip' => $request->ip(),
         ]);
 
+        $org = $user->currentOrganization()->first();
+        $relatedEntity = $this->portalUrl('/admin/portal-feedbacks/' . $feedback->id, $org, $request);
+
         AdminTask::create([
             'task_type' => 'Parent Concern',
             'assigned_to' => null,
             'status' => 'Pending',
-            'related_entity' => route('portal.feedback.show', $feedback->id),
+            'related_entity' => $relatedEntity,
             'priority' => 'Medium',
             'organization_id' => $user->current_organization_id,
         ]);

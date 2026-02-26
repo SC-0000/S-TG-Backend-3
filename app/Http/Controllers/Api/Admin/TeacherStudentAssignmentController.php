@@ -9,6 +9,7 @@ use App\Http\Requests\Api\AdminAssignments\TeacherStudentUnassignRequest;
 use App\Models\AdminTask;
 use App\Models\Child;
 use App\Models\User;
+use App\Models\Organization;
 use App\Support\ApiPagination;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,48 @@ use Illuminate\Support\Facades\DB;
 
 class TeacherStudentAssignmentController extends ApiController
 {
+    private function portalBaseUrl(?Organization $organization): ?string
+    {
+        $value = $organization?->portal_domain;
+        if (! $value || ! is_string($value)) {
+            $value = (string) config('app.frontend_url');
+        }
+
+        $raw = trim($value);
+        if ($raw === '') {
+            return null;
+        }
+
+        $scheme = null;
+        $host = null;
+        if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://')) {
+            $parsed = parse_url($raw);
+            $scheme = $parsed['scheme'] ?? null;
+            $host = $parsed['host'] ?? null;
+        } else {
+            $host = preg_replace('#/.*$#', '', $raw);
+        }
+
+        if (! $host) {
+            return null;
+        }
+
+        if (! $scheme) {
+            $isLocal = str_starts_with($host, 'localhost') || str_starts_with($host, '127.0.0.1');
+            $scheme = $isLocal ? 'http' : 'https';
+        }
+
+        return $scheme . '://' . $host;
+    }
+
+    private function portalUrl(string $path, ?Organization $organization): ?string
+    {
+        $base = $this->portalBaseUrl($organization);
+        if (! $base) {
+            return null;
+        }
+        return rtrim($base, '/') . '/' . ltrim($path, '/');
+    }
     public function data(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -114,6 +157,7 @@ class TeacherStudentAssignmentController extends ApiController
         $teacher = User::where('role', 'teacher')
             ->when($orgId, fn($q) => $q->where('current_organization_id', $orgId))
             ->findOrFail($validated['teacher_id']);
+        $organization = $orgId ? Organization::find($orgId) : null;
 
         $students = Child::whereIn('id', $validated['student_ids'])
             ->when($orgId, fn($q) => $q->where('organization_id', $orgId))
@@ -139,7 +183,7 @@ class TeacherStudentAssignmentController extends ApiController
                 'task_type' => 'New Student Assigned',
                 'assigned_to' => $teacher->id,
                 'status' => 'Pending',
-                'related_entity' => route('teacher.students.show', $student->id),
+                'related_entity' => $this->portalUrl('/teacher/students/' . $student->id, $organization),
                 'priority' => 'Medium',
                 'description' => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by {$user->name}" .
                     ($notes ? ". Notes: {$notes}" : '.'),
@@ -166,6 +210,7 @@ class TeacherStudentAssignmentController extends ApiController
             ->when($orgId, fn($q) => $q->where('current_organization_id', $orgId))
             ->whereIn('id', $validated['teacher_ids'])
             ->get();
+        $organization = $orgId ? Organization::find($orgId) : null;
 
         if ($teachers->count() !== count($validated['teacher_ids'])) {
             return $this->error('One or more teachers were not found for this organization.', [], 422);
@@ -197,7 +242,7 @@ class TeacherStudentAssignmentController extends ApiController
                     'task_type' => 'New Student Assigned',
                     'assigned_to' => $teacher->id,
                     'status' => 'Pending',
-                    'related_entity' => route('teacher.students.show', $student->id),
+                    'related_entity' => $this->portalUrl('/teacher/students/' . $student->id, $organization),
                     'priority' => 'Medium',
                     'description' => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by {$user->name}" .
                         ($notes ? ". Notes: {$notes}" : '.'),

@@ -302,6 +302,17 @@ export default function Branding() {
         'email.button_color': '#1F6DF2',
         'email.footer_text': '',
         'email.footer_disclaimer': '',
+        'email.admin_task_notifications.enabled': true,
+        'email.admin_task_notifications.tasks.parent_concern': true,
+        'email.admin_task_notifications.tasks.application_review': true,
+        'email.admin_task_notifications.tasks.teacher_approval': true,
+        'email.admin_task_notifications.tasks.grade_assessment_submission': true,
+        'email.admin_task_notifications.tasks.lesson_assigned': true,
+        'email.admin_task_notifications.tasks.live_session_scheduled': true,
+        'email.admin_task_notifications.tasks.live_session_created_by_teacher': true,
+        'email.admin_task_notifications.tasks.your_upcoming_live_session': true,
+        'email.admin_task_notifications.tasks.new_student_assigned': true,
+        'email.admin_task_notifications.tasks.flag_review': true,
         'theme.custom_css': '',
     });
 
@@ -349,6 +360,17 @@ export default function Branding() {
                     'email.button_color': settings?.email?.button_color || prev['email.button_color'],
                     'email.footer_text': settings?.email?.footer_text || '',
                     'email.footer_disclaimer': settings?.email?.footer_disclaimer || '',
+                    'email.admin_task_notifications.enabled': settings?.email?.admin_task_notifications?.enabled ?? prev['email.admin_task_notifications.enabled'],
+                    'email.admin_task_notifications.tasks.parent_concern': settings?.email?.admin_task_notifications?.tasks?.parent_concern ?? prev['email.admin_task_notifications.tasks.parent_concern'],
+                    'email.admin_task_notifications.tasks.application_review': settings?.email?.admin_task_notifications?.tasks?.application_review ?? prev['email.admin_task_notifications.tasks.application_review'],
+                    'email.admin_task_notifications.tasks.teacher_approval': settings?.email?.admin_task_notifications?.tasks?.teacher_approval ?? prev['email.admin_task_notifications.tasks.teacher_approval'],
+                    'email.admin_task_notifications.tasks.grade_assessment_submission': settings?.email?.admin_task_notifications?.tasks?.grade_assessment_submission ?? prev['email.admin_task_notifications.tasks.grade_assessment_submission'],
+                    'email.admin_task_notifications.tasks.lesson_assigned': settings?.email?.admin_task_notifications?.tasks?.lesson_assigned ?? prev['email.admin_task_notifications.tasks.lesson_assigned'],
+                    'email.admin_task_notifications.tasks.live_session_scheduled': settings?.email?.admin_task_notifications?.tasks?.live_session_scheduled ?? prev['email.admin_task_notifications.tasks.live_session_scheduled'],
+                    'email.admin_task_notifications.tasks.live_session_created_by_teacher': settings?.email?.admin_task_notifications?.tasks?.live_session_created_by_teacher ?? prev['email.admin_task_notifications.tasks.live_session_created_by_teacher'],
+                    'email.admin_task_notifications.tasks.your_upcoming_live_session': settings?.email?.admin_task_notifications?.tasks?.your_upcoming_live_session ?? prev['email.admin_task_notifications.tasks.your_upcoming_live_session'],
+                    'email.admin_task_notifications.tasks.new_student_assigned': settings?.email?.admin_task_notifications?.tasks?.new_student_assigned ?? prev['email.admin_task_notifications.tasks.new_student_assigned'],
+                    'email.admin_task_notifications.tasks.flag_review': settings?.email?.admin_task_notifications?.tasks?.flag_review ?? prev['email.admin_task_notifications.tasks.flag_review'],
                     'theme.custom_css': settings?.theme?.custom_css || branding?.custom_css || '',
                 }));
             } catch (error) {
@@ -808,6 +830,42 @@ export default function Branding() {
                                                         rows={3}
                                                         className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                                     />
+                                                </div>
+                                            </div>
+                                            <div className="mt-8 border-t border-gray-200 pt-6">
+                                                <h4 className="text-lg font-semibold text-gray-900 mb-4">Admin Task Email Notifications</h4>
+                                                <label className="flex items-center gap-3 text-sm font-medium text-gray-700 mb-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={Boolean(data['email.admin_task_notifications.enabled'])}
+                                                        onChange={(e) => updateField('email.admin_task_notifications.enabled', e.target.checked)}
+                                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    Enable admin task emails
+                                                </label>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {[
+                                                        { key: 'parent_concern', label: 'Parent Concern' },
+                                                        { key: 'application_review', label: 'Application Review' },
+                                                        { key: 'teacher_approval', label: 'Teacher Approval' },
+                                                        { key: 'grade_assessment_submission', label: 'Grade Assessment Submission' },
+                                                        { key: 'lesson_assigned', label: 'Lesson Assigned' },
+                                                        { key: 'live_session_scheduled', label: 'Live Session Scheduled' },
+                                                        { key: 'live_session_created_by_teacher', label: 'Live Session Created by Teacher' },
+                                                        { key: 'your_upcoming_live_session', label: 'Your Upcoming Live Session' },
+                                                        { key: 'new_student_assigned', label: 'New Student Assigned' },
+                                                        { key: 'flag_review', label: 'Flag Review' },
+                                                    ].map((item) => (
+                                                        <label key={item.key} className="flex items-center gap-3 text-sm text-gray-700">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={Boolean(data[`email.admin_task_notifications.tasks.${item.key}`])}
+                                                                onChange={(e) => updateField(`email.admin_task_notifications.tasks.${item.key}`, e.target.checked)}
+                                                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            {item.label}
+                                                        </label>
+                                                    ))}
                                                 </div>
                                             </div>
                                         </div>

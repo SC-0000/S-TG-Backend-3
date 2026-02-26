@@ -23,6 +23,7 @@ class TaskController extends ApiController
         $orgId = $request->attributes->get('organization_id');
         $query = AdminTask::with('assignedUser:id,name,email')
             ->when($orgId, fn($q) => $q->where('organization_id', $orgId))
+            ->where('task_type', '!=', 'Parent Concern')
             ->where(function ($q) use ($teacher) {
                 $q->whereNull('assigned_to')
                     ->orWhere('assigned_to', $teacher->id);

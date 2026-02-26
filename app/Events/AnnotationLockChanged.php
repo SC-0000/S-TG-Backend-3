@@ -9,17 +9,14 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class AnnotationStroke implements ShouldBroadcast
+class AnnotationLockChanged implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
         public LiveLessonSession $session,
-        public int $slideId,
-        public array $strokeData,
-        public int $userId,
-        public string $userRole,
-        public ?string $userName = null
+        public bool $locked,
+        public int $userId
     ) {}
 
     public function broadcastOn(): array
@@ -31,19 +28,16 @@ class AnnotationStroke implements ShouldBroadcast
 
     public function broadcastAs(): string
     {
-        return 'annotation.stroke';
+        return 'annotation.locked';
     }
 
     public function broadcastWith(): array
     {
         return [
             'session_id' => $this->session->id,
-            'slide_id' => $this->slideId,
-            'stroke_data' => $this->strokeData,
+            'locked' => $this->locked,
             'user_id' => $this->userId,
-            'user_role' => $this->userRole,
-            'user_name' => $this->userName,
             'timestamp' => now()->toIso8601String(),
         ];
     }
-}
+};

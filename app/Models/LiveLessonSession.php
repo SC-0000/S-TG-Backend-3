@@ -24,6 +24,7 @@ class LiveLessonSession extends Model
         'current_slide_id',
         'pacing_mode',
         'navigation_locked', // ✅ Added missing field
+        'annotations_locked',
         'audio_enabled',
         'video_enabled',
         'allow_student_questions',
@@ -38,6 +39,7 @@ class LiveLessonSession extends Model
         'connection_info' => 'array',
         'session_data' => 'array',
         'navigation_locked' => 'boolean', // ✅ Cast to boolean
+        'annotations_locked' => 'boolean',
         'audio_enabled' => 'boolean',
         'video_enabled' => 'boolean',
         'allow_student_questions' => 'boolean',

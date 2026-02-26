@@ -149,12 +149,12 @@ class LiveSessionAccessController extends ApiController
                 'child_ids' => $childIds,
                 'purchase_source' => $grantingAccess ? [
                     'type' => $grantingAccess->course_id ? 'course' : 'service',
-                    'name' => $grantingAccess->course_id
-                        ? ($grantingAccess->course?->title ?? 'Unknown Course')
-                        : ($grantingAccess->service?->name ?? 'Unknown Service'),
-                    'id' => $grantingAccess->course_id ?: $grantingAccess->service_id,
-                ] : null,
-            ];
+                'name' => $grantingAccess->course_id
+                    ? ($grantingAccess->course?->title ?? 'Unknown Course')
+                    : ($grantingAccess->service?->service_name ?? 'Unknown Service'),
+                'id' => $grantingAccess->course_id ?: $grantingAccess->service_id,
+            ] : null,
+        ];
         })
         ->filter(function ($session) {
             return !empty($session['child_ids']) && $session['child_ids']->isNotEmpty();
@@ -220,7 +220,7 @@ class LiveSessionAccessController extends ApiController
                 'type' => $access->course_id ? 'course' : 'service',
                 'name' => $access->course_id
                     ? ($access->course?->title ?? 'Unknown Course')
-                    : ($access->service?->name ?? 'Unknown Service'),
+                    : ($access->service?->service_name ?? 'Unknown Service'),
                 'id' => $access->course_id ?: $access->service_id,
             ] : null,
         ]);
