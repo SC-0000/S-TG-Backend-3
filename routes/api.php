@@ -639,11 +639,17 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::get('/', [ApiAdminJourneyController::class, 'index'])->name('api.v1.admin.journeys.index');
                 Route::post('/', [ApiAdminJourneyController::class, 'store'])->name('api.v1.admin.journeys.store');
                 Route::get('/overview', [ApiAdminJourneyController::class, 'overview'])->name('api.v1.admin.journeys.overview');
+                Route::get('/{journey}', [ApiAdminJourneyController::class, 'show'])->name('api.v1.admin.journeys.show');
+                Route::put('/{journey}', [ApiAdminJourneyController::class, 'update'])->name('api.v1.admin.journeys.update');
+                Route::delete('/{journey}', [ApiAdminJourneyController::class, 'destroy'])->name('api.v1.admin.journeys.destroy');
             });
 
             Route::prefix('journey-categories')->group(function () {
                 Route::get('/', [ApiAdminJourneyCategoryController::class, 'index'])->name('api.v1.admin.journey-categories.index');
                 Route::post('/', [ApiAdminJourneyCategoryController::class, 'store'])->name('api.v1.admin.journey-categories.store');
+                Route::get('/{journeyCategory}', [ApiAdminJourneyCategoryController::class, 'show'])->name('api.v1.admin.journey-categories.show');
+                Route::put('/{journeyCategory}', [ApiAdminJourneyCategoryController::class, 'update'])->name('api.v1.admin.journey-categories.update');
+                Route::delete('/{journeyCategory}', [ApiAdminJourneyCategoryController::class, 'destroy'])->name('api.v1.admin.journey-categories.destroy');
             });
 
 

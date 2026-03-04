@@ -14,6 +14,7 @@ use App\Models\Transaction;
 use App\Services\BillingService;
 use App\Services\CourseAccessService;
 use App\Services\GuestCheckoutService;
+use App\Support\MailContext;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
@@ -247,7 +248,7 @@ class CheckoutController extends ApiController
 
         try {
             $organization = MailContext::resolveOrganization(null, null, null, $request);
-            Mail::to($email)->send(new \App\Mail\GuestVerificationCode((string) $code, $email, $organization));
+            MailContext::sendMailable($email, new \App\Mail\GuestVerificationCode((string) $code, $email, $organization));
         } catch (\Throwable $e) {
             Log::warning('sendGuestCode: failed to send verification email', ['email' => $email, 'error' => $e->getMessage()]);
             return $this->error('Could not send verification email.', [], 500);
@@ -428,7 +429,7 @@ class CheckoutController extends ApiController
 
             if (empty($transaction->email_sent_receipt)) {
                 $organization = MailContext::resolveOrganization($transaction->organization_id ?? null, $transaction->user ?? null, $transaction);
-                Mail::to($email)->queue(new ReceiptAccessMail($transaction, 'receipt', $organization));
+                MailContext::sendMailable($email, new ReceiptAccessMail($transaction, 'receipt', $organization), true);
                 DB::table('transactions')
                     ->where('id', $transaction->id)
                     ->where('email_sent_receipt', false)
@@ -437,7 +438,7 @@ class CheckoutController extends ApiController
 
             if (empty($transaction->email_sent_access)) {
                 $organization = MailContext::resolveOrganization($transaction->organization_id ?? null, $transaction->user ?? null, $transaction);
-                Mail::to($email)->queue(new ReceiptAccessMail($transaction, 'access_granted', $organization));
+                MailContext::sendMailable($email, new ReceiptAccessMail($transaction, 'access_granted', $organization), true);
                 DB::table('transactions')
                     ->where('id', $transaction->id)
                     ->where('email_sent_access', false)

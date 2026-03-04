@@ -58,7 +58,7 @@ class FeedbackController extends Controller
 
         // Send confirmation email to the user who submitted the feedback
     $organization = MailContext::resolveOrganization($feedback->organization_id ?? null, null, $feedback);
-    Mail::to($feedback->user_email)->send(new FeedbackConfirmationEmail($feedback, $organization));
+    MailContext::sendMailable($feedback->user_email, new FeedbackConfirmationEmail($feedback, $organization));
 
     // Redirect with success message
     return redirect()->route('feedback.success', ['feedback' => $feedback->id])

@@ -62,7 +62,7 @@
             <tfoot>
                 <tr style="background-color: #f8fafc;">
                     <td colspan="3" style="padding: 16px 12px; text-align: right; font-weight: 700; color: #1f2937; border-top: 2px solid #e5e7eb;">Total Amount:</td>
-                    <td style="padding: 16px 12px; text-align: right; font-weight: 700; color: #2563eb; font-size: 18px; border-top: 2px solid #e5e7eb;">£{{ number_format($transaction->total, 2) }}</td>
+                    <td style="padding: 16px 12px; text-align: right; font-weight: 700; color: {{ $emailHeaderColor }}; font-size: 18px; border-top: 2px solid #e5e7eb;">£{{ number_format($transaction->total, 2) }}</td>
                 </tr>
             </tfoot>
         </table>
@@ -103,7 +103,7 @@
     
     @if($messageType === 'access_granted')
         @component('emails.components.card', ['title' => '🎯 Getting Started'])
-            <h4 style="margin: 0 0 15px 0; color: #2563eb;">Your Next Steps:</h4>
+            <h4 style="margin: 0 0 15px 0; color: {{ $emailHeaderColor }};">Your Next Steps:</h4>
             <ol style="margin: 0; padding-left: 20px; line-height: 1.8;">
                 <li><strong>Access Your Content:</strong> Log in to your account to view purchased materials</li>
                 <li><strong>Start Learning:</strong> Begin with any lesson or assessment</li>
@@ -117,7 +117,7 @@
     @endcomponent
     
     @component('emails.components.alert', ['type' => 'warning'])
-        <strong>Security Notice:</strong> If you did not make this purchase, please contact our support team immediately at <a href="mailto:{{ $supportEmail ?? config('mail.from.address') }}" style="color: #d97706;">{{ $supportEmail ?? config('mail.from.address') }}</a>
+        <strong>Security Notice:</strong> If you did not make this purchase, please contact our support team immediately at <a href="mailto:{{ $supportEmail ?? $contactEmail }}" style="color: #d97706;">{{ $supportEmail ?? $contactEmail }}</a>
     @endcomponent
     
     <p style="text-align: center; margin-top: 30px;">

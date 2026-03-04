@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\YearGroups\YearGroupBulkUpdateRequest;
 use App\Models\Child;
+use App\Models\Organization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -12,7 +13,13 @@ class YearGroupController extends ApiController
 {
     public function index(Request $request): JsonResponse
     {
-        return $this->success($this->yearGroups());
+        $user = $request->user();
+        $orgId = $request->attributes->get('organization_id') ?: $user?->current_organization_id;
+        if ($user?->isSuperAdmin() && $request->filled('organization_id')) {
+            $orgId = $request->integer('organization_id');
+        }
+
+        return $this->success($this->yearGroups($orgId));
     }
 
     public function bulkUpdate(YearGroupBulkUpdateRequest $request): JsonResponse
@@ -35,9 +42,9 @@ class YearGroupController extends ApiController
         ]);
     }
 
-    private function yearGroups(): array
+    private function yearGroups(?int $orgId): array
     {
-        return [
+        $defaults = [
             'Kindergarten',
             'Grade 1',
             'Grade 2',
@@ -52,5 +59,25 @@ class YearGroupController extends ApiController
             'Grade 11',
             'Grade 12',
         ];
+
+        if (!$orgId) {
+            return $defaults;
+        }
+
+        $organization = Organization::find($orgId);
+        if (!$organization) {
+            return $defaults;
+        }
+
+        $list = $organization->getSetting('branding.year_groups', []);
+        if (!is_array($list) || empty($list)) {
+            return $defaults;
+        }
+
+        $normalized = array_values(array_filter(array_map(function ($item) {
+            return is_string($item) ? trim($item) : '';
+        }, $list)));
+
+        return $normalized ?: $defaults;
     }
 }

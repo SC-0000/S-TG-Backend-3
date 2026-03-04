@@ -117,7 +117,7 @@ class ApplicationController extends ApiController
         ));
 
         $organization = MailContext::resolveOrganization($application->organization_id ?? null, $application->user ?? null, $application);
-        Mail::to($application->email)->send(new VerifyApplicationEmail($application, $organization));
+        MailContext::sendMailable($application->email, new VerifyApplicationEmail($application, $organization));
 
         return $this->success([
             'message' => 'Application submitted. Check your e-mail to verify.',
@@ -170,7 +170,7 @@ class ApplicationController extends ApiController
             }
 
             $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
-            Mail::to($user->email)->send(new SendLoginCredentials($user, $password, $organization));
+            MailContext::sendMailable($user->email, new SendLoginCredentials($user, $password, $organization));
 
             $application->update(['user_id' => $user->id]);
         }
@@ -204,7 +204,7 @@ class ApplicationController extends ApiController
         }
 
         $organization = MailContext::resolveOrganization($application->organization_id ?? null, $application->user ?? null, $application);
-        Mail::to($application->email)->send(new VerifyApplicationEmail($application, $organization));
+        MailContext::sendMailable($application->email, new VerifyApplicationEmail($application, $organization));
 
         return $this->success([
             'message' => 'Verification email resent successfully.',

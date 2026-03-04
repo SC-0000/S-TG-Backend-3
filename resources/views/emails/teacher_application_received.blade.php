@@ -15,7 +15,7 @@
     <p>We will notify you via email once your application has been reviewed.</p>
 
     <p>If you have any questions in the meantime, please don't hesitate to contact us at
-        <a href="mailto:{{ $supportEmail ?? config('mail.from.address') }}">{{ $supportEmail ?? config('mail.from.address') }}</a>.</p>
+        <a href="mailto:{{ $supportEmail ?? $contactEmail }}">{{ $supportEmail ?? $contactEmail }}</a>.</p>
 
     <p>Best regards,<br>
     <strong>The {{ $brandName ?? config('app.name') }} Team</strong></p>

@@ -14,8 +14,8 @@
     
     @component('emails.components.card', ['type' => 'info'])
         <div style="text-align: center; padding: 20px 0;">
-            <h2 style="margin: 0 0 15px 0; color: #2563eb;">Verification Code</h2>
-            <div style="display: inline-block; font-size: 36px; letter-spacing: 8px; padding: 20px 30px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #2563eb; border-radius: 12px; font-weight: 700; color: #1e40af; font-family: 'Courier New', monospace;">
+            <h2 style="margin: 0 0 15px 0; color: {{ $emailHeaderColor }};">Verification Code</h2>
+            <div style="display: inline-block; font-size: 36px; letter-spacing: 8px; padding: 20px 30px; background: #eff6ff; border: 2px solid {{ $emailHeaderColor }}; border-radius: 12px; font-weight: 700; color: {{ $emailHeaderColorSecondary }}; font-family: 'Courier New', monospace;">
                 {{ $code }}
             </div>
             <p style="margin: 15px 0 0 0; color: #6b7280; font-size: 14px;">
@@ -42,6 +42,6 @@
     @endcomponent
     
     <p style="text-align: center; color: #6b7280; font-size: 14px;">
-        <strong>Need help?</strong> Contact our support team at <a href="mailto:{{ $supportEmail ?? config('mail.from.address') }}">{{ $supportEmail ?? config('mail.from.address') }}</a>
+        <strong>Need help?</strong> Contact our support team at <a href="mailto:{{ $supportEmail ?? $contactEmail }}">{{ $supportEmail ?? $contactEmail }}</a>
     </p>
 @endsection

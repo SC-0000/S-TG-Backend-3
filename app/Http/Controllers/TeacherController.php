@@ -44,7 +44,7 @@ class TeacherController extends Controller
 
         // Send OTP via email
         $organization = MailContext::resolveOrganization(null, null, null, $request);
-        Mail::to($request->email)->send(new GuestVerificationCode($otp, $request->email, $organization));
+        MailContext::sendMailable($request->email, new GuestVerificationCode($otp, $request->email, $organization));
 
         return response()->json([
             'success' => true,
@@ -206,7 +206,7 @@ log::info('Email verified for teacher registration', [
 
             // Send confirmation email to teacher
             $organization = MailContext::resolveOrganization($user->current_organization_id, $user);
-            Mail::to($user->email)->send(new TeacherApplicationReceived($user->name, $user->email, $organization));
+            MailContext::sendMailable($user->email, new TeacherApplicationReceived($user->name, $user->email, $organization));
 
             Log::info('Teacher application received email sent', [
                 'user_id' => $user->id,
@@ -345,7 +345,7 @@ log::info('Email verified for teacher registration', [
 
         // Send approval email
         $organization = MailContext::resolveOrganization($user->current_organization_id, $user);
-        Mail::to($user->email)->send(new TeacherApproved($user, $organization));
+        MailContext::sendMailable($user->email, new TeacherApproved($user, $organization));
 
         return redirect()->back()->with('success', 'Teacher approved successfully.');
     }
@@ -386,7 +386,7 @@ log::info('Email verified for teacher registration', [
 
         // Send rejection email
         $organization = MailContext::resolveOrganization($user->current_organization_id, $user);
-        Mail::to($user->email)->send(new TeacherRejected($user->name, $organization));
+        MailContext::sendMailable($user->email, new TeacherRejected($user->name, $organization));
 
         return redirect()->back()->with('success', 'Teacher application rejected.');
     }

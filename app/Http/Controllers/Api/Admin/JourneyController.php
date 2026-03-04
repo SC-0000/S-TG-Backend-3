@@ -9,6 +9,34 @@ use Illuminate\Http\Request;
 
 class JourneyController extends ApiController
 {
+    private function resolveOrgId(Request $request, $user): ?int
+    {
+        $orgId = $request->attributes->get('organization_id') ?: $user?->current_organization_id;
+        if ($user?->isSuperAdmin() && $request->filled('organization_id')) {
+            $orgId = $request->integer('organization_id');
+        }
+        return $orgId;
+    }
+
+    private function ensureOrgAccess(Request $request, Journey $journey): ?JsonResponse
+    {
+        $user = $request->user();
+        if (!$user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
+        $orgId = $this->resolveOrgId($request, $user);
+        if (!$user->isSuperAdmin()) {
+            if ($orgId && (int) $journey->organization_id !== (int) $orgId) {
+                return $this->error('Forbidden.', [], 403);
+            }
+        } elseif ($request->filled('organization_id') && $orgId && (int) $journey->organization_id !== (int) $orgId) {
+            return $this->error('Forbidden.', [], 403);
+        }
+
+        return null;
+    }
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -16,10 +44,7 @@ class JourneyController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        $orgId = $request->attributes->get('organization_id') ?: $user->current_organization_id;
-        if ($user->isSuperAdmin() && $request->filled('organization_id')) {
-            $orgId = $request->integer('organization_id');
-        }
+        $orgId = $this->resolveOrgId($request, $user);
 
         $journeys = Journey::when($orgId, fn ($q) => $q->forOrganization($orgId))
             ->orderBy('title')
@@ -75,6 +100,81 @@ class JourneyController extends ApiController
         ], status: 201);
     }
 
+    public function show(Request $request, Journey $journey): JsonResponse
+    {
+        if ($response = $this->ensureOrgAccess($request, $journey)) {
+            return $response;
+        }
+
+        $journey->load(['categories:id,journey_id,topic,name,description']);
+
+        return $this->success([
+            'journey' => [
+                'id' => $journey->id,
+                'title' => $journey->title,
+                'description' => $journey->description,
+                'exam_end_date' => $journey->exam_end_date,
+                'organization_id' => $journey->organization_id,
+                'categories' => $journey->categories->map(fn ($cat) => [
+                    'id' => $cat->id,
+                    'topic' => $cat->topic,
+                    'name' => $cat->name,
+                    'description' => $cat->description,
+                ])->values(),
+            ],
+        ]);
+    }
+
+    public function update(Request $request, Journey $journey): JsonResponse
+    {
+        if ($response = $this->ensureOrgAccess($request, $journey)) {
+            return $response;
+        }
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'exam_end_date' => ['nullable', 'date'],
+            'organization_id' => ['nullable', 'integer', 'exists:organizations,id'],
+        ]);
+
+        $user = $request->user();
+        $organizationId = $journey->organization_id;
+        if ($user?->isSuperAdmin() && array_key_exists('organization_id', $validated)) {
+            $organizationId = $validated['organization_id'];
+        }
+
+        $journey->update([
+            'organization_id' => $organizationId,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'exam_end_date' => $validated['exam_end_date'] ?? null,
+        ]);
+
+        return $this->success([
+            'journey' => [
+                'id' => $journey->id,
+                'title' => $journey->title,
+                'description' => $journey->description,
+                'exam_end_date' => $journey->exam_end_date,
+                'organization_id' => $journey->organization_id,
+            ],
+        ]);
+    }
+
+    public function destroy(Request $request, Journey $journey): JsonResponse
+    {
+        if ($response = $this->ensureOrgAccess($request, $journey)) {
+            return $response;
+        }
+
+        $journey->delete();
+
+        return $this->success([
+            'deleted' => true,
+        ]);
+    }
+
     public function overview(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -82,10 +182,7 @@ class JourneyController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        $orgId = $request->attributes->get('organization_id') ?: $user->current_organization_id;
-        if ($user->isSuperAdmin() && $request->filled('organization_id')) {
-            $orgId = $request->integer('organization_id');
-        }
+        $orgId = $this->resolveOrgId($request, $user);
 
         $journeys = Journey::when($orgId, fn ($q) => $q->forOrganization($orgId))
             ->with([

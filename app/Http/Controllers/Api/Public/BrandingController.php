@@ -59,6 +59,7 @@ class BrandingController extends ApiController
             'favicon_url' => $organization->getSetting('branding.favicon_url'),
             'tagline' => $organization->getSetting('branding.tagline'),
             'description' => $organization->getSetting('branding.description'),
+            'year_groups' => $organization->getSetting('branding.year_groups', []),
             'contact' => [
                 'phone' => $organization->getSetting('contact.phone'),
                 'email' => $organization->getSetting('contact.email'),

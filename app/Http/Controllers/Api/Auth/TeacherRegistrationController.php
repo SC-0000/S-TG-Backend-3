@@ -42,20 +42,7 @@ class TeacherRegistrationController extends ApiController
         Cache::forget($this->verifiedCacheKey($validated['email']));
 
         $organization = MailContext::resolveOrganization(null, null, null, $request);
-        $mailable = new GuestVerificationCode($otp, $validated['email'], $organization);
-        // Trigger build so org mailer config is applied before selecting the mailer.
-        $mailable->build();
-        $mailerName = config('mail.default') === 'org_dynamic' ? 'org_dynamic' : config('mail.default');
-        try {
-            Mail::mailer($mailerName)->to($validated['email'])->send($mailable);
-        } catch (\Throwable $e) {
-            if ($mailerName === 'org_dynamic') {
-                // Fallback to default mailer if org mailer fails.
-                Mail::mailer(config('mail.fallback') ?: 'smtp')->to($validated['email'])->send($mailable);
-            } else {
-                throw $e;
-            }
-        }
+        MailContext::sendMailable($validated['email'], new GuestVerificationCode($otp, $validated['email'], $organization));
 
         return $this->success(['message' => 'Verification code sent to your email.']);
     }
@@ -145,7 +132,7 @@ class TeacherRegistrationController extends ApiController
 
         if ($organization) {
             $organization = MailContext::resolveOrganization($validated['organization_id'], $user);
-            Mail::to($user->email)->send(new TeacherApplicationReceived($user->name, $user->email, $organization));
+        MailContext::sendMailable($user->email, new TeacherApplicationReceived($user->name, $user->email, $organization));
         }
 
         Cache::forget($this->otpCacheKey($validated['email']));

@@ -5,7 +5,7 @@
 @section('content')
 <style>
     .report-header {
-        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        background: linear-gradient(135deg, {{ $emailHeaderColor }} 0%, {{ $emailHeaderColorSecondary }} 100%);
         color: white;
         padding: 30px;
         border-radius: 10px;
@@ -36,14 +36,14 @@
         background: #f8f9fa;
         padding: 20px;
         border-radius: 8px;
-        border-left: 4px solid #007bff;
+        border-left: 4px solid {{ $emailHeaderColor }};
         text-align: center;
     }
     
     .summary-card .value {
         font-size: 24px;
         font-weight: 600;
-        color: #007bff;
+        color: {{ $emailHeaderColor }};
         margin-bottom: 5px;
     }
     
@@ -77,7 +77,7 @@
     .section-title {
         font-size: 20px;
         font-weight: 600;
-        color: #007bff;
+        color: {{ $emailHeaderColor }};
         margin-bottom: 20px;
         padding-bottom: 10px;
         border-bottom: 2px solid #e9ecef;
@@ -107,7 +107,7 @@
     }
     
     .question-number {
-        background: #007bff;
+        background: {{ $emailHeaderColor }};
         color: white;
         padding: 6px 12px;
         border-radius: 15px;
@@ -226,7 +226,7 @@
     
     .insight-title {
         font-weight: 600;
-        color: #007bff;
+        color: {{ $emailHeaderColor }};
         margin-bottom: 15px;
         display: flex;
         align-items: center;
@@ -258,7 +258,7 @@
     }
     
     .ai-feedback-title {
-        color: #007bff;
+        color: {{ $emailHeaderColor }};
         font-weight: 600;
         margin-bottom: 15px;
         display: flex;
@@ -326,7 +326,7 @@
 
 <div class="section">
     <div class="section-title">📋 Assessment Details</div>
-    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #007bff;">
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid {{ $emailHeaderColor }};">
         <p style="margin: 0 0 10px 0;"><strong>Assessment:</strong> {{ $submission->assessment->title }}</p>
         <p style="margin: 0 0 10px 0;"><strong>Completed:</strong> {{ $submission->finished_at->format('l, F j, Y \\a\\t g:i A') }}</p>
         <p style="margin: 0 0 10px 0;"><strong>Student:</strong> {{ $submission->child->child_name }}</p>
@@ -353,10 +353,10 @@
                 $formattedFeedback = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $formattedFeedback);
                 
                 // Convert ### Heading to <h4>Heading</h4>
-                $formattedFeedback = preg_replace('/^### (.*?)$/m', '<h4 style="color: #007bff; margin: 20px 0 10px 0;">$1</h4>', $formattedFeedback);
+                $formattedFeedback = preg_replace('/^### (.*?)$/m', '<h4 style="color: {{ $emailHeaderColor }}; margin: 20px 0 10px 0;">$1</h4>', $formattedFeedback);
                 
                 // Convert ## Heading to <h3>Heading</h3>
-                $formattedFeedback = preg_replace('/^## (.*?)$/m', '<h3 style="color: #007bff; margin: 25px 0 15px 0;">$1</h3>', $formattedFeedback);
+                $formattedFeedback = preg_replace('/^## (.*?)$/m', '<h3 style="color: {{ $emailHeaderColor }}; margin: 25px 0 15px 0;">$1</h3>', $formattedFeedback);
                 
                 // Convert line breaks to paragraphs
                 $formattedFeedback = nl2br($formattedFeedback);

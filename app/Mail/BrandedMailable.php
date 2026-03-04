@@ -69,15 +69,24 @@ class BrandedMailable extends Mailable
         $brandLogoDarkUrl = $org?->getSetting('branding.logo_dark_url');
         $brandFaviconUrl = $org?->getSetting('branding.favicon_url');
 
-        $contactEmail = $org?->getSetting('contact.email') ?? config('mail.from.address');
+        $contactEmail = $org?->getSetting('contact.email')
+            ?? $org?->getSetting('email.reply_to_email')
+            ?? $org?->getSetting('email.from_email')
+            ?? config('mail.from.address');
         $contactPhone = $org?->getSetting('contact.phone');
-        $contactWebsite = $org?->getSetting('contact.website') ?? config('app.url');
+        $contactWebsite = $this->normalizeWebsite(
+            $org?->public_domain
+                ?? $org?->portal_domain
+                ?? config('app.url')
+        );
         $contactAddress = $org?->getSetting('contact.address');
         $contactHours = $org?->getSetting('contact.business_hours');
 
-        $emailHeaderColor = $org?->getSetting('email.header_color') ?? '#2563eb';
-        $emailHeaderColorSecondary = $org?->getSetting('email.header_color_secondary') ?? '#1d4ed8';
-        $emailButtonColor = $org?->getSetting('email.button_color') ?? $emailHeaderColor;
+        $themePrimary = $org?->getSetting('theme.colors.primary');
+        $themeAccent = $org?->getSetting('theme.colors.accent');
+        $emailHeaderColor = $org?->getSetting('email.header_color') ?? $themePrimary ?? '#2563eb';
+        $emailHeaderColorSecondary = $org?->getSetting('email.header_color_secondary') ?? $themeAccent ?? '#1d4ed8';
+        $emailButtonColor = $org?->getSetting('email.button_color') ?? $themeAccent ?? $emailHeaderColor;
         $emailButtonColorSecondary = $org?->getSetting('email.button_color_secondary') ?? $emailHeaderColorSecondary;
 
         $footerText = $org?->getSetting('email.footer_text')
@@ -140,11 +149,28 @@ class BrandedMailable extends Mailable
         }
 
         if (! $scheme) {
-            $isLocal = str_starts_with($host, 'localhost') || str_starts_with($host, '127.0.0.1');
-            $scheme = $isLocal ? 'http' : 'https';
+            $scheme = 'https';
         }
 
         return $scheme . '://' . $host;
+    }
+
+    protected function normalizeWebsite(?string $value): ?string
+    {
+        if (! $value || ! is_string($value)) {
+            return $value;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        if (str_starts_with($trimmed, 'http://') || str_starts_with($trimmed, 'https://')) {
+            return $trimmed;
+        }
+
+        return 'https://' . $trimmed;
     }
 
     protected function portalUrl(string $path, ?Organization $org = null): ?string
@@ -167,9 +193,13 @@ class BrandedMailable extends Mailable
             return;
         }
 
-        $fromEmail = $org->getSetting('email.from_email');
-        $fromName = $org->getSetting('email.from_name');
-        $replyTo = $org->getSetting('email.reply_to_email');
+        $fromEmail = $org->getSetting('email.from_email')
+            ?? $org->getSetting('contact.email')
+            ?? config('mail.from.address');
+        $fromName = $org->getSetting('email.from_name')
+            ?? $org->getSetting('branding.organization_name')
+            ?? config('mail.from.name');
+        $replyTo = $org->getSetting('email.reply_to_email') ?? $org->getSetting('contact.email');
         $mailer = strtolower((string) $org->getSetting('email.mailer'));
 
         if ($fromEmail) {

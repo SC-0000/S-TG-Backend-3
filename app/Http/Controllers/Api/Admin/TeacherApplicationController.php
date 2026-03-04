@@ -117,7 +117,7 @@ class TeacherApplicationController extends ApiController
         $task->save();
 
         $organization = MailContext::resolveOrganization($applicant->current_organization_id, $applicant);
-        Mail::to($applicant->email)->send(new TeacherApproved($applicant, $organization));
+        MailContext::sendMailable($applicant->email, new TeacherApproved($applicant, $organization));
 
         $task->setRelation('applicant', $applicant);
 
@@ -155,7 +155,7 @@ class TeacherApplicationController extends ApiController
         $task->save();
 
         $organization = MailContext::resolveOrganization($applicant->current_organization_id, $applicant);
-        Mail::to($applicant->email)->send(new TeacherRejected($applicant->name, $organization));
+        MailContext::sendMailable($applicant->email, new TeacherRejected($applicant->name, $organization));
 
         $task->setRelation('applicant', $applicant);
 

@@ -16,6 +16,7 @@ class OrganizationBrandingController extends ApiController
             'branding.organization_name',
             'branding.tagline',
             'branding.description',
+            'branding.year_groups',
             'theme.colors.primary',
             'theme.colors.primary_50',
             'theme.colors.primary_100',
@@ -206,6 +207,18 @@ class OrganizationBrandingController extends ApiController
     private function validateField(string $field, $value): bool
     {
         if ($value === null) {
+            return true;
+        }
+
+        if ($field === 'branding.year_groups') {
+            if (!is_array($value)) {
+                return false;
+            }
+            foreach ($value as $item) {
+                if (!is_string($item)) {
+                    return false;
+                }
+            }
             return true;
         }
 

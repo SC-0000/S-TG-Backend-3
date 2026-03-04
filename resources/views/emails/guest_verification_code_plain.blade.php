@@ -27,8 +27,8 @@ What's Next?
 
 -----------------------------------
 
-Need help? Contact our support team at {{ $supportEmail ?? config('mail.from.address') }}
+Need help? Contact our support team at {{ $supportEmail ?? $contactEmail }}
 
 -----------------------------------
 
-© {{ date('Y') }} 11+ Tutor. All rights reserved.
+© {{ date('Y') }} {{ $brandName ?? config('app.name') }}. All rights reserved.

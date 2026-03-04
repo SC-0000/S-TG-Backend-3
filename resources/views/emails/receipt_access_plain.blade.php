@@ -23,7 +23,7 @@ Complete your profile to unlock the full parent portal and certificates:
 {{ rtrim($portalBaseUrl ?? config('app.frontend_url'), '/') . '/authenticate-user' }}
 @endif
 
-If you did not make this purchase, contact support immediately at {{ $supportEmail ?? config('mail.from.address') }}.
+If you did not make this purchase, contact support immediately at {{ $supportEmail ?? $contactEmail }}.
 
 Regards,
 The {{ $brandName ?? config('app.name') }} Team

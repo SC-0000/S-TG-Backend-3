@@ -93,7 +93,7 @@ class GuestCheckoutService
         try {
             // If your SendLoginCredentials expects ($user, $password) adjust accordingly.
             $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
-            Mail::to($user->email)->queue(new SendLoginCredentials($user, $tempPassword, $organization));
+            MailContext::sendMailable($user->email, new SendLoginCredentials($user, $tempPassword, $organization), true);
         } catch (\Throwable $e) {
             // Don't block checkout on email failure; log or handle via monitoring.
                 Log::warning('Failed to queue SendLoginCredentials for guest user', [

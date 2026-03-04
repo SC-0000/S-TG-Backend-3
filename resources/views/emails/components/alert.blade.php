@@ -2,8 +2,10 @@
 @php
     $alertClass = 'alert alert-' . ($type ?? 'info');
     
+    $infoBorder = $emailHeaderColor ?? '#2563eb';
+    $infoText = $emailHeaderColorSecondary ?? '#1e40af';
     $styles = [
-        'info' => 'background: #eff6ff; border-left-color: #2563eb; color: #1e40af;',
+        'info' => 'background: #eff6ff; border-left-color: ' . $infoBorder . '; color: ' . $infoText . ';',
         'success' => 'background: #ecfdf5; border-left-color: #059669; color: #047857;',
         'warning' => 'background: #fffbeb; border-left-color: #d97706; color: #92400e;',
         'error' => 'background: #fef2f2; border-left-color: #dc2626; color: #b91c1c;'

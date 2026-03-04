@@ -140,7 +140,7 @@ class ApplicationController extends ApiController
             }
 
             $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
-            Mail::to($user->email)->send(new SendLoginCredentials($user, $password, $organization));
+            MailContext::sendMailable($user->email, new SendLoginCredentials($user, $password, $organization));
 
             $application->update(['user_id' => $user->id]);
 

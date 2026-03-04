@@ -10,4 +10,6 @@ Thank you!
 
 --
 {{ $brandName ?? config('app.name') }}
-Contact us at: {{ $supportEmail ?? config('mail.from.address') }}
+@if(!empty($supportEmail ?? $contactEmail))
+Contact us at: {{ $supportEmail ?? $contactEmail }}
+@endif

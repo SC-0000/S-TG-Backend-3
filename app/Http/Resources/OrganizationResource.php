@@ -103,6 +103,7 @@ class OrganizationResource extends ApiResource
             'status' => $this->status,
             'settings' => [
                 'branding' => $branding,
+                'email' => $this->getSetting('email', []),
                 'features' => $this->getSetting('features', []),
             ],
         ];

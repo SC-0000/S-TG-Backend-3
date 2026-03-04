@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Mailable;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class MailContext
@@ -105,5 +107,26 @@ class MailContext
         }
 
         return null;
+    }
+
+    public static function sendMailable(string $to, Mailable $mailable, bool $queue = false): void
+    {
+        // Ensure org mailer settings are applied before selecting the mailer.
+        $mailable->build();
+
+        $defaultMailer = config('mail.default');
+        $mailerName = $defaultMailer === 'org_dynamic' ? 'org_dynamic' : $defaultMailer;
+
+        try {
+            $mailer = Mail::mailer($mailerName)->to($to);
+            $queue ? $mailer->queue($mailable) : $mailer->send($mailable);
+        } catch (\Throwable $e) {
+            if ($mailerName !== 'org_dynamic') {
+                throw $e;
+            }
+            $fallback = config('mail.fallback') ?: 'smtp';
+            $mailer = Mail::mailer($fallback)->to($to);
+            $queue ? $mailer->queue($mailable) : $mailer->send($mailable);
+        }
     }
 }

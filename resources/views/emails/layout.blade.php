@@ -4,11 +4,26 @@
     $brandTagline = $brandTagline ?? $organization?->getSetting("branding.tagline");
     $brandDescription = $brandDescription ?? $organization?->getSetting("branding.description");
     $brandLogoUrl = $brandLogoUrl ?? $organization?->getSetting("branding.logo_url");
-    $contactEmail = $contactEmail ?? ($organization?->getSetting("contact.email") ?? config("mail.from.address"));
-    $contactWebsite = $contactWebsite ?? ($organization?->getSetting("contact.website") ?? config("app.url"));
-    $emailHeaderColor = $emailHeaderColor ?? ($organization?->getSetting("email.header_color") ?? "#2563eb");
-    $emailHeaderColorSecondary = $emailHeaderColorSecondary ?? ($organization?->getSetting("email.header_color_secondary") ?? "#1d4ed8");
-    $emailButtonColor = $emailButtonColor ?? ($organization?->getSetting("email.button_color") ?? $emailHeaderColor);
+    $contactEmail = $contactEmail
+        ?? $organization?->getSetting("contact.email")
+        ?? $organization?->getSetting("email.reply_to_email")
+        ?? $organization?->getSetting("email.from_email")
+        ?? config("mail.from.address");
+    $contactWebsite = $contactWebsite
+        ?? $organization?->public_domain
+        ?? $organization?->portal_domain
+        ?? config("app.url");
+    if (is_string($contactWebsite)) {
+        $contactWebsite = trim($contactWebsite);
+        if ($contactWebsite !== '' && !preg_match('#^https?://#i', $contactWebsite)) {
+            $contactWebsite = 'https://' . $contactWebsite;
+        }
+    }
+    $themePrimary = $organization?->getSetting("theme.colors.primary");
+    $themeAccent = $organization?->getSetting("theme.colors.accent");
+    $emailHeaderColor = $emailHeaderColor ?? ($organization?->getSetting("email.header_color") ?? $themePrimary ?? "#2563eb");
+    $emailHeaderColorSecondary = $emailHeaderColorSecondary ?? ($organization?->getSetting("email.header_color_secondary") ?? $themeAccent ?? "#1d4ed8");
+    $emailButtonColor = $emailButtonColor ?? ($organization?->getSetting("email.button_color") ?? $themeAccent ?? $emailHeaderColor);
     $emailButtonColorSecondary = $emailButtonColorSecondary ?? ($organization?->getSetting("email.button_color_secondary") ?? $emailHeaderColorSecondary);
     $footerText = $footerText ?? ($organization?->getSetting("email.footer_text") ?? ("© " . date("Y") . " " . $brandName . ". All rights reserved."));
     $footerDisclaimer = $footerDisclaimer ?? $organization?->getSetting("email.footer_disclaimer");
@@ -214,7 +229,7 @@
         }
         
         .btn:hover {
-            background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+            background: linear-gradient(135deg, {{ $emailButtonColorSecondary }} 0%, {{ $emailButtonColorSecondary }} 100%);
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
         }
