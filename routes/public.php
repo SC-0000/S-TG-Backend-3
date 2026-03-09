@@ -374,6 +374,8 @@ Route::view('/flags/{path?}', 'app-api')->where('path', '.*');
 
 Route::view('/admin-dashboard', 'app-api')->name('admin.dashboard');
 Route::view('/admin-dashboard/debug', 'app-api')->name('admin.dashboard.debug');
+Route::view('/admin/overview', 'app-api');
+Route::view('/admin/overview/{section}', 'app-api');
 Route::view('/admin-tasks/{path?}', 'app-api')->where('path', '.*');
 Route::view('/admin/{path?}', 'app-api')->where('path', '.*');
 Route::view('/notifications/{path?}', 'app-api')->where('path', '.*');

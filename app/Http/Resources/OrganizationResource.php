@@ -82,6 +82,7 @@ class OrganizationResource extends ApiResource
             'name' => $brandingName,
             'tagline' => $this->getSetting('branding.tagline'),
             'description' => $this->getSetting('branding.description'),
+            'year_groups' => $this->getSetting('branding.year_groups', []),
             'logo_url' => $normalizeUrl($logoUrl),
             'logo_dark_url' => $normalizeUrl($logoDarkUrl),
             'favicon_url' => $normalizeUrl($faviconUrl),            'colors' => $resolvedColors,            'contact' => [

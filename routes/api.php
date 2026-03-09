@@ -52,6 +52,7 @@ use App\Http\Controllers\Api\LessonQuestionController as ApiLessonQuestionContro
 use App\Http\Controllers\Api\LessonUploadController as ApiLessonUploadController;
 use App\Http\Controllers\Api\LessonWhiteboardController as ApiLessonWhiteboardController;
 use App\Http\Controllers\Api\PortalController as ApiPortalController;
+use App\Http\Controllers\TrackerController;
 use App\Http\Controllers\Api\PortalCourseController as ApiPortalCourseController;
 use App\Http\Controllers\Api\PortalLessonController as ApiPortalLessonController;
 use App\Http\Controllers\Api\JourneyController as ApiJourneyController;
@@ -485,6 +486,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('/deadlines', [ApiPortalController::class, 'deadlines'])->name('api.v1.portal.deadlines');
             Route::get('/calendar-feed', [ApiPortalController::class, 'calendarFeed'])->name('api.v1.portal.calendar-feed');
             Route::get('/tracker', [ApiPortalController::class, 'tracker'])->name('api.v1.portal.tracker');
+            Route::get('/tracker-full', [TrackerController::class, 'show'])->name('api.v1.portal.tracker.full');
             Route::get('/courses', [ApiPortalCourseController::class, 'browse'])->name('api.v1.portal.courses.browse');
             Route::get('/courses/my', [ApiPortalCourseController::class, 'myCourses'])->name('api.v1.portal.courses.my');
             Route::get('/courses/{course}', [ApiPortalCourseController::class, 'show'])->name('api.v1.portal.courses.show');

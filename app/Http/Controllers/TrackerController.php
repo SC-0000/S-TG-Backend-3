@@ -834,8 +834,7 @@ class TrackerController extends Controller
             'childStats'     => $childStats->toArray(),
         ]);
 
-        /* ── 7. Return Inertia data ────────────────────────────────────── */
-        return Inertia::render('@parent/Main/ProgressTracker', [
+        $payload = [
             'progressData' => [
                 'lessons'       => $lessonRows,
                 'assessments'   => $assessmentRows,
@@ -849,6 +848,13 @@ class TrackerController extends Controller
             'selectedChild' => $childKey,
             'journeys'      => $journeys,       // Journey overview data
             'childrenData'  => $childrenData,   // Children data for journey overview
-        ]);
+        ];
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json($payload);
+        }
+
+        /* ── 7. Return Inertia data ────────────────────────────────────── */
+        return Inertia::render('@parent/Main/ProgressTracker', $payload);
     }
 }
