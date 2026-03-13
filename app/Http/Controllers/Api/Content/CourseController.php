@@ -59,7 +59,7 @@ class CourseController extends ApiController
             return $this->error('Not found.', [], 404);
         }
 
-        if ($course->status !== 'published') {
+        if ($course->status !== 'live') {
             return $this->error('Not found.', [], 404);
         }
 

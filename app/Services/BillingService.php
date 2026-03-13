@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Models\User;
+use App\Models\Organization;
 
 class BillingService
 {
@@ -15,6 +16,17 @@ class BillingService
     {
         $this->base  = config('services.billingsystems.base_uri');
         $this->token = config('services.billingsystems.token');
+
+        $orgId = request()?->attributes?->get('organization_id');
+        if ($orgId) {
+            $org = Organization::find($orgId);
+            if ($org) {
+                $billingKey = $org->getApiKey('billing') ?? $org->getApiKey('stripe');
+                if ($billingKey) {
+                    $this->token = $billingKey;
+                }
+            }
+        }
     }
 
     /**

@@ -8,12 +8,15 @@ use App\Mail\TeacherApproved;
 use App\Mail\TeacherRejected;
 use App\Models\AdminTask;
 use App\Models\Organization;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Support\ApiPagination;
 use App\Support\MailContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class TeacherApplicationController extends ApiController
 {
@@ -38,7 +41,9 @@ class TeacherApplicationController extends ApiController
             ->unique()
             ->values();
 
-        $applicantUsers = User::whereIn('id', $userIds)->get()->keyBy('id');
+        $applicantUsers = $userIds->isNotEmpty()
+            ? User::whereIn('id', $userIds)->get()->keyBy('id')
+            : collect();
 
         $orgId = null;
         if ($user->isSuperAdmin() && $request->filled('organization_id')) {
@@ -48,14 +53,21 @@ class TeacherApplicationController extends ApiController
         }
 
         $tasks = $tasks->filter(function ($task) use ($applicantUsers, $orgId) {
-            $userId = $task->metadata['user_id'] ?? null;
+            $metadata = $task->metadata ?? [];
+            $userId = $metadata['user_id'] ?? null;
             $applicant = $userId ? $applicantUsers->get($userId) : null;
-            if (!$applicant) {
-                return false;
+            $taskOrgId = $task->organization_id ?? ($metadata['organization_id'] ?? null);
+            $applicantOrgId = $applicant?->current_organization_id;
+
+            if ($orgId) {
+                if ($taskOrgId && (int) $taskOrgId !== (int) $orgId) {
+                    return false;
+                }
+                if (!$taskOrgId && $applicantOrgId && (int) $applicantOrgId !== (int) $orgId) {
+                    return false;
+                }
             }
-            if ($orgId && (int) $applicant->current_organization_id !== (int) $orgId) {
-                return false;
-            }
+
             return true;
         })->values();
 
@@ -95,22 +107,76 @@ class TeacherApplicationController extends ApiController
             return $response;
         }
 
-        $userId = $task->metadata['user_id'] ?? null;
-        if (!$userId) {
-            return $this->error('User ID not found.', [], 404);
-        }
+        $taskMetadata = $task->metadata ?? [];
+        $userId = $taskMetadata['user_id'] ?? null;
+        $applicant = $userId ? User::find($userId) : null;
+        $organizationId = $task->organization_id ?? ($taskMetadata['organization_id'] ?? null);
 
-        $applicant = User::find($userId);
         if (!$applicant) {
-            return $this->error('User not found.', [], 404);
-        }
+            $email = $taskMetadata['email'] ?? null;
+            if (!$email) {
+                return $this->error('Applicant email not found.', [], 404);
+            }
+            if (User::where('email', $email)->exists()) {
+                return $this->error('A user with this email already exists.', [], 422);
+            }
 
-        $metadata = $applicant->metadata ?? [];
-        $metadata['status'] = 'approved';
-        $metadata['approved_at'] = now()->toISOString();
-        $metadata['approved_by'] = $request->user()?->id;
-        $applicant->metadata = $metadata;
-        $applicant->save();
+            $passwordHash = $taskMetadata['password_hash'] ?? null;
+            $fallbackPassword = Str::random(12);
+
+            $applicant = User::create([
+                'name' => $taskMetadata['name'] ?? 'Teacher',
+                'email' => $email,
+                'password' => $passwordHash ?: Hash::make($fallbackPassword),
+                'role' => User::ROLE_TEACHER,
+                'mobile_number' => $taskMetadata['mobile_number'] ?? null,
+                'current_organization_id' => $organizationId,
+                'metadata' => [
+                    'status' => 'approved',
+                    'approved_at' => now()->toISOString(),
+                    'approved_by' => $request->user()?->id,
+                    'qualifications' => $taskMetadata['qualifications'] ?? null,
+                    'experience' => $taskMetadata['experience'] ?? null,
+                    'specialization' => $taskMetadata['specialization'] ?? null,
+                    'applied_at' => $taskMetadata['applied_at'] ?? null,
+                ],
+            ]);
+
+            if ($organizationId) {
+                $applicant->organizations()->attach($organizationId, [
+                    'role' => 'teacher',
+                    'status' => 'active',
+                    'invited_by' => $request->user()?->id,
+                    'joined_at' => now(),
+                ]);
+            }
+
+            Teacher::create([
+                'user_id' => $applicant->id,
+                'name' => $applicant->name,
+                'title' => $taskMetadata['specialization'] ?? 'Teacher',
+                'role' => 'Teacher',
+                'bio' => $taskMetadata['experience']
+                    ? 'Experience: ' . $taskMetadata['experience']
+                    : 'Profile pending completion.',
+                'category' => $taskMetadata['specialization'] ?? null,
+                'metadata' => array_filter([
+                    'phone' => $taskMetadata['mobile_number'] ?? null,
+                    'email' => $applicant->email,
+                ]),
+                'specialties' => $taskMetadata['specialization'] ? [$taskMetadata['specialization']] : [],
+            ]);
+
+            $taskMetadata['user_id'] = $applicant->id;
+            $task->metadata = $taskMetadata;
+        } else {
+            $metadata = $applicant->metadata ?? [];
+            $metadata['status'] = 'approved';
+            $metadata['approved_at'] = now()->toISOString();
+            $metadata['approved_by'] = $request->user()?->id;
+            $applicant->metadata = $metadata;
+            $applicant->save();
+        }
 
         $task->status = 'completed';
         $task->completed_at = now();
@@ -133,29 +199,32 @@ class TeacherApplicationController extends ApiController
             return $response;
         }
 
-        $userId = $task->metadata['user_id'] ?? null;
-        if (!$userId) {
-            return $this->error('User ID not found.', [], 404);
-        }
+        $taskMetadata = $task->metadata ?? [];
+        $userId = $taskMetadata['user_id'] ?? null;
+        $applicant = $userId ? User::find($userId) : null;
 
-        $applicant = User::find($userId);
-        if (!$applicant) {
-            return $this->error('User not found.', [], 404);
+        if ($applicant) {
+            $metadata = $applicant->metadata ?? [];
+            $metadata['status'] = 'rejected';
+            $metadata['rejected_at'] = now()->toISOString();
+            $metadata['rejected_by'] = $request->user()?->id;
+            $applicant->metadata = $metadata;
+            $applicant->save();
         }
-
-        $metadata = $applicant->metadata ?? [];
-        $metadata['status'] = 'rejected';
-        $metadata['rejected_at'] = now()->toISOString();
-        $metadata['rejected_by'] = $request->user()?->id;
-        $applicant->metadata = $metadata;
-        $applicant->save();
 
         $task->status = 'cancelled';
         $task->completed_at = now();
         $task->save();
 
-        $organization = MailContext::resolveOrganization($applicant->current_organization_id, $applicant);
-        MailContext::sendMailable($applicant->email, new TeacherRejected($applicant->name, $organization));
+        $recipientEmail = $applicant?->email ?? ($taskMetadata['email'] ?? null);
+        $recipientName = $applicant?->name ?? ($taskMetadata['name'] ?? 'Teacher');
+        if ($recipientEmail) {
+            $organization = MailContext::resolveOrganization(
+                $applicant?->current_organization_id ?? ($task->organization_id ?? ($taskMetadata['organization_id'] ?? null)),
+                $applicant
+            );
+            MailContext::sendMailable($recipientEmail, new TeacherRejected($recipientName, $organization));
+        }
 
         $task->setRelation('applicant', $applicant);
 
@@ -176,11 +245,9 @@ class TeacherApplicationController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        $userId = $task->metadata['user_id'] ?? null;
+        $metadata = $task->metadata ?? [];
+        $userId = $metadata['user_id'] ?? null;
         $applicant = $userId ? User::find($userId) : null;
-        if (!$applicant) {
-            return $this->error('User not found.', [], 404);
-        }
 
         $orgId = null;
         if ($user->isSuperAdmin() && $request->filled('organization_id')) {
@@ -189,11 +256,20 @@ class TeacherApplicationController extends ApiController
             $orgId = $user->current_organization_id;
         }
 
-        if ($orgId && (int) $applicant->current_organization_id !== (int) $orgId) {
-            return $this->error('Not found.', [], 404);
+        $taskOrgId = $task->organization_id ?? ($metadata['organization_id'] ?? null);
+        $applicantOrgId = $applicant?->current_organization_id;
+        if ($orgId) {
+            if ($taskOrgId && (int) $taskOrgId !== (int) $orgId) {
+                return $this->error('Not found.', [], 404);
+            }
+            if (!$taskOrgId && $applicantOrgId && (int) $applicantOrgId !== (int) $orgId) {
+                return $this->error('Not found.', [], 404);
+            }
         }
 
-        $task->setRelation('applicant', $applicant);
+        if ($applicant) {
+            $task->setRelation('applicant', $applicant);
+        }
 
         return null;
     }

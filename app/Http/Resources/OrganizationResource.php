@@ -30,43 +30,43 @@ class OrganizationResource extends ApiResource
         $themeColors = $this->getSetting('theme.colors');
         $brandingColors = $this->getSetting('branding.colors');
         $resolvedColors = $themeColors ?: ($brandingColors ?: [
-            'primary' => '#411183',
-            'primary_50' => '#F8F6FF',
-            'primary_100' => '#F0EBFF',
-            'primary_200' => '#E1D6FF',
-            'primary_300' => '#C9B8FF',
-            'primary_400' => '#A688FF',
-            'primary_500' => '#8B5CF6',
-            'primary_600' => '#7C3AED',
-            'primary_700' => '#6D28D9',
-            'primary_800' => '#5B21B6',
-            'primary_900' => '#411183',
-            'primary_950' => '#2E0F5C',
-            'accent' => '#1F6DF2',
-            'accent_50' => '#EFF6FF',
-            'accent_100' => '#DBEAFE',
-            'accent_200' => '#BFDBFE',
-            'accent_300' => '#93C5FD',
-            'accent_400' => '#60A5FA',
-            'accent_500' => '#3B82F6',
-            'accent_600' => '#2563EB',
-            'accent_700' => '#1D4ED8',
-            'accent_800' => '#1E40AF',
-            'accent_900' => '#1F6DF2',
-            'accent_950' => '#172554',
-            'accent_soft' => '#f77052',
-            'accent_soft_50' => '#FFF7F5',
-            'accent_soft_100' => '#FFEDE8',
-            'accent_soft_200' => '#FFD9D0',
-            'accent_soft_300' => '#FFBAA8',
-            'accent_soft_400' => '#FF9580',
-            'accent_soft_500' => '#FFA996',
-            'accent_soft_600' => '#FF6B47',
-            'accent_soft_700' => '#F04A23',
-            'accent_soft_800' => '#C73E1D',
-            'accent_soft_900' => '#A3341A',
-            'secondary' => '#B4C8E8',
-            'heavy' => '#1F6DF2',
+            'primary' => '#111827',
+            'primary_50' => '#F9FAFB',
+            'primary_100' => '#F3F4F6',
+            'primary_200' => '#E5E7EB',
+            'primary_300' => '#D1D5DB',
+            'primary_400' => '#9CA3AF',
+            'primary_500' => '#6B7280',
+            'primary_600' => '#4B5563',
+            'primary_700' => '#374151',
+            'primary_800' => '#1F2937',
+            'primary_900' => '#111827',
+            'primary_950' => '#030712',
+            'accent' => '#4B5563',
+            'accent_50' => '#F9FAFB',
+            'accent_100' => '#F3F4F6',
+            'accent_200' => '#E5E7EB',
+            'accent_300' => '#D1D5DB',
+            'accent_400' => '#9CA3AF',
+            'accent_500' => '#6B7280',
+            'accent_600' => '#4B5563',
+            'accent_700' => '#374151',
+            'accent_800' => '#1F2937',
+            'accent_900' => '#111827',
+            'accent_950' => '#030712',
+            'accent_soft' => '#9CA3AF',
+            'accent_soft_50' => '#F9FAFB',
+            'accent_soft_100' => '#F3F4F6',
+            'accent_soft_200' => '#E5E7EB',
+            'accent_soft_300' => '#D1D5DB',
+            'accent_soft_400' => '#9CA3AF',
+            'accent_soft_500' => '#6B7280',
+            'accent_soft_600' => '#4B5563',
+            'accent_soft_700' => '#374151',
+            'accent_soft_800' => '#1F2937',
+            'accent_soft_900' => '#111827',
+            'secondary' => '#6B7280',
+            'heavy' => '#111827',
         ]);
 
         $contactSettings = $this->getSetting('contact', []);
@@ -95,6 +95,9 @@ class OrganizationResource extends ApiResource
             'custom_css' => $this->getSetting('theme.custom_css'),
         ];
 
+        $apiKeys = $this->getSetting('api_keys', []);
+        $billingKey = data_get($apiKeys, 'billing') ?? data_get($apiKeys, 'stripe');
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -106,6 +109,12 @@ class OrganizationResource extends ApiResource
                 'branding' => $branding,
                 'email' => $this->getSetting('email', []),
                 'features' => $this->getSetting('features', []),
+                'api_keys' => $request->user()?->isSuperAdmin()
+                    ? [
+                        'openai' => data_get($apiKeys, 'openai'),
+                        'billing' => $billingKey,
+                    ]
+                    : null,
             ],
         ];
     }

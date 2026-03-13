@@ -11,6 +11,7 @@ class SuperAdminUserResource extends ApiResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role,
+            'deleted_at' => $this->deleted_at,
             'current_organization_id' => $this->current_organization_id,
             'email_verified_at' => $this->email_verified_at,
             'current_organization' => $this->whenLoaded('currentOrganization', function () {

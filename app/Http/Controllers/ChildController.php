@@ -24,6 +24,7 @@ class ChildController extends Controller
         }
 
         $children = Child::with('user')
+            ->whereHas('user', fn ($q) => $q->whereNull('deleted_at'))
             ->when($organizationId, function($query) use ($organizationId) {
                 $query->where('organization_id', $organizationId);
             })

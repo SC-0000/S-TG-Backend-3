@@ -10,6 +10,7 @@ use App\Support\ApiPagination;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
 
 class TeacherController extends ApiController
 {
@@ -26,6 +27,7 @@ class TeacherController extends ApiController
         }
 
         $query = User::where('role', 'teacher')
+            ->whereNull('deleted_at')
             ->when($orgId, fn ($q) => $q->where('current_organization_id', $orgId))
             ->orderBy('name');
 
@@ -187,7 +189,10 @@ class TeacherController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        $users = User::select('id', 'name', 'email', 'mobile_number')->orderBy('name')->get();
+        $users = User::select('id', 'name', 'email', 'mobile_number')
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->get();
 
         return $this->success(['users' => $users]);
     }
@@ -201,6 +206,37 @@ class TeacherController extends ApiController
 
         $data = $this->validateProfile($request);
 
+        if (empty($data['user_id'])) {
+            $email = $data['user_email'] ?? null;
+            $password = $data['user_password'] ?? null;
+            if (!$email || !$password) {
+                return $this->error('Account email and password are required when creating a new teacher user.', [], 422);
+            }
+            if (User::where('email', $email)->exists()) {
+                return $this->error('A user with this email already exists.', [], 422);
+            }
+
+            $orgId = $user->current_organization_id;
+            $newUser = User::create([
+                'name' => $data['name'],
+                'email' => $email,
+                'password' => Hash::make($password),
+                'role' => User::ROLE_TEACHER,
+                'current_organization_id' => $orgId,
+            ]);
+
+            if ($orgId) {
+                $newUser->organizations()->attach($orgId, [
+                    'role' => 'teacher',
+                    'status' => 'active',
+                    'invited_by' => $user->id,
+                    'joined_at' => now(),
+                ]);
+            }
+
+            $data['user_id'] = $newUser->id;
+        }
+
         if ($request->hasFile('image')) {
             $data['image_path'] = $request->file('image')->store('teachers', 'public');
         }
@@ -209,6 +245,8 @@ class TeacherController extends ApiController
             ? array_map('trim', $data['specialties'])
             : [];
         $data['metadata'] = $data['metadata'] ?? [];
+
+        unset($data['user_email'], $data['user_password'], $data['user_password_confirmation']);
 
         $teacher = Teacher::create($data);
 
@@ -283,6 +321,34 @@ class TeacherController extends ApiController
         return $this->success(['message' => 'Teacher deleted.']);
     }
 
+    public function destroyUser(Request $request, User $teacher): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
+        if ($teacher->role !== User::ROLE_TEACHER) {
+            return $this->error('Not found.', [], 404);
+        }
+
+        if (!$user->isSuperAdmin() && $user->current_organization_id && $teacher->current_organization_id !== $user->current_organization_id) {
+            return $this->error('Not found.', [], 404);
+        }
+
+        $profile = Teacher::where('user_id', $teacher->id)->first();
+        if ($profile) {
+            if ($profile->image_path) {
+                Storage::disk('public')->delete($profile->image_path);
+            }
+            $profile->delete();
+        }
+
+        $teacher->delete();
+
+        return $this->success(['message' => 'Teacher deleted.']);
+    }
+
     private function validateProfile(Request $request): array
     {
         return $request->validate([
@@ -298,6 +364,8 @@ class TeacherController extends ApiController
             'metadata.address' => 'nullable|string',
             'specialties' => 'nullable|array',
             'image' => 'nullable|image|max:2048',
+            'user_email' => 'nullable|email',
+            'user_password' => 'nullable|string|min:8|confirmed',
         ]);
     }
 }

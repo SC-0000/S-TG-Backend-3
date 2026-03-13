@@ -568,6 +568,41 @@ class QuestionController extends Controller
         }
     }
 
+    // Handle comprehension passage image
+    if (isset($questionData['passage']) && is_array($questionData['passage'])) {
+        if (isset($questionData['passage']['image']) && $questionData['passage']['image'] instanceof UploadedFile) {
+            try {
+                $file = $questionData['passage']['image'];
+                $stored = $file->store('questions/passages', 'public');
+                $fullPath = 'storage/' . $stored;
+                $questionData['passage']['image'] = $fullPath;
+                Log::info("✅ Passage image stored", ['path' => $fullPath]);
+            } catch (\Exception $e) {
+                Log::error("❌ Passage image storage failed", ['error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    // Handle comprehension sub-question images
+    if (isset($questionData['sub_questions']) && is_array($questionData['sub_questions'])) {
+        foreach ($questionData['sub_questions'] as $index => $subQuestion) {
+            if (isset($subQuestion['question_image']) && $subQuestion['question_image'] instanceof UploadedFile) {
+                try {
+                    $file = $subQuestion['question_image'];
+                    $stored = $file->store('questions/sub_questions', 'public');
+                    $fullPath = 'storage/' . $stored;
+                    $questionData['sub_questions'][$index]['question_image'] = $fullPath;
+                    Log::info("✅ Sub-question image stored", ['index' => $index, 'path' => $fullPath]);
+                } catch (\Exception $e) {
+                    Log::error("❌ Sub-question image storage failed", [
+                        'index' => $index,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+    }
+
     // Handle main question image (fallback for direct file upload)
     if ($request->hasFile('question_image')) {
         try {

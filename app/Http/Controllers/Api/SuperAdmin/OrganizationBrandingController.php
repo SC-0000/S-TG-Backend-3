@@ -97,6 +97,8 @@ class OrganizationBrandingController extends ApiController
             'email.admin_task_notifications.tasks.your_upcoming_live_session',
             'email.admin_task_notifications.tasks.new_student_assigned',
             'email.admin_task_notifications.tasks.flag_review',
+            'api_keys.openai',
+            'api_keys.billing',
             'theme.custom_css',
         ];
 

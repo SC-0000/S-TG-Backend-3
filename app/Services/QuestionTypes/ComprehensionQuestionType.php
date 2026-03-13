@@ -90,7 +90,8 @@ class ComprehensionQuestionType implements QuestionTypeInterface
             'passage' => [
                 'title' => $questionData['passage']['title'] ?? '',
                 'content' => $questionData['passage']['content'] ?? '',
-                'source' => $questionData['passage']['source'] ?? ''
+                'source' => $questionData['passage']['source'] ?? '',
+                'image' => $questionData['passage']['image'] ?? null,
             ],
             'instructions' => $questionData['instructions'] ?? 'Read the passage carefully and answer the questions that follow.',
             'sub_questions' => $subQuestions,
@@ -121,7 +122,8 @@ class ComprehensionQuestionType implements QuestionTypeInterface
             'passage' => [
                 'title' => $questionData['passage']['title'] ?? '',
                 'content' => $questionData['passage']['content'] ?? '',
-                'source' => $questionData['passage']['source'] ?? ''
+                'source' => $questionData['passage']['source'] ?? '',
+                'image' => $questionData['passage']['image'] ?? null,
             ],
             'instructions' => $questionData['instructions'] ?? '',
             'sub_questions' => $subQuestions,
@@ -136,13 +138,15 @@ class ComprehensionQuestionType implements QuestionTypeInterface
             'passage' => [
                 'title' => '',
                 'content' => '',
-                'source' => ''
+                'source' => '',
+                'image' => null,
             ],
             'instructions' => 'Read the passage carefully and answer the questions that follow.',
             'sub_questions' => [
                 [
                     'type' => 'mcq',
                     'question_text' => '',
+                    'question_image' => null,
                     'options' => [
                         ['id' => 'a', 'text' => '', 'is_correct' => false],
                         ['id' => 'b', 'text' => '', 'is_correct' => false],

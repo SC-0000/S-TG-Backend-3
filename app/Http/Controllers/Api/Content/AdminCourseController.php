@@ -63,6 +63,9 @@ class AdminCourseController extends ApiController
                 'thumbnail' => $course->thumbnail,
                 'status' => $course->status,
                 'modules_count' => $course->modules->count(),
+                'lessons_count' => $course->modules->sum(function ($module) {
+                    return $module->lessons ? $module->lessons->count() : 0;
+                }),
                 'estimated_duration_minutes' => $course->estimated_duration_minutes,
                 'is_featured' => $course->is_featured,
                 'organization' => $course->organization ? [
@@ -277,6 +280,7 @@ class AdminCourseController extends ApiController
             'journey_category_id' => 'nullable|exists:journey_categories,id',
             'is_global' => 'nullable|boolean',
             'organization_id' => 'nullable|integer|exists:organizations,id',
+            'status' => 'nullable|in:draft,review,live,archived',
         ]);
 
         $user = $request->user();
@@ -308,7 +312,7 @@ class AdminCourseController extends ApiController
             'description' => $validated['description'] ?? null,
             'thumbnail' => $validated['thumbnail'] ?? null,
             'cover_image' => $validated['cover_image'] ?? null,
-            'status' => 'draft',
+            'status' => $validated['status'] ?? 'draft',
             'metadata' => $validated['metadata'] ?? [],
             'created_by' => $user->id,
             'updated_by' => $user->id,
@@ -334,7 +338,7 @@ class AdminCourseController extends ApiController
             'cover_image' => 'nullable|string',
             'metadata' => 'nullable|array',
             'journey_category_id' => 'nullable|exists:journey_categories,id',
-            'status' => 'nullable|in:draft,published,archived,live',
+            'status' => 'nullable|in:draft,review,live,archived',
         ]);
 
         $course->update($validated);

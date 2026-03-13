@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\Admin\TeacherStudentAssignmentController as ApiTeac
 use App\Http\Controllers\Api\Admin\YearGroupController as ApiAdminYearGroupController;
 use App\Http\Controllers\Api\Admin\NotificationController as ApiAdminNotificationController;
 use App\Http\Controllers\Api\Admin\ChildController as ApiAdminChildController;
+use App\Http\Controllers\Api\Admin\UserController as ApiAdminUserController;
 use App\Http\Controllers\Api\Public\ContentController as PublicContentController;
 use App\Http\Controllers\Api\Public\ApplicationController as ApiPublicApplicationController;
 use App\Http\Controllers\Api\Public\ApeAcademyController as ApiPublicApeAcademyController;
@@ -60,6 +61,7 @@ use App\Http\Controllers\Api\NotificationController as ApiNotificationController
 use App\Http\Controllers\Api\TaskController as ApiTaskController;
 use App\Http\Controllers\Api\AIAgentController as ApiAIAgentController;
 use App\Http\Controllers\Api\ParentChatController as ApiParentChatController;
+use App\Http\Controllers\Api\OrgAIAgentController as ApiOrgAIAgentController;
 use App\Http\Controllers\Api\LiveSessions\LiveSessionController as ApiLiveSessionController;
 use App\Http\Controllers\Api\LiveSessions\LiveSessionParticipantController as ApiLiveSessionParticipantController;
 use App\Http\Controllers\Api\LiveSessions\LiveSessionMessageController as ApiLiveSessionMessageController;
@@ -360,6 +362,13 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         });
 
         Route::prefix('ai')->group(function () {
+            Route::post('/admin/chat', [ApiOrgAIAgentController::class, 'adminChat'])
+                ->middleware('role:admin,super_admin')
+                ->name('api.v1.ai.admin.chat');
+            Route::post('/teacher/chat', [ApiOrgAIAgentController::class, 'teacherChat'])
+                ->middleware('role:teacher')
+                ->name('api.v1.ai.teacher.chat');
+
             Route::post('/chat', [ApiParentChatController::class, 'ask'])
                 ->middleware(['role:parent,guest_parent,admin,teacher', 'subscription:ai_analysis', 'feature:parent.ai.chatbot'])
                 ->name('api.v1.ai.chat.ask');
@@ -738,6 +747,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
             Route::get('/teachers', [ApiAdminTeacherController::class, 'index'])->name('api.v1.admin.teachers.index');
             Route::get('/teachers/{teacher}', [ApiAdminTeacherController::class, 'show'])->name('api.v1.admin.teachers.show');
+            Route::delete('/teachers/{teacher}', [ApiAdminTeacherController::class, 'destroyUser'])->name('api.v1.admin.teachers.destroy');
 
             Route::prefix('children')->group(function () {
                 Route::get('/create-data', [ApiAdminChildController::class, 'createData'])->name('api.v1.admin.children.create-data');
@@ -871,6 +881,11 @@ Route::prefix('ai-upload')->group(function () {
                 Route::delete('/{application}', [ApiAdminApplicationController::class, 'destroy'])->name('api.v1.admin.applications.destroy');
             });
 
+            Route::prefix('users')->group(function () {
+                Route::get('/', [ApiAdminUserController::class, 'index'])->name('api.v1.admin.users.index');
+                Route::get('/{user}', [ApiAdminUserController::class, 'show'])->name('api.v1.admin.users.show');
+            });
+
             Route::prefix('teacher-applications')->group(function () {
                 Route::get('/', [ApiTeacherApplicationController::class, 'index'])->name('api.v1.admin.teacher-applications.index');
                 Route::post('/{task}/approve', [ApiTeacherApplicationController::class, 'approve'])->name('api.v1.admin.teacher-applications.approve');
@@ -899,6 +914,7 @@ Route::prefix('ai-upload')->group(function () {
                 Route::get('/{user}', [ApiSuperAdminUserController::class, 'show'])->name('api.v1.superadmin.users.show');
                 Route::put('/{user}', [ApiSuperAdminUserController::class, 'update'])->name('api.v1.superadmin.users.update');
                 Route::delete('/{user}', [ApiSuperAdminUserController::class, 'destroy'])->name('api.v1.superadmin.users.destroy');
+                Route::post('/{user}/restore', [ApiSuperAdminUserController::class, 'restore'])->name('api.v1.superadmin.users.restore');
                 Route::post('/{user}/change-role', [ApiSuperAdminUserController::class, 'changeRole'])->name('api.v1.superadmin.users.change-role');
                 Route::post('/{user}/toggle-status', [ApiSuperAdminUserController::class, 'toggleStatus'])->name('api.v1.superadmin.users.toggle-status');
                 Route::post('/{user}/impersonate', [ApiSuperAdminUserController::class, 'impersonate'])->name('api.v1.superadmin.users.impersonate');

@@ -18,6 +18,7 @@ class TeacherController extends Controller
 
     $teachers = User::query()
         ->where('role', 'teacher')
+        ->whereNull('deleted_at')
         ->when($user->role !== 'super_admin' && $user->current_organization_id, fn($q) =>
             $q->where('current_organization_id', $user->current_organization_id)
         )
@@ -37,6 +38,7 @@ class TeacherController extends Controller
         $user = auth()->user();
 
         $teachers = User::where('role', 'teacher')
+            ->whereNull('deleted_at')
             ->when(
                 $user->role !== 'super_admin' && $user->current_organization_id,
                 fn ($q) => $q->where('current_organization_id', $user->current_organization_id)
@@ -70,7 +72,7 @@ class TeacherController extends Controller
 
     public function create()
     {
-        $users = User::select('id','name')->orderBy('name')->get();
+        $users = User::select('id','name')->whereNull('deleted_at')->orderBy('name')->get();
         return Inertia::render('@admin/Teacher/Create', ['users' => $users]);
     }
 
@@ -118,6 +120,7 @@ class TeacherController extends Controller
         // Load teacher user with assigned students (scoped by org for non-super-admins)
         $teacherUser = User::with(['assignedStudents.user'])
             ->where('role', 'teacher')
+            ->whereNull('deleted_at')
             ->when(
                 $authUser->role !== 'super_admin' && $authUser->current_organization_id,
                 fn ($q) => $q->where('current_organization_id', $authUser->current_organization_id)
@@ -182,7 +185,7 @@ class TeacherController extends Controller
 
     public function edit(Teacher $teacher)
     {
-        $users = User::select('id','name')->orderBy('name')->get();
+        $users = User::select('id','name')->whereNull('deleted_at')->orderBy('name')->get();
         return Inertia::render('@admin/Teacher/Edit', [
             'teacher' => $teacher,
             'users'   => $users,

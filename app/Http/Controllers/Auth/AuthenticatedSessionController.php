@@ -49,6 +49,12 @@ Log::info('[LoginAttempt] Authenticated', [
 
         // Determine role-based fallback route after login.
         $user = $request->user();
+        if ($user && $user->deleted_at) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            return redirect()->back()->withErrors(['email' => 'This account has been deleted. Please contact support.']);
+        }
 
         if ($user && $user->role === 'super_admin') {
             $fallback = route('superadmin.dashboard', [], false);

@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class TeacherRegistrationController extends ApiController
@@ -36,13 +37,32 @@ class TeacherRegistrationController extends ApiController
             'email.unique' => 'This email is already registered.'
         ]);
 
+        Log::info('Teacher OTP request received', [
+            'email' => $validated['email'],
+            'ip' => $request->ip(),
+            'organization_id' => $request->input('organization_id'),
+        ]);
+
         $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         Cache::put($this->otpCacheKey($validated['email']), $otp, now()->addMinutes(5));
         Cache::forget($this->verifiedCacheKey($validated['email']));
 
         $organization = MailContext::resolveOrganization(null, null, null, $request);
-        MailContext::sendMailable($validated['email'], new GuestVerificationCode($otp, $validated['email'], $organization));
+        try {
+            MailContext::sendMailable($validated['email'], new GuestVerificationCode($otp, $validated['email'], $organization));
+            Log::info('Teacher OTP email dispatched', [
+                'email' => $validated['email'],
+                'organization_id' => $organization?->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Teacher OTP email failed', [
+                'email' => $validated['email'],
+                'organization_id' => $organization?->id,
+                'error' => $e->getMessage(),
+            ]);
+            return $this->error('Failed to send verification code. Please try again.', [], 500);
+        }
 
         return $this->success(['message' => 'Verification code sent to your email.']);
     }
@@ -89,50 +109,37 @@ class TeacherRegistrationController extends ApiController
 
         $organization = Organization::find($validated['organization_id']);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => 'teacher',
-            'mobile_number' => $validated['mobile_number'] ?? null,
-            'current_organization_id' => $validated['organization_id'],
-            'metadata' => [
-                'status' => 'pending_approval',
-                'qualifications' => $validated['qualifications'] ?? null,
-                'experience' => $validated['experience'] ?? null,
-                'specialization' => $validated['specialization'] ?? null,
-                'applied_at' => now()->toISOString(),
-            ],
-        ]);
-
-        $user->organizations()->attach($validated['organization_id'], [
-            'role' => 'teacher',
-            'status' => 'active',
-            'invited_by' => null,
-            'joined_at' => now(),
-        ]);
+        $existingTask = AdminTask::where('task_type', 'teacher_approval')
+            ->whereIn('status', ['pending', 'Pending'])
+            ->where('metadata->email', $validated['email'])
+            ->first();
+        if ($existingTask) {
+            return $this->error('An application for this email is already pending.', [], 422);
+        }
 
         $task = AdminTask::create([
             'organization_id' => $validated['organization_id'],
             'task_type' => 'teacher_approval',
-            'title' => 'New Teacher Application: ' . $user->name,
-            'description' => 'Review and approve teacher application from ' . $user->email,
+            'title' => 'New Teacher Application: ' . $validated['name'],
+            'description' => 'Review and approve teacher application from ' . $validated['email'],
             'status' => 'pending',
             'related_entity' => url('/teacher-applications'),
             'metadata' => [
-                'user_id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'mobile_number' => $user->mobile_number,
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password_hash' => Hash::make($validated['password']),
+                'mobile_number' => $validated['mobile_number'] ?? null,
                 'qualifications' => $validated['qualifications'] ?? null,
                 'experience' => $validated['experience'] ?? null,
                 'specialization' => $validated['specialization'] ?? null,
+                'organization_id' => $validated['organization_id'],
+                'applied_at' => now()->toISOString(),
             ],
         ]);
 
         if ($organization) {
-            $organization = MailContext::resolveOrganization($validated['organization_id'], $user);
-        MailContext::sendMailable($user->email, new TeacherApplicationReceived($user->name, $user->email, $organization));
+            $organization = MailContext::resolveOrganization($validated['organization_id'], null, null, $request);
+            MailContext::sendMailable($validated['email'], new TeacherApplicationReceived($validated['name'], $validated['email'], $organization));
         }
 
         Cache::forget($this->otpCacheKey($validated['email']));

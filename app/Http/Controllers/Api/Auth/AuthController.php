@@ -27,9 +27,19 @@ class AuthController extends ApiController
         $email = Str::lower($request->input('email'));
         $user = User::whereRaw('lower(email) = ?', [$email])->first();
 
-        if (!$user || !Hash::check($request->input('password'), $user->password)) {
+        if (!$user) {
             RateLimiter::hit($request->throttleKey());
-            return $this->error('Invalid credentials.', [], 401);
+            return $this->error('No account found with this email address. Please check your email or create a new account.', [], 401);
+        }
+
+        if (!Hash::check($request->input('password'), $user->password)) {
+            RateLimiter::hit($request->throttleKey());
+            return $this->error('Incorrect password. Please try again or reset your password.', [], 401);
+        }
+
+        if ($user->deleted_at) {
+            RateLimiter::hit($request->throttleKey());
+            return $this->error('This account has been deleted. Please contact support for assistance.', [], 403);
         }
 
         RateLimiter::clear($request->throttleKey());

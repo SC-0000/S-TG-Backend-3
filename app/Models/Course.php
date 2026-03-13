@@ -173,7 +173,7 @@ class Course extends Model
 
     public function scopePublished($query)
     {
-        return $query->where('status', 'published');
+        return $query->where('status', 'live');
     }
 
     // Boot method for UID observer

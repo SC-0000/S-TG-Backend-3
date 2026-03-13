@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 class TeacherController extends Controller
 {
     /**
@@ -23,6 +24,10 @@ class TeacherController extends Controller
      */
     public function sendOtp(Request $request)
     {
+        Log::info('Send OTP request received', [
+            'email' => $request->input('email'),
+            'ip' => $request->ip(),
+        ]);
         if ($request->expectsJson()) {
             return app(ApiTeacherRegistrationController::class)->sendOtp($request);
         }
@@ -44,7 +49,23 @@ class TeacherController extends Controller
 
         // Send OTP via email
         $organization = MailContext::resolveOrganization(null, null, null, $request);
-        MailContext::sendMailable($request->email, new GuestVerificationCode($otp, $request->email, $organization));
+        try {
+            MailContext::sendMailable($request->email, new GuestVerificationCode($otp, $request->email, $organization));
+            Log::info('Teacher OTP email dispatched', [
+                'email' => $request->email,
+                'organization_id' => $organization?->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Teacher OTP email failed', [
+                'email' => $request->email,
+                'organization_id' => $organization?->id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send verification code. Please try again.'
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
@@ -145,72 +166,46 @@ log::info('Email verified for teacher registration', [
         ]);
 
         try {
-            // Create user with 'teacher' role and 'pending_approval' status in metadata
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-                'role' => 'teacher',
-                'mobile_number' => $request->mobile_number,
-                'current_organization_id' => $request->organization_id,
-                'metadata' => [
-                    'status' => 'pending_approval',
-                    'qualifications' => $request->qualifications,
-                    'experience' => $request->experience,
-                    'specialization' => $request->specialization,
-                    'applied_at' => now()->toISOString(),
-                ],
-            ]);
-
-            Log::info('Teacher user created', [
-                'user_id' => $user->id,
-                'email' => $user->email,
-            ]);
-
-            // Attach teacher to organization with 'teacher' role in pivot table
-            $user->organizations()->attach($request->organization_id, [
-                'role' => 'teacher',
-                'status' => 'active',
-                'invited_by' => null,
-                'joined_at' => now(),
-            ]);
-
-            Log::info('Teacher attached to organization', [
-                'user_id' => $user->id,
-                'organization_id' => $request->organization_id,
-            ]);
+            $existingTask = AdminTask::where('task_type', 'teacher_approval')
+                ->whereIn('status', ['pending', 'Pending'])
+                ->where('metadata->email', $request->email)
+                ->first();
+            if ($existingTask) {
+                return back()->withErrors(['email' => 'An application for this email is already pending.']);
+            }
 
             // Create an AdminTask for approval
             $task = AdminTask::create([
                 'organization_id' => $request->organization_id,
                 'task_type' => 'teacher_approval',
-                'title' => 'New Teacher Application: ' . $user->name,
-                'description' => 'Review and approve teacher application from ' . $user->email,
+                'title' => 'New Teacher Application: ' . $request->name,
+                'description' => 'Review and approve teacher application from ' . $request->email,
                 'status' => 'pending',
                 'related_entity' => url('/teacher-applications'),
                 'metadata' => [
-                    'user_id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'mobile_number' => $user->mobile_number,
+                    'name' => $request->name,
+                    'email' => $request->email,
+                    'password_hash' => Hash::make($request->password),
+                    'mobile_number' => $request->mobile_number,
                     'qualifications' => $request->qualifications,
                     'experience' => $request->experience,
                     'specialization' => $request->specialization,
+                    'organization_id' => $request->organization_id,
+                    'applied_at' => now()->toISOString(),
                 ],
             ]);
 
             Log::info('AdminTask created for teacher approval', [
                 'task_id' => $task->id ?? null,
-                'user_id' => $user->id,
+                'email' => $request->email,
             ]);
 
             // Send confirmation email to teacher
-            $organization = MailContext::resolveOrganization($user->current_organization_id, $user);
-            MailContext::sendMailable($user->email, new TeacherApplicationReceived($user->name, $user->email, $organization));
+            $organization = MailContext::resolveOrganization($request->organization_id, null, null, $request);
+            MailContext::sendMailable($request->email, new TeacherApplicationReceived($request->name, $request->email, $organization));
 
             Log::info('Teacher application received email sent', [
-                'user_id' => $user->id,
-                'email' => $user->email,
+                'email' => $request->email,
             ]);
 
             // Clear session data
@@ -222,11 +217,11 @@ log::info('Email verified for teacher registration', [
             ]);
 
             Log::debug('Cleared teacher registration session', [
-                'email' => $user->email,
+                'email' => $request->email,
             ]);
 
             Log::info('Teacher registration process completed', [
-                'user_id' => $user->id,
+                'email' => $request->email,
             ]);
 
             // Return back() for Inertia to handle properly
@@ -260,20 +255,27 @@ log::info('Email verified for teacher registration', [
         if ($user->role === 'super_admin' && $request->filled('organization_id')) {
             $orgId = $request->organization_id;
             $applications = $allApplications->filter(function($task) use ($orgId) {
-                $userId = $task->metadata['user_id'] ?? null;
+                $metadata = $task->metadata ?? [];
+                $taskOrgId = $task->organization_id ?? ($metadata['organization_id'] ?? null);
+                if ($taskOrgId) {
+                    return (int) $taskOrgId === (int) $orgId;
+                }
+                $userId = $metadata['user_id'] ?? null;
                 if (!$userId) return false;
-                
                 $user = User::find($userId);
-                return $user && $user->current_organization_id == $orgId;
+                return $user && (int) $user->current_organization_id === (int) $orgId;
             })->values();
         } elseif ($user->role !== 'super_admin' && $user->current_organization_id) {
-            // Regular admin - filter by their organization
             $applications = $allApplications->filter(function($task) use ($user) {
-                $userId = $task->metadata['user_id'] ?? null;
+                $metadata = $task->metadata ?? [];
+                $taskOrgId = $task->organization_id ?? ($metadata['organization_id'] ?? null);
+                if ($taskOrgId) {
+                    return (int) $taskOrgId === (int) $user->current_organization_id;
+                }
+                $userId = $metadata['user_id'] ?? null;
                 if (!$userId) return false;
-                
                 $applicantUser = User::find($userId);
-                return $applicantUser && $applicantUser->current_organization_id == $user->current_organization_id;
+                return $applicantUser && (int) $applicantUser->current_organization_id === (int) $user->current_organization_id;
             })->values();
         } else {
             $applications = $allApplications;
@@ -320,23 +322,73 @@ log::info('Email verified for teacher registration', [
             return redirect()->back()->with('error', 'Invalid task type.');
         }
 
-        $userId = $task->metadata['user_id'] ?? null;
-        if (!$userId) {
-            return redirect()->back()->with('error', 'User ID not found.');
-        }
+        $taskMetadata = $task->metadata ?? [];
+        $userId = $taskMetadata['user_id'] ?? null;
+        $user = $userId ? User::find($userId) : null;
+        $organizationId = $task->organization_id ?? ($taskMetadata['organization_id'] ?? null);
 
-        $user = User::find($userId);
         if (!$user) {
-            return redirect()->back()->with('error', 'User not found.');
-        }
+            $email = $taskMetadata['email'] ?? null;
+            if (!$email) {
+                return redirect()->back()->with('error', 'Applicant email not found.');
+            }
+            if (User::where('email', $email)->exists()) {
+                return redirect()->back()->with('error', 'A user with this email already exists.');
+            }
 
-        // Update user metadata to approved
-        $metadata = $user->metadata ?? [];
-        $metadata['status'] = 'approved';
-        $metadata['approved_at'] = now()->toISOString();
-        $metadata['approved_by'] = auth()->id();
-        $user->metadata = $metadata;
-        $user->save();
+            $user = User::create([
+                'name' => $taskMetadata['name'] ?? 'Teacher',
+                'email' => $email,
+                'password' => $taskMetadata['password_hash'] ?? Hash::make(Str::random(12)),
+                'role' => 'teacher',
+                'mobile_number' => $taskMetadata['mobile_number'] ?? null,
+                'current_organization_id' => $organizationId,
+                'metadata' => [
+                    'status' => 'approved',
+                    'approved_at' => now()->toISOString(),
+                    'approved_by' => auth()->id(),
+                    'qualifications' => $taskMetadata['qualifications'] ?? null,
+                    'experience' => $taskMetadata['experience'] ?? null,
+                    'specialization' => $taskMetadata['specialization'] ?? null,
+                    'applied_at' => $taskMetadata['applied_at'] ?? null,
+                ],
+            ]);
+
+            if ($organizationId) {
+                $user->organizations()->attach($organizationId, [
+                    'role' => 'teacher',
+                    'status' => 'active',
+                    'invited_by' => auth()->id(),
+                    'joined_at' => now(),
+                ]);
+            }
+
+            \App\Models\Teacher::create([
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'title' => $taskMetadata['specialization'] ?? 'Teacher',
+                'role' => 'Teacher',
+                'bio' => $taskMetadata['experience']
+                    ? 'Experience: ' . $taskMetadata['experience']
+                    : 'Profile pending completion.',
+                'category' => $taskMetadata['specialization'] ?? null,
+                'metadata' => array_filter([
+                    'phone' => $taskMetadata['mobile_number'] ?? null,
+                    'email' => $user->email,
+                ]),
+                'specialties' => $taskMetadata['specialization'] ? [$taskMetadata['specialization']] : [],
+            ]);
+
+            $taskMetadata['user_id'] = $user->id;
+            $task->metadata = $taskMetadata;
+        } else {
+            $metadata = $user->metadata ?? [];
+            $metadata['status'] = 'approved';
+            $metadata['approved_at'] = now()->toISOString();
+            $metadata['approved_by'] = auth()->id();
+            $user->metadata = $metadata;
+            $user->save();
+        }
 
         // Mark task as completed
         $task->status = 'completed';
@@ -361,23 +413,17 @@ log::info('Email verified for teacher registration', [
             return redirect()->back()->with('error', 'Invalid task type.');
         }
 
-        $userId = $task->metadata['user_id'] ?? null;
-        if (!$userId) {
-            return redirect()->back()->with('error', 'User ID not found.');
+        $taskMetadata = $task->metadata ?? [];
+        $userId = $taskMetadata['user_id'] ?? null;
+        $user = $userId ? User::find($userId) : null;
+        if ($user) {
+            $metadata = $user->metadata ?? [];
+            $metadata['status'] = 'rejected';
+            $metadata['rejected_at'] = now()->toISOString();
+            $metadata['rejected_by'] = auth()->id();
+            $user->metadata = $metadata;
+            $user->save();
         }
-
-        $user = User::find($userId);
-        if (!$user) {
-            return redirect()->back()->with('error', 'User not found.');
-        }
-
-        // Update user metadata to rejected
-        $metadata = $user->metadata ?? [];
-        $metadata['status'] = 'rejected';
-        $metadata['rejected_at'] = now()->toISOString();
-        $metadata['rejected_by'] = auth()->id();
-        $user->metadata = $metadata;
-        $user->save();
 
         // Mark task as cancelled
         $task->status = 'cancelled';
@@ -385,8 +431,15 @@ log::info('Email verified for teacher registration', [
         $task->save();
 
         // Send rejection email
-        $organization = MailContext::resolveOrganization($user->current_organization_id, $user);
-        MailContext::sendMailable($user->email, new TeacherRejected($user->name, $organization));
+        $recipientEmail = $user?->email ?? ($taskMetadata['email'] ?? null);
+        $recipientName = $user?->name ?? ($taskMetadata['name'] ?? 'Teacher');
+        if ($recipientEmail) {
+            $organization = MailContext::resolveOrganization(
+                $user?->current_organization_id ?? ($task->organization_id ?? ($taskMetadata['organization_id'] ?? null)),
+                $user
+            );
+            MailContext::sendMailable($recipientEmail, new TeacherRejected($recipientName, $organization));
+        }
 
         return redirect()->back()->with('success', 'Teacher application rejected.');
     }

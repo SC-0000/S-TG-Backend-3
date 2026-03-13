@@ -25,6 +25,16 @@ class UserController extends ApiController
                 'currentOrganization:id,name',
             ]);
 
+        $includeDeleted = $request->boolean('include_deleted');
+        $onlyDeleted = $request->boolean('only_deleted');
+        if ($onlyDeleted) {
+            $query->onlyTrashed();
+        } elseif ($includeDeleted) {
+            $query->withTrashed();
+        } else {
+            $query->whereNull('deleted_at');
+        }
+
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -136,6 +146,17 @@ class UserController extends ApiController
         $user->delete();
 
         return $this->success(['message' => 'User deleted successfully.']);
+    }
+
+    public function restore(int $user): JsonResponse
+    {
+        $user = User::withTrashed()->findOrFail($user);
+        if (!$user->deleted_at) {
+            return $this->success(['message' => 'User is already active.']);
+        }
+        $user->restore();
+
+        return $this->success(['message' => 'User restored successfully.']);
     }
 
     public function changeRole(UserRoleUpdateRequest $request, User $user): JsonResponse

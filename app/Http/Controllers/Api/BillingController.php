@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Services\BillingService;
+use App\Models\Organization;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,9 +25,13 @@ class BillingController extends ApiController
             $user->save();
         }
 
+        $orgId = $request->attributes->get('organization_id') ?? $user->current_organization_id;
+        $org = $orgId ? Organization::find($orgId) : null;
+        $publishableKey = $org?->getApiKey('billing') ?? $org?->getApiKey('stripe') ?? config('services.billing.publishable_key');
+
         return $this->success([
             'customer_id' => $user->billing_customer_id,
-            'api_key' => config('services.billing.publishable_key'),
+            'api_key' => $publishableKey,
         ]);
     }
 

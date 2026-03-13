@@ -7,11 +7,12 @@ use Illuminate\Auth\MustVerifyEmail as MustVerifyTrait;      // ← and this
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail  // ← implement interface
 {
-    use HasApiTokens, HasFactory, Notifiable, MustVerifyTrait;             // ← use the trait
+    use HasApiTokens, HasFactory, Notifiable, MustVerifyTrait, SoftDeletes;             // ← use the trait
 
     // Role constants
     public const ROLE_SUPER_ADMIN = 'super_admin';  // Platform-wide super administrator

@@ -197,9 +197,13 @@ class AdminModuleController extends ApiController
             return $this->error('Assessment already attached to this module.', [], 422);
         }
 
-        $module->assessments()->attach($validated['assessment_id'], [
-            'timing' => $validated['timing'] ?? null,
-        ]);
+        if (array_key_exists('timing', $validated) && $validated['timing'] !== null && $validated['timing'] !== '') {
+            $module->assessments()->attach($validated['assessment_id'], [
+                'timing' => $validated['timing'],
+            ]);
+        } else {
+            $module->assessments()->attach($validated['assessment_id']);
+        }
 
         return $this->success(['message' => 'Assessment attached successfully.']);
     }
