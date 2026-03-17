@@ -184,6 +184,28 @@ class AffiliateController extends ApiController
         return $this->paginated($paginator, $paginator->items());
     }
 
+    public function updateConversion(Request $request, int $conversionId): JsonResponse
+    {
+        $conversion = AffiliateConversion::findOrFail($conversionId);
+
+        if ($response = $this->ensureScope($request, $conversion)) {
+            return $response;
+        }
+
+        $validated = $request->validate([
+            'status' => 'required|in:pending,approved,paid,rejected',
+            'commission_amount' => 'nullable|numeric|min:0',
+        ]);
+
+        $this->affiliateService->updateConversionStatus(
+            $conversion,
+            $validated['status'],
+            isset($validated['commission_amount']) ? (float) $validated['commission_amount'] : null
+        );
+
+        return $this->success($conversion->fresh());
+    }
+
     public function manualAttribution(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -280,6 +302,53 @@ class AffiliateController extends ApiController
         }
 
         return $this->success(['message' => 'Affiliate settings updated.']);
+    }
+
+    public function insights(Request $request): JsonResponse
+    {
+        $orgId = $this->resolveOrgId($request);
+
+        $from = $request->input('from');
+        $to = $request->input('to');
+        $days = $request->integer('days', 30);
+
+        if (!$from) {
+            $from = now()->subDays($days)->toDateString();
+        }
+
+        $funnel = $this->affiliateService->getOrgFunnel($orgId, $from, $to);
+        $topLinks = $this->affiliateService->getTopLinks($orgId);
+        $trend = $this->affiliateService->getEventTrend($orgId, null, $days);
+
+        return $this->success([
+            'funnel' => $funnel,
+            'top_links' => $topLinks,
+            'trend' => $trend,
+            'period' => ['from' => $from, 'to' => $to ?? now()->toDateString(), 'days' => $days],
+        ]);
+    }
+
+    public function linkInsights(Request $request, int $linkId): JsonResponse
+    {
+        $link = \App\Models\TrackingLink::findOrFail($linkId);
+
+        if ($response = $this->ensureScope($request, $link)) {
+            return $response;
+        }
+
+        $days = $request->integer('days', 30);
+        $from = $request->input('from', now()->subDays($days)->toDateString());
+        $to = $request->input('to');
+
+        $funnel = $this->affiliateService->getLinkFunnel($linkId, $from, $to);
+        $trend = $this->affiliateService->getEventTrend(0, $linkId, $days);
+
+        return $this->success([
+            'link' => array_merge($link->toArray(), ['full_url' => $link->fullUrl()]),
+            'funnel' => $funnel,
+            'trend' => $trend,
+            'period' => ['from' => $from, 'to' => $to ?? now()->toDateString(), 'days' => $days],
+        ]);
     }
 
     // --- Helpers ---

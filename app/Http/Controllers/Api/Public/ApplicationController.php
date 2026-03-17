@@ -12,6 +12,7 @@ use App\Models\Permission;
 use App\Models\User;
 use App\Services\AffiliateService;
 use App\Services\BillingService;
+use App\Services\CommissionEngine;
 use App\Support\MailContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,11 +26,13 @@ class ApplicationController extends ApiController
 {
     protected BillingService $billing;
     protected AffiliateService $affiliateService;
+    protected CommissionEngine $commissionEngine;
 
-    public function __construct(BillingService $billing, AffiliateService $affiliateService)
+    public function __construct(BillingService $billing, AffiliateService $affiliateService, CommissionEngine $commissionEngine)
     {
         $this->billing = $billing;
         $this->affiliateService = $affiliateService;
+        $this->commissionEngine = $commissionEngine;
     }
 
     public function store(Request $request): JsonResponse
@@ -183,6 +186,13 @@ class ApplicationController extends ApiController
             MailContext::sendMailable($user->email, new SendLoginCredentials($user, $password, $organization));
 
             $application->update(['user_id' => $user->id]);
+
+            // Fire commission rules for auto-approved signups
+            try {
+                $this->commissionEngine->onSignupApproved($organizationId, $user);
+            } catch (\Throwable $e) {
+                // Never block the verification flow
+            }
         }
 
         if ($application->application_type === 'Type2') {

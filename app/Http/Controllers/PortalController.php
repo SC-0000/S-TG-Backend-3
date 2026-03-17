@@ -882,6 +882,11 @@ public function calenderIndex(Request $request)
         ]);
     }
     // Show all transactions for the current user, with items and invoice_id
+    public function bookingsIndex()
+    {
+        return Inertia::render('@parent/Bookings/MyBookings');
+    }
+
     public function transactionsIndex()
     {
         $user = Auth::user();

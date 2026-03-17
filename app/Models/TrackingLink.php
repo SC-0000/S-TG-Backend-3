@@ -48,6 +48,11 @@ class TrackingLink extends Model
         return $this->hasMany(AffiliateConversion::class);
     }
 
+    public function trackingEvents(): HasMany
+    {
+        return $this->hasMany(TrackingEvent::class);
+    }
+
     // --- Scopes ---
 
     public function scopeActive($query)
@@ -87,11 +92,16 @@ class TrackingLink extends Model
 
     public function fullUrl(): string
     {
-        $domain = $this->organization?->public_domain ?? config('app.url');
-        $domain = rtrim($domain, '/');
+        // Use the backend app URL so the /r/{code} web route is hit directly
+        $domain = rtrim((string) config('app.url'), '/');
 
-        if (!str_starts_with($domain, 'http')) {
-            $domain = 'https://' . $domain;
+        if (!$domain || !str_starts_with($domain, 'http')) {
+            // Fallback to org public domain if app.url isn't set
+            $domain = $this->organization?->public_domain ?? 'https://localhost';
+            $domain = rtrim($domain, '/');
+            if (!str_starts_with($domain, 'http')) {
+                $domain = 'https://' . $domain;
+            }
         }
 
         return $domain . '/r/' . $this->code;

@@ -38,11 +38,18 @@ class TeacherProfile extends Model
 
     /**
      * Availabilities for this teacher profile.
-     * TeacherAvailability model will be created (table: teacher_availabilities).
      */
     public function availabilities()
     {
         return $this->hasMany(TeacherAvailability::class, 'teacher_profile_id');
+    }
+
+    /**
+     * Availability exceptions (holidays, blocks, overrides).
+     */
+    public function availabilityExceptions()
+    {
+        return $this->hasMany(TeacherAvailabilityException::class, 'teacher_profile_id');
     }
 
     /**
@@ -51,5 +58,17 @@ class TeacherProfile extends Model
     public function hasAvailabilityOnDay(int $dayOfWeek): bool
     {
         return $this->availabilities()->where('day_of_week', $dayOfWeek)->exists();
+    }
+
+    /**
+     * Get all lessons (booking slots) for this teacher within a date range.
+     */
+    public function getBookedSlots($dateFrom, $dateTo)
+    {
+        return Lesson::where('instructor_id', $this->user_id)
+            ->whereIn('status', ['scheduled', 'confirmed', 'completed'])
+            ->where('start_time', '>=', $dateFrom)
+            ->where('end_time', '<=', $dateTo)
+            ->get();
     }
 }

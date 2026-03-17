@@ -46,3 +46,41 @@ Schedule::call(function () {
 Schedule::call(function () {
     app(\App\Services\AI\BackgroundAgents\BackgroundAgentOrchestrator::class)->dispatchScheduled();
 })->everyFiveMinutes()->name('background-agents:dispatch')->withoutOverlapping();
+
+// If using a dedicated agent queue (set QUEUE_AGENT_QUEUE=ai-background in .env),
+// this worker processes it. Not needed if agents use the default queue.
+if (config('queue.agent_queue') && config('queue.agent_queue') !== 'default') {
+    Schedule::command('queue:work database --queue=' . config('queue.agent_queue') . ' --max-time=240 --sleep=3 --tries=2 --memory=256')
+        ->everyFiveMinutes()
+        ->name('queue:work-agent-queue')
+        ->withoutOverlapping();
+}
+
+// Background Agent System: clean up stale/orphaned runs
+Schedule::call(function () {
+    // Runs stuck as "pending" for more than 10 minutes → mark failed
+    \App\Models\BackgroundAgentRun::where('status', 'pending')
+        ->where('created_at', '<', now()->subMinutes(10))
+        ->update([
+            'status' => 'failed',
+            'completed_at' => now(),
+            'error_message' => 'Timed out: job was never picked up by the queue worker',
+        ]);
+
+    // Runs stuck as "running" for more than 15 minutes → mark failed
+    \App\Models\BackgroundAgentRun::where('status', 'running')
+        ->where('started_at', '<', now()->subMinutes(15))
+        ->update([
+            'status' => 'failed',
+            'completed_at' => now(),
+            'error_message' => 'Timed out: worker terminated before completion',
+        ]);
+
+    // Purge empty failed/skipped runs older than 7 days (keep runs that have actions)
+    \App\Models\BackgroundAgentRun::whereIn('status', ['failed', 'skipped'])
+        ->where('items_processed', 0)
+        ->where('items_affected', 0)
+        ->where('created_at', '<', now()->subDays(7))
+        ->whereDoesntHave('actions')
+        ->delete();
+})->everyFiveMinutes()->name('background-agents:cleanup')->withoutOverlapping();

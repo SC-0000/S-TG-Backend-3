@@ -213,10 +213,21 @@ class AIUtilityService
 
     /**
      * Check if a model supports the temperature parameter.
+     * Most newer OpenAI reasoning / nano models only support temperature=1.
      */
     protected function supportsTemperature(string $model): bool
     {
-        $noTempModels = ['o1', 'o1-mini', 'o1-preview'];
-        return !in_array($model, $noTempModels);
+        $noTempModels = [
+            'o1', 'o1-mini', 'o1-preview', 'o3', 'o3-mini', 'o4-mini',
+            'gpt-5-nano',
+        ];
+
+        foreach ($noTempModels as $prefix) {
+            if ($model === $prefix || str_starts_with($model, $prefix . '-')) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

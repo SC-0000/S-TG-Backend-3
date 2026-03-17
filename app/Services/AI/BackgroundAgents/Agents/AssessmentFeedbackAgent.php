@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 
 class AssessmentFeedbackAgent extends AbstractBackgroundAgent
 {
-    protected string $model = 'gpt-5'; // Use full model for report quality
+    protected string $model = 'gpt-5-nano'; // Primary model for report generation
 
     public static function getAgentType(): string
     {
@@ -72,6 +72,7 @@ class AssessmentFeedbackAgent extends AbstractBackgroundAgent
             ->find($submissionId);
 
         if ($submission && $submission->status === 'completed') {
+            $this->incrementProcessed();
             $this->generateReport($submission);
         }
     }

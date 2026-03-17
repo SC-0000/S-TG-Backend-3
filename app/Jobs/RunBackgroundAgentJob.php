@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\BackgroundAgentRun;
 use App\Models\Organization;
 use App\Services\AI\BackgroundAgents\BackgroundAgentRegistry;
 use Illuminate\Bus\Queueable;
@@ -25,9 +26,10 @@ class RunBackgroundAgentJob implements ShouldQueue, ShouldBeUnique
         public ?int $organizationId,
         public string $triggerType = 'scheduled',
         public ?string $triggerReference = null,
-        public array $context = []
+        public array $context = [],
+        public ?int $pendingRunId = null
     ) {
-        $this->onQueue('ai-background');
+        $this->onQueue(config('queue.agent_queue', 'default'));
     }
 
     /**
@@ -49,6 +51,7 @@ class RunBackgroundAgentJob implements ShouldQueue, ShouldBeUnique
 
         if (!$class) {
             Log::error("[RunBackgroundAgentJob] Unknown agent type: {$this->agentType}");
+            $this->markPendingRunFailed('Unknown agent type');
             return;
         }
 
@@ -58,13 +61,14 @@ class RunBackgroundAgentJob implements ShouldQueue, ShouldBeUnique
 
         if ($this->organizationId && !$organization) {
             Log::error("[RunBackgroundAgentJob] Organization not found: {$this->organizationId}");
+            $this->markPendingRunFailed('Organization not found');
             return;
         }
 
         /** @var \App\Services\AI\BackgroundAgents\AbstractBackgroundAgent $agent */
         $agent = new $class($organization);
 
-        $run = $agent->run($this->triggerType, $this->triggerReference, $this->context);
+        $run = $agent->run($this->triggerType, $this->triggerReference, $this->context, $this->pendingRunId);
 
         Log::info("[RunBackgroundAgentJob] Completed", [
             'agent_type' => $this->agentType,
@@ -72,6 +76,24 @@ class RunBackgroundAgentJob implements ShouldQueue, ShouldBeUnique
             'run_id' => $run->id,
             'status' => $run->status,
         ]);
+    }
+
+    /**
+     * If the job fails entirely, mark the pending run as failed so the UI reflects it.
+     */
+    public function failed(?\Throwable $exception): void
+    {
+        $this->markPendingRunFailed($exception?->getMessage() ?? 'Job failed');
+    }
+
+    protected function markPendingRunFailed(string $error): void
+    {
+        if ($this->pendingRunId) {
+            $run = BackgroundAgentRun::find($this->pendingRunId);
+            if ($run && $run->status === BackgroundAgentRun::STATUS_PENDING) {
+                $run->markFailed($error);
+            }
+        }
     }
 
     public function tags(): array

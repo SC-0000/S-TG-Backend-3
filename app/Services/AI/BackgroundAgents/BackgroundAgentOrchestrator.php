@@ -48,10 +48,18 @@ class BackgroundAgentOrchestrator
                     continue;
                 }
 
-                // Dispatch the job
-                RunBackgroundAgentJob::dispatch($type, $org->id, 'scheduled', "cron:{$schedule}");
+                // Create pending run and dispatch the job
+                $run = BackgroundAgentRun::create([
+                    'organization_id' => $org->id,
+                    'agent_type' => $type,
+                    'trigger_type' => 'scheduled',
+                    'trigger_reference' => "cron:{$schedule}",
+                    'status' => BackgroundAgentRun::STATUS_PENDING,
+                ]);
 
-                Log::debug("[BackgroundAgentOrchestrator] Dispatched {$type} for org {$org->id}");
+                RunBackgroundAgentJob::dispatch($type, $org->id, 'scheduled', "cron:{$schedule}", [], $run->id);
+
+                Log::debug("[BackgroundAgentOrchestrator] Dispatched {$type} for org {$org->id}", ['run_id' => $run->id]);
             }
         }
     }
@@ -73,25 +81,53 @@ class BackgroundAgentOrchestrator
                 continue;
             }
 
-            RunBackgroundAgentJob::dispatch($type, $organizationId, 'event', $eventClass, $context);
+            // Create pending run so it's trackable immediately
+            $run = BackgroundAgentRun::create([
+                'organization_id' => $organizationId,
+                'agent_type' => $type,
+                'trigger_type' => 'event',
+                'trigger_reference' => $eventClass,
+                'status' => BackgroundAgentRun::STATUS_PENDING,
+                'summary' => $context, // Store event context so the agent can read it
+            ]);
+
+            RunBackgroundAgentJob::dispatch($type, $organizationId, 'event', $eventClass, $context, $run->id);
 
             Log::debug("[BackgroundAgentOrchestrator] Event-dispatched {$type} for org {$organizationId}", [
                 'event' => $eventClass,
+                'run_id' => $run->id,
             ]);
         }
     }
 
     /**
-     * Manually trigger an agent for a specific organization. Returns the run.
+     * Manually trigger an agent for a specific organization.
+     * Creates a pending run record immediately so the UI can track it,
+     * then dispatches the job which will pick up the pending run.
      */
-    public function dispatchManual(string $agentType, int $organizationId): void
+    public function dispatchManual(string $agentType, int $organizationId): BackgroundAgentRun
     {
         $class = BackgroundAgentRegistry::get($agentType);
         if (!$class) {
             throw new \InvalidArgumentException("Unknown agent type: {$agentType}");
         }
 
-        RunBackgroundAgentJob::dispatch($agentType, $organizationId, 'manual', 'admin_trigger');
+        // Create a pending run record immediately so the UI sees it right away
+        $run = BackgroundAgentRun::create([
+            'organization_id' => $organizationId,
+            'agent_type' => $agentType,
+            'trigger_type' => 'manual',
+            'trigger_reference' => 'admin_trigger',
+            'status' => BackgroundAgentRun::STATUS_PENDING,
+        ]);
+
+        RunBackgroundAgentJob::dispatch($agentType, $organizationId, 'manual', 'admin_trigger', [], $run->id);
+
+        Log::info("[BackgroundAgentOrchestrator] Manual dispatch {$agentType} for org {$organizationId}", [
+            'run_id' => $run->id,
+        ]);
+
+        return $run;
     }
 
     /**

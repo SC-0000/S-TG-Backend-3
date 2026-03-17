@@ -44,15 +44,26 @@ class TrackingLinkController extends ApiController
 
     public function store(Request $request): JsonResponse
     {
+        $orgId = $this->resolveOrgId($request);
+
         $validated = $request->validate([
             'label' => 'nullable|string|max:255',
             'type' => 'required|in:affiliate,internal',
             'affiliate_id' => 'nullable|required_if:type,affiliate|integer|exists:affiliates,id',
             'destination_path' => 'nullable|string|max:500',
-            'expires_at' => 'nullable|date|after:now',
+            'expires_at' => 'nullable|date|after:today',
         ]);
 
-        $orgId = $this->resolveOrgId($request);
+        // Validate affiliate belongs to this org
+        if (!empty($validated['affiliate_id'])) {
+            $affiliateExists = \App\Models\Affiliate::where('id', $validated['affiliate_id'])
+                ->where('organization_id', $orgId)
+                ->exists();
+
+            if (!$affiliateExists) {
+                return $this->error('Affiliate not found in this organisation.', [], 422);
+            }
+        }
 
         $link = TrackingLink::create([
             'organization_id' => $orgId,

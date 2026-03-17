@@ -16,17 +16,51 @@ class TrackingController extends ApiController
     {
     }
 
-    public function redirect(Request $request, string $code): RedirectResponse|JsonResponse
+    /**
+     * Record a funnel event from the frontend (fire-and-forget, lightweight).
+     */
+    public function event(Request $request): JsonResponse
     {
-        $link = TrackingLink::where('code', $code)->first();
+        $validated = $request->validate([
+            'ref' => 'required|string|max:32',
+            'event' => 'required|string|in:page_view,form_start,form_submit,verified,approved',
+            'page' => 'nullable|string|max:500',
+        ]);
 
-        if (!$link || !$link->isActive()) {
-            // Gracefully redirect to home if link not found/expired
-            return redirect('/');
+        try {
+            $this->affiliateService->recordEvent(
+                $validated['ref'],
+                $validated['event'],
+                $request,
+                $validated['page'] ?? null,
+            );
+        } catch (\Throwable $e) {
+            // Never fail the client — this is analytics, not critical
         }
 
-        // Record the click
-        $this->affiliateService->recordClick($link, $request);
+        return $this->success(null, [], 202);
+    }
+
+    public function redirect(Request $request, string $code): RedirectResponse|JsonResponse
+    {
+        $link = TrackingLink::with('organization')->where('code', $code)->first();
+
+        if (!$link || !$link->isActive()) {
+            // Gracefully redirect to frontend home if link not found/expired
+            $fallback = rtrim((string) config('app.frontend_url'), '/') ?: '/';
+            return redirect()->away($fallback);
+        }
+
+        // Record the click + funnel event (wrapped in try-catch to never block the redirect)
+        try {
+            $this->affiliateService->recordClick($link, $request);
+            $this->affiliateService->recordEvent($code, 'click', $request);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to record click', [
+                'code' => $code,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         // Set tracking cookie
         $cookieDays = 30;
@@ -46,11 +80,21 @@ class TrackingController extends ApiController
             'Lax'  // sameSite
         );
 
-        // Build redirect URL
+        // Build redirect URL pointing to the frontend domain
+        $frontendBase = rtrim((string) config('app.frontend_url'), '/');
+        if (!$frontendBase) {
+            // Fallback: use org public domain
+            $frontendBase = $link->organization?->public_domain ?? '';
+            if ($frontendBase && !str_starts_with($frontendBase, 'http')) {
+                $frontendBase = 'https://' . $frontendBase;
+            }
+            $frontendBase = rtrim($frontendBase, '/');
+        }
+
         $destination = $link->destination_path ?? '/applications/create';
         $separator = str_contains($destination, '?') ? '&' : '?';
-        $redirectUrl = $destination . $separator . 'ref=' . $code;
+        $redirectUrl = $frontendBase . $destination . $separator . 'ref=' . $code;
 
-        return redirect($redirectUrl)->withCookie($cookie);
+        return redirect()->away($redirectUrl)->withCookie($cookie);
     }
 }

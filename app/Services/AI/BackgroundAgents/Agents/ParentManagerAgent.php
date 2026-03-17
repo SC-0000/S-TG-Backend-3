@@ -56,9 +56,7 @@ class ParentManagerAgent extends AbstractBackgroundAgent
                 break;
             }
 
-            $this->incrementProcessed();
-
-            // Check weekly email cap
+            // Check weekly email cap before doing expensive work
             $recentEmails = BackgroundAgentAction::whereHas('run', function ($q) {
                 $q->where('agent_type', static::getAgentType())
                     ->where('organization_id', $this->organization->id);
@@ -73,13 +71,20 @@ class ParentManagerAgent extends AbstractBackgroundAgent
                 continue;
             }
 
+            $this->incrementProcessed();
+
             // Analyse each child's performance
             foreach ($parent->children as $child) {
                 if ($emailsSent >= $maxEmailsPerRun || !$this->hasRemainingBudget()) {
                     break;
                 }
 
-                $emailType = $this->determineEmailType($child, $engagementThreshold);
+                try {
+                    $emailType = $this->determineEmailType($child, $engagementThreshold);
+                } catch (\Exception $e) {
+                    Log::warning("[ParentManagerAgent] Failed to determine email type for child #{$child->id}: " . $e->getMessage());
+                    continue;
+                }
 
                 if ($emailType) {
                     try {

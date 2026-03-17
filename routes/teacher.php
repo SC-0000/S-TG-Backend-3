@@ -25,7 +25,12 @@ Route::middleware(['auth', 'role:teacher,admin'])->prefix('teacher')->name('teac
     
     // Teacher Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    
+
+    // Teacher Availability Management (Inertia page)
+    Route::get('/availability', function () {
+        return \Inertia\Inertia::render('@admin/Teacher/Availability');
+    })->name('availability');
+
     // Live Sessions Management (Teacher-specific)
     Route::prefix('live-sessions')->name('live-sessions.')->group(function () {
         Route::get('/', [LiveLessonController::class, 'teacherIndex'])->name('index');

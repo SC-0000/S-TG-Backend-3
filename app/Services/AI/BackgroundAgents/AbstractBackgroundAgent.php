@@ -6,6 +6,7 @@ use App\Models\BackgroundAgentAction;
 use App\Models\BackgroundAgentConfig;
 use App\Models\BackgroundAgentRun;
 use App\Models\Organization;
+use App\Observers\ContentObserver;
 use App\Services\AI\AIUtilityService;
 use App\Services\AI\TokenBillingService;
 use Illuminate\Database\Eloquent\Model;
@@ -62,8 +63,9 @@ abstract class AbstractBackgroundAgent
 
     /**
      * Template method: wraps execute() with logging, budget checks, and cost tracking.
+     * If $pendingRunId is provided, picks up an existing pending run instead of creating a new one.
      */
-    final public function run(string $triggerType, ?string $triggerReference = null, array $context = []): BackgroundAgentRun
+    final public function run(string $triggerType, ?string $triggerReference = null, array $context = [], ?int $pendingRunId = null): BackgroundAgentRun
     {
         $agentType = static::getAgentType();
 
@@ -71,27 +73,45 @@ abstract class AbstractBackgroundAgent
         if ($this->organization) {
             $config = BackgroundAgentConfig::getOrCreate($this->organization->id, $agentType);
             if (!$config->is_enabled) {
-                return $this->createSkippedRun($triggerType, $triggerReference, 'Agent disabled for this organization');
+                return $this->resolveSkippedRun($pendingRunId, $triggerType, $triggerReference, 'Agent disabled for this organization');
             }
         }
 
         // Check token balance
         if ($this->organization && !$this->billing->hasBalance($this->organization, static::getEstimatedTokensPerRun())) {
-            return $this->createSkippedRun($triggerType, $triggerReference, 'Insufficient token balance');
+            return $this->resolveSkippedRun($pendingRunId, $triggerType, $triggerReference, 'Insufficient token balance');
         }
 
-        // Create run record
-        $this->currentRun = BackgroundAgentRun::create([
-            'organization_id' => $this->organization?->id,
-            'agent_type' => $agentType,
-            'trigger_type' => $triggerType,
-            'trigger_reference' => $triggerReference,
-            'status' => BackgroundAgentRun::STATUS_RUNNING,
-            'started_at' => now(),
-        ]);
+        // Pick up existing pending run or create a new one
+        if ($pendingRunId) {
+            $this->currentRun = BackgroundAgentRun::find($pendingRunId);
+            if (!$this->currentRun || $this->currentRun->status !== BackgroundAgentRun::STATUS_PENDING) {
+                // Run was cancelled or doesn't exist — create fresh
+                $this->currentRun = null;
+            }
+        }
+
+        if (!isset($this->currentRun) || !$this->currentRun) {
+            $this->currentRun = BackgroundAgentRun::create([
+                'organization_id' => $this->organization?->id,
+                'agent_type' => $agentType,
+                'trigger_type' => $triggerType,
+                'trigger_reference' => $triggerReference,
+                'status' => BackgroundAgentRun::STATUS_RUNNING,
+                'started_at' => now(),
+            ]);
+        } else {
+            $this->currentRun->markRunning();
+        }
 
         try {
+            // Suppress ContentObserver events during agent execution to prevent
+            // auto-fixes from re-triggering event-driven agent runs (infinite loop).
+            ContentObserver::$suppressEvents = true;
+
             $this->execute();
+
+            ContentObserver::$suppressEvents = false;
 
             // Deduct consumed tokens
             if ($this->organization && $this->tokensConsumedThisRun > 0) {
@@ -130,6 +150,8 @@ abstract class AbstractBackgroundAgent
             ]);
 
         } catch (\Throwable $e) {
+            ContentObserver::$suppressEvents = false;
+
             $this->currentRun->markFailed($e->getMessage());
 
             Log::error("[BackgroundAgent] {$agentType} failed", [
@@ -286,6 +308,23 @@ abstract class AbstractBackgroundAgent
 
         $config = BackgroundAgentConfig::getOrCreate($this->organization->id, static::getAgentType());
         return $config->getSetting($key, $default);
+    }
+
+    /**
+     * Resolve a skip: if a pending run exists, mark it skipped; otherwise create a new skipped run.
+     */
+    protected function resolveSkippedRun(?int $pendingRunId, string $triggerType, ?string $triggerReference, string $reason): BackgroundAgentRun
+    {
+        if ($pendingRunId) {
+            $run = BackgroundAgentRun::find($pendingRunId);
+            if ($run && $run->status === BackgroundAgentRun::STATUS_PENDING) {
+                $run->markSkipped($reason);
+                Log::info("[BackgroundAgent] " . static::getAgentType() . " skipped (pending run #{$run->id}): {$reason}");
+                return $run;
+            }
+        }
+
+        return $this->createSkippedRun($triggerType, $triggerReference, $reason);
     }
 
     /**

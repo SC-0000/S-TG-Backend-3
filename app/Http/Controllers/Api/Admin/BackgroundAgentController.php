@@ -54,6 +54,8 @@ class BackgroundAgentController extends ApiController
                     'id' => $lastRun->id,
                     'status' => $lastRun->status,
                     'started_at' => $lastRun->started_at,
+                    'completed_at' => $lastRun->completed_at,
+                    'created_at' => $lastRun->created_at,
                     'items_processed' => $lastRun->items_processed,
                     'items_affected' => $lastRun->items_affected,
                     'tokens_used' => $lastRun->platform_tokens_used,
@@ -131,11 +133,74 @@ class BackgroundAgentController extends ApiController
                 'status' => $run->status,
                 'started_at' => $run->started_at,
                 'completed_at' => $run->completed_at,
+                'created_at' => $run->created_at,
                 'duration_seconds' => $run->duration,
                 'items_processed' => $run->items_processed,
                 'items_affected' => $run->items_affected,
                 'tokens_used' => $run->platform_tokens_used,
                 'error_message' => $run->error_message,
+            ]);
+
+        // Aggregate lifetime stats for this agent
+        $allRuns = BackgroundAgentRun::forAgent($type)
+            ->when($orgId, fn($q) => $q->forOrganization($orgId));
+
+        $lifetimeStats = [
+            'total_runs' => (clone $allRuns)->count(),
+            'completed_runs' => (clone $allRuns)->where('status', 'completed')->count(),
+            'failed_runs' => (clone $allRuns)->where('status', 'failed')->count(),
+            'skipped_runs' => (clone $allRuns)->where('status', 'skipped')->count(),
+            'total_items_processed' => (clone $allRuns)->sum('items_processed'),
+            'total_items_affected' => (clone $allRuns)->sum('items_affected'),
+            'total_tokens_used' => (clone $allRuns)->sum('platform_tokens_used'),
+        ];
+
+        // Last 30 days stats
+        $last30Runs = BackgroundAgentRun::forAgent($type)
+            ->when($orgId, fn($q) => $q->forOrganization($orgId))
+            ->recent(30);
+
+        $stats30d = [
+            'total_runs' => (clone $last30Runs)->count(),
+            'completed_runs' => (clone $last30Runs)->where('status', 'completed')->count(),
+            'items_processed' => (clone $last30Runs)->sum('items_processed'),
+            'items_affected' => (clone $last30Runs)->sum('items_affected'),
+            'tokens_used' => (clone $last30Runs)->sum('platform_tokens_used'),
+        ];
+
+        // Recent successful actions (the actual changes made) — last 50
+        $recentActions = BackgroundAgentAction::whereHas('run', function ($q) use ($type, $orgId) {
+            $q->where('agent_type', $type)
+                ->when($orgId, fn($q2) => $q2->where('organization_id', $orgId));
+        })
+            ->where('status', 'success')
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn($a) => [
+                'id' => $a->id,
+                'action_type' => $a->action_type,
+                'target_type' => $a->target_type ? class_basename($a->target_type) : null,
+                'target_id' => $a->target_id,
+                'description' => $a->description,
+                'tokens_used' => $a->platform_tokens_used,
+                'created_at' => $a->created_at,
+            ]);
+
+        // Action type breakdown (all time)
+        $actionBreakdown = BackgroundAgentAction::whereHas('run', function ($q) use ($type, $orgId) {
+            $q->where('agent_type', $type)
+                ->when($orgId, fn($q2) => $q2->where('organization_id', $orgId));
+        })
+            ->selectRaw('action_type, status, COUNT(*) as count, SUM(platform_tokens_used) as tokens')
+            ->groupBy('action_type', 'status')
+            ->get()
+            ->groupBy('action_type')
+            ->map(fn($group) => [
+                'total' => $group->sum('count'),
+                'successful' => $group->where('status', 'success')->sum('count'),
+                'failed' => $group->where('status', 'failed')->sum('count'),
+                'tokens' => $group->sum('tokens'),
             ]);
 
         return $this->success([
@@ -146,6 +211,10 @@ class BackgroundAgentController extends ApiController
                 'last_run_at' => $config?->last_run_at,
             ]),
             'recent_runs' => $recentRuns,
+            'lifetime_stats' => $lifetimeStats,
+            'stats_30d' => $stats30d,
+            'recent_actions' => $recentActions,
+            'action_breakdown' => $actionBreakdown,
         ]);
     }
 
@@ -214,9 +283,13 @@ class BackgroundAgentController extends ApiController
             return $this->error('Organization context required', [], 400);
         }
 
-        app(BackgroundAgentOrchestrator::class)->dispatchManual($type, $orgId);
+        $run = app(BackgroundAgentOrchestrator::class)->dispatchManual($type, $orgId);
 
-        return $this->success(['message' => "Agent '{$type}' has been queued for execution"]);
+        return $this->success([
+            'message' => "Agent '{$type}' has been queued for execution",
+            'run_id' => $run->id,
+            'status' => $run->status,
+        ]);
     }
 
     /**

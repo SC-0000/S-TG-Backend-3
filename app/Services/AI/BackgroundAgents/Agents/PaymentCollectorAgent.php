@@ -214,18 +214,21 @@ class PaymentCollectorAgent extends AbstractBackgroundAgent
             }
         );
 
-        $followup->addNote("Stage {$followup->followup_stage} email sent to {$user->email}");
-        $followup->advanceStage();
+        $sentStage = $followup->followup_stage;
+        $followup->addNote("Stage {$sentStage} email sent to {$user->email}");
 
         $this->incrementAffected();
 
         $this->logAction(
             BackgroundAgentAction::ACTION_SEND_EMAIL,
             $followup,
-            "Sent stage {$followup->followup_stage} payment reminder to {$user->email} for transaction #{$followup->transaction_id}",
+            "Sent stage {$sentStage} payment reminder to {$user->email} for transaction #{$followup->transaction_id}",
             null,
-            ['stage' => $followup->followup_stage, 'subject' => $subject]
+            ['stage' => $sentStage, 'subject' => $subject]
         );
+
+        // Advance stage AFTER logging to preserve accurate audit trail
+        $followup->advanceStage();
     }
 
     /**

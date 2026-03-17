@@ -110,6 +110,7 @@ use App\Http\Controllers\Api\Affiliate\AuthController as ApiAffiliateAuthControl
 use App\Http\Controllers\Api\Affiliate\PortalController as ApiAffiliatePortalController;
 use App\Http\Controllers\Api\Admin\AffiliateController as ApiAdminAffiliateController;
 use App\Http\Controllers\Api\Admin\TrackingLinkController as ApiAdminTrackingLinkController;
+use App\Http\Controllers\Api\Admin\CommissionRuleController as ApiAdminCommissionRuleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -145,9 +146,13 @@ Route::middleware(['throttle:api'])->group(function () {
 
         // Tracking link redirect (public, no auth)
         Route::get('/r/{code}', [ApiPublicTrackingController::class, 'redirect'])->name('api.v1.tracking.redirect');
+        // Tracking event recording (public, rate-limited, fire-and-forget)
+        Route::post('/track-event', [ApiPublicTrackingController::class, 'event'])
+            ->middleware('throttle:60,1')
+            ->name('api.v1.tracking.event');
 
-        // Affiliate auth (public, no auth)
-        Route::prefix('affiliate-auth')->group(function () {
+        // Affiliate auth (public, rate-limited)
+        Route::prefix('affiliate-auth')->middleware('throttle:6,1')->group(function () {
             Route::post('/request-magic-link', [ApiAffiliateAuthController::class, 'requestMagicLink'])->name('api.v1.affiliate-auth.request');
             Route::post('/verify', [ApiAffiliateAuthController::class, 'verifyMagicLink'])->name('api.v1.affiliate-auth.verify');
             Route::post('/signup', [ApiAffiliateAuthController::class, 'signup'])->name('api.v1.affiliate-auth.signup');
@@ -195,6 +200,7 @@ Route::middleware(['throttle:api'])->group(function () {
         Route::get('/services/{service}', [ApiServiceController::class, 'show'])->name('api.v1.services.show');
         Route::get('/services/{service}/available-content', [ApiServiceController::class, 'availableContent'])->name('api.v1.services.available-content');
         Route::post('/services/{service}/selection', [ApiServiceController::class, 'selection'])->name('api.v1.services.selection');
+        Route::get('/services/{service}/available-slots', [\App\Http\Controllers\Api\SlotBookingController::class, 'availableSlots'])->name('api.v1.services.available-slots');
 
         Route::get('/products', [ApiProductController::class, 'index'])->name('api.v1.products.index');
         Route::get('/products/{product}', [ApiProductController::class, 'show'])->name('api.v1.products.show');
@@ -254,6 +260,14 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::post('/checkout/guest', [ApiCheckoutController::class, 'guestStore'])
             ->middleware('role:guest_parent,parent,admin,super_admin')
             ->name('api.v1.checkout.guest.store');
+
+        // Slot Booking Routes
+        Route::prefix('bookings')->middleware('role:parent,guest_parent,admin,super_admin,teacher')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\SlotBookingController::class, 'index'])->name('api.v1.bookings.index');
+            Route::post('/services/{service}/book', [\App\Http\Controllers\Api\SlotBookingController::class, 'book'])->name('api.v1.bookings.book');
+            Route::post('/{lesson}/cancel', [\App\Http\Controllers\Api\SlotBookingController::class, 'cancel'])->name('api.v1.bookings.cancel');
+            Route::post('/{lesson}/reschedule', [\App\Http\Controllers\Api\SlotBookingController::class, 'reschedule'])->name('api.v1.bookings.reschedule');
+        });
 
         Route::prefix('billing')->middleware('role:parent,guest_parent,admin,super_admin')->group(function () {
             Route::get('/setup', [ApiBillingController::class, 'setup'])->name('api.v1.billing.setup');
@@ -727,6 +741,10 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::delete('/{service}', [ApiAdminServiceController::class, 'destroy'])->name('api.v1.admin.services.destroy');
             });
 
+            // Admin: Teacher availability management
+            Route::get('/teachers/{userId}/availability', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminIndex'])
+                ->name('api.v1.admin.teachers.availability');
+
             Route::prefix('notifications')->group(function () {
                 Route::get('/', [ApiAdminNotificationController::class, 'index'])->name('api.v1.admin.notifications.index');
                 Route::get('/create-data', [ApiAdminNotificationController::class, 'createData'])->name('api.v1.admin.notifications.create-data');
@@ -1003,11 +1021,24 @@ Route::prefix('ai-upload')->group(function () {
 
             // Conversions & attribution
             Route::get('/conversions', [ApiAdminAffiliateController::class, 'conversions'])->name('api.v1.admin.conversions.index');
+            Route::put('/conversions/{conversion}', [ApiAdminAffiliateController::class, 'updateConversion'])->name('api.v1.admin.conversions.update');
             Route::post('/conversions/manual', [ApiAdminAffiliateController::class, 'manualAttribution'])->name('api.v1.admin.conversions.manual');
+
+            // Commission rules
+            Route::prefix('commission-rules')->group(function () {
+                Route::get('/', [ApiAdminCommissionRuleController::class, 'index'])->name('api.v1.admin.commission-rules.index');
+                Route::post('/', [ApiAdminCommissionRuleController::class, 'store'])->name('api.v1.admin.commission-rules.store');
+                Route::put('/{rule}', [ApiAdminCommissionRuleController::class, 'update'])->name('api.v1.admin.commission-rules.update');
+                Route::delete('/{rule}', [ApiAdminCommissionRuleController::class, 'destroy'])->name('api.v1.admin.commission-rules.destroy');
+            });
 
             // Affiliate settings
             Route::get('/affiliate-settings', [ApiAdminAffiliateController::class, 'settings'])->name('api.v1.admin.affiliate-settings.show');
             Route::put('/affiliate-settings', [ApiAdminAffiliateController::class, 'updateSettings'])->name('api.v1.admin.affiliate-settings.update');
+
+            // Tracking insights
+            Route::get('/tracking-insights', [ApiAdminAffiliateController::class, 'insights'])->name('api.v1.admin.tracking-insights');
+            Route::get('/tracking-links/{link}/insights', [ApiAdminAffiliateController::class, 'linkInsights'])->name('api.v1.admin.tracking-links.insights');
         });
 
         Route::prefix('superadmin')->middleware('role:super_admin')->group(function () {
@@ -1111,6 +1142,18 @@ Route::prefix('ai-upload')->group(function () {
             Route::get('/revenue', [ApiTeacherRevenueController::class, 'index'])
                 ->middleware('feature:teacher.revenue_dashboard')
                 ->name('api.v1.teacher.revenue');
+
+            // Teacher Availability & Schedule
+            Route::prefix('availability')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'index'])->name('api.v1.teacher.availability.index');
+                Route::post('/', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'store'])->name('api.v1.teacher.availability.store');
+                Route::put('/bulk', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'bulkUpdate'])->name('api.v1.teacher.availability.bulk-update');
+                Route::put('/settings', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'updateSettings'])->name('api.v1.teacher.availability.settings');
+                Route::delete('/{availability}', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'destroy'])->name('api.v1.teacher.availability.destroy');
+                Route::post('/exceptions', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'storeException'])->name('api.v1.teacher.availability.exceptions.store');
+                Route::delete('/exceptions/{exception}', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'destroyException'])->name('api.v1.teacher.availability.exceptions.destroy');
+            });
+            Route::get('/schedule', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'schedule'])->name('api.v1.teacher.schedule');
 
             Route::prefix('lesson-uploads')->group(function () {
                 Route::get('/', [ApiTeacherLessonUploadController::class, 'index'])->name('api.v1.teacher.lesson-uploads.index');

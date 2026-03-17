@@ -8,6 +8,7 @@ use App\Models\AdminTask;
 use App\Models\ContentLesson;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\Module;
 use App\Models\Question;
 use App\Listeners\BackgroundAgentEventSubscriber;
 use App\Observers\AdminTaskObserver;
@@ -45,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
         Assessment::observe(ContentObserver::class);
         ContentLesson::observe(ContentObserver::class);
         Course::observe(ContentObserver::class);
+        Module::observe(ContentObserver::class);
 
         // Background Agent event subscriber
         Event::subscribe(BackgroundAgentEventSubscriber::class);

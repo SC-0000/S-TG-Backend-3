@@ -205,6 +205,14 @@ Route::get('admin/services', [ServiceController::class, 'adminIndex'])->name('se
 Route::get('admin/services/{service}', [ServiceController::class, 'show'])->name('admin.services.show');
 // ->middleware('can:manage-services');
 
+// Admin Scheduling Dashboard
+Route::get('admin/scheduling', function () {
+    return \Inertia\Inertia::render('@admin/Scheduling/Index');
+})->name('admin.scheduling.index');
+
+Route::get('admin/scheduling/teacher/{userId}', function ($userId) {
+    return \Inertia\Inertia::render('@admin/Teacher/Availability', ['teacherUserId' => (int) $userId]);
+})->name('admin.scheduling.teacher');
 
 Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
 Route::get('/admin/alerts/create', [AlertController::class, 'create'])->name('alerts.create');

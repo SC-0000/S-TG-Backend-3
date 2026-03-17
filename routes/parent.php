@@ -126,6 +126,7 @@ Route::get('/portal/calender', [PortalController::class, 'calenderIndex'])->midd
 Route::get('/portal/deadlines', [PortalController::class, 'deadlineIndex'])->middleware('redirect.incomplete.guests')->name('portal.deadline.index');
 Route::get('/portal/submission', [PortalController::class, 'submissionIndex'])->name('portal.submission.index');
 Route::get('/portal/schedule', [PortalController::class, 'scheduleIndex'])->middleware('redirect.incomplete.guests')->name('portal.schedule.index');
+Route::get('/portal/bookings', [PortalController::class, 'bookingsIndex'])->middleware('redirect.incomplete.guests')->name('portal.bookings.index');
 Route::get('/portal/transactions', [PortalController::class, 'transactionsIndex'])->name('portal.transactions.index');
 // Assessment attempt & submit (admin/test mode)
 Route::prefix('assessments/{assessment}')->group(function () {

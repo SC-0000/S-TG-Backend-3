@@ -18,6 +18,9 @@ class AffiliateConversion extends Model
         'commission_rate_snapshot',
         'status',
         'attribution_method',
+        'commission_rule_id',
+        'trigger_event',
+        'transaction_id',
     ];
 
     protected $casts = [
@@ -50,6 +53,16 @@ class AffiliateConversion extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function commissionRule(): BelongsTo
+    {
+        return $this->belongsTo(CommissionRule::class, 'commission_rule_id');
+    }
+
+    public function transaction(): BelongsTo
+    {
+        return $this->belongsTo(Transaction::class);
     }
 
     // --- Scopes ---
