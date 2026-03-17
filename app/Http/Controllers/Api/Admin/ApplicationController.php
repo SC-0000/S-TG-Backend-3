@@ -11,6 +11,7 @@ use App\Models\Child;
 use App\Models\Permission;
 use App\Models\User;
 use App\Services\BillingService;
+use App\Services\CommissionEngine;
 use App\Support\MailContext;
 use App\Support\ApiPagination;
 use Illuminate\Http\JsonResponse;
@@ -22,10 +23,12 @@ use Illuminate\Support\Str;
 class ApplicationController extends ApiController
 {
     protected BillingService $billing;
+    protected CommissionEngine $commissionEngine;
 
-    public function __construct(BillingService $billing)
+    public function __construct(BillingService $billing, CommissionEngine $commissionEngine)
     {
         $this->billing = $billing;
+        $this->commissionEngine = $commissionEngine;
     }
 
     public function index(Request $request): JsonResponse
@@ -173,6 +176,15 @@ class ApplicationController extends ApiController
             }
 
             $application->update(['children_data' => null]);
+        }
+
+        // Fire commission rules for signup_approved
+        if ($validated['status'] === 'Approved' && isset($user)) {
+            try {
+                $this->commissionEngine->onSignupApproved($application->organization_id ?? 2, $user);
+            } catch (\Throwable $e) {
+                Log::warning('CommissionEngine: failed on signup_approved', ['error' => $e->getMessage()]);
+            }
         }
 
         $application->load('user');

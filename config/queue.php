@@ -4,6 +4,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Agent Queue Name
+    |--------------------------------------------------------------------------
+    |
+    | The queue name for background agent jobs. Defaults to 'default' so your
+    | existing queue worker picks them up. Set QUEUE_AGENT_QUEUE=ai-background
+    | in .env if you want a dedicated worker for agent jobs.
+    |
+    */
+
+    'agent_queue' => env('QUEUE_AGENT_QUEUE', 'default'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Queue Connection Name
     |--------------------------------------------------------------------------
     |

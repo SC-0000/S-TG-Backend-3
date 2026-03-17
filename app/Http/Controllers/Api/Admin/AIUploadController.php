@@ -81,6 +81,7 @@ class AIUploadController extends ApiController
             'input_settings.slides_per_lesson' => 'nullable|integer|min:1|max:20',
             'input_settings.questions_per_assessment' => 'nullable|integer|min:1|max:50',
             'input_settings.course_id' => 'nullable|integer|exists:courses,id',
+            'input_settings.journey_category_id' => 'nullable|integer|exists:journey_categories,id',
             'quality_threshold' => 'nullable|numeric|min:0.5|max:1',
             'max_iterations' => 'nullable|integer|min:1|max:20',
             'process_now' => 'nullable|boolean',

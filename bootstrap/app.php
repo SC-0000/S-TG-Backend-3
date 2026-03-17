@@ -26,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'org.context' => \App\Http\Middleware\SetOrganizationContext::class,
             'request.id' => \App\Http\Middleware\SetRequestId::class,
             'auth.broadcast' => \App\Http\Middleware\AuthBroadcastToken::class,
+            'affiliate.auth' => \App\Http\Middleware\AffiliateAuth::class,
+            'track.referer' => \App\Http\Middleware\TrackReferer::class,
         ]);
         //
     })

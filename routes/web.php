@@ -10,6 +10,10 @@ Route::match(['get', 'post'], '/broadcasting/auth', [BroadcastController::class,
 
 require base_path('routes/channels.php');
 
+// Tracking link redirect — must be before the SPA catch-all
+Route::get('/r/{code}', [\App\Http\Controllers\Api\Public\TrackingController::class, 'redirect'])
+    ->withoutMiddleware([VerifyCsrfToken::class]);
+
 Route::get('/{path?}', function () {
     if (request()->is('api/*')) {
         abort(404);

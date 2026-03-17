@@ -8,6 +8,7 @@ use App\Models\Child;
 use App\Models\HomeworkAssignment;
 use App\Models\JourneyCategory;
 use App\Models\Lesson;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -17,6 +18,49 @@ use Illuminate\Validation\ValidationException;
 
 class LessonController extends Controller
 {
+    private function portalBaseUrl(?Organization $organization): ?string
+    {
+        $value = $organization?->portal_domain;
+        if (! $value || ! is_string($value)) {
+            $value = (string) config('app.frontend_url');
+        }
+
+        $raw = trim($value);
+        if ($raw === '') {
+            return null;
+        }
+
+        $scheme = null;
+        $host = null;
+        if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://')) {
+            $parsed = parse_url($raw);
+            $scheme = $parsed['scheme'] ?? null;
+            $host = $parsed['host'] ?? null;
+        } else {
+            $host = preg_replace('#/.*$#', '', $raw);
+        }
+
+        if (! $host) {
+            return null;
+        }
+
+        if (! $scheme) {
+            $isLocal = str_starts_with($host, 'localhost') || str_starts_with($host, '127.0.0.1');
+            $scheme = $isLocal ? 'http' : 'https';
+        }
+
+        return $scheme . '://' . $host;
+    }
+
+    private function portalUrl(string $path, ?Organization $organization): ?string
+    {
+        $base = $this->portalBaseUrl($organization);
+        if (! $base) {
+            return null;
+        }
+        return rtrim($base, '/') . '/' . ltrim($path, '/');
+    }
+
       public function browseIndex()
     {
        $services = Service::whereIn('_type', ['lesson', 'bundle'])
@@ -245,21 +289,38 @@ class LessonController extends Controller
 
         $lesson = Lesson::create($data);
 
-        // Build related entity link based on assignee role (teacher vs admin)
-        $relatedLink = route('lessons.admin.show', $lesson->id);
-        if (!empty($data['instructor_id'])) {
-            $instructor = User::find($data['instructor_id']);
-            if ($instructor && $instructor->role === 'teacher') {
-                $relatedLink = route('teacher.lessons.show', $lesson->id);
-            }
+        $organization = null;
+        if ($organizationId) {
+            $organization = Organization::find($organizationId);
+        } elseif (! $isGlobal) {
+            $organization = Organization::find($user->current_organization_id);
         }
 
+        $instructor = null;
+        if (! empty($data['instructor_id'])) {
+            $instructor = User::find($data['instructor_id']);
+        }
+
+        $relatedLink = $this->portalUrl("/admin/lessons/{$lesson->id}/edit", $organization);
+        if ($instructor && $instructor->role === 'teacher') {
+            $relatedLink = $this->portalUrl("/teacher/lessons/{$lesson->id}/edit", $organization);
+        }
+
+        $taskType = $instructor
+            ? 'Lesson assigned to ' . $instructor->name
+            : 'Lesson created without instructor';
+
         AdminTask::create([
-                'task_type'     => 'Lesson assigned to ' . (isset($data['instructor_id']) ? User::find($data['instructor_id'])->name : 'Unknown'),
+                'organization_id' => $organizationId ?? $user->current_organization_id,
+                'task_type'     => $taskType,
                 'assigned_to'   => $data['instructor_id'] ?? null,
                 'status'        => 'Pending',
                 'related_entity' => $relatedLink,
                 'priority'      => 'Medium',
+                'metadata' => [
+                    'lesson_id' => $lesson->id,
+                    'lesson_title' => $lesson->title,
+                ],
             ]);
 
         // TODO: attach children if sent

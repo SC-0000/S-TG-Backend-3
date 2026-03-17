@@ -45,8 +45,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
-use App\Http\Controllers\JourneyCategoryController;
-use App\Http\Controllers\JourneyController;
+// JourneyController and JourneyCategoryController removed — now API-only
 use App\Http\Controllers\ParentFeedbackController;
 use App\Http\Controllers\Admin\AccessController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -138,14 +137,8 @@ Route::middleware(['auth', 'role:admin,super_admin'])->group(function () {
 
 // Route::post('/attendance/{attendance}/approve', [AttendanceController::class,'approve'])
 //     ->name('attendance.approve');
-Route::resource('journeys', JourneyController::class)
-     ->only(['index','create','store']);
-
-Route::get('/journeys/overview',[JourneyController::class, 'show'])
-        ->name('journeys.overview');
-
-Route::resource('journey-categories', JourneyCategoryController::class)
-     ->only(['index','create','store']);
+// Journey management now fully handled by API + SPA frontend
+// Legacy Inertia routes removed — see routes/api.php for journey API endpoints
 
 // Articles Management (Admin)
 Route::get('/admin/articles', [ArticleController::class, 'adminIndex'])->name('admin.articles.index');
@@ -212,6 +205,14 @@ Route::get('admin/services', [ServiceController::class, 'adminIndex'])->name('se
 Route::get('admin/services/{service}', [ServiceController::class, 'show'])->name('admin.services.show');
 // ->middleware('can:manage-services');
 
+// Admin Scheduling Dashboard
+Route::get('admin/scheduling', function () {
+    return \Inertia\Inertia::render('@admin/Scheduling/Index');
+})->name('admin.scheduling.index');
+
+Route::get('admin/scheduling/teacher/{userId}', function ($userId) {
+    return \Inertia\Inertia::render('@admin/Teacher/Availability', ['teacherUserId' => (int) $userId]);
+})->name('admin.scheduling.teacher');
 
 Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
 Route::get('/admin/alerts/create', [AlertController::class, 'create'])->name('alerts.create');

@@ -10,7 +10,9 @@ use App\Models\Application;
 use App\Models\Child;
 use App\Models\Permission;
 use App\Models\User;
+use App\Services\AffiliateService;
 use App\Services\BillingService;
+use App\Services\CommissionEngine;
 use App\Support\MailContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,10 +25,14 @@ use Illuminate\Validation\Rule;
 class ApplicationController extends ApiController
 {
     protected BillingService $billing;
+    protected AffiliateService $affiliateService;
+    protected CommissionEngine $commissionEngine;
 
-    public function __construct(BillingService $billing)
+    public function __construct(BillingService $billing, AffiliateService $affiliateService, CommissionEngine $commissionEngine)
     {
         $this->billing = $billing;
+        $this->affiliateService = $affiliateService;
+        $this->commissionEngine = $commissionEngine;
     }
 
     public function store(Request $request): JsonResponse
@@ -39,6 +45,7 @@ class ApplicationController extends ApiController
             'address_line2' => ['required', 'string', 'max:255', 'regex:/^([A-Za-z]{1,2}\\d[A-Za-z\\d]?\\s*\\d[A-Za-z]{2})$/'],
             'mobile_number' => ['required', 'string', 'max:20'],
             'referral_source' => ['nullable', 'string', 'max:255'],
+            'tracking_code' => ['nullable', 'string', 'max:32'],
             'terms_accepted' => ['accepted'],
             'application_type' => ['required', 'in:Type1,Type2,Type3'],
             'organization_id' => ['required', 'integer', 'exists:organizations,id'],
@@ -112,9 +119,15 @@ class ApplicationController extends ApiController
         }
 
         $application = Application::create(array_merge(
-            Arr::except($validated, ['signature', 'children', 'terms_accepted']),
+            Arr::except($validated, ['signature', 'children', 'terms_accepted', 'tracking_code']),
             $extra
         ));
+
+        // Attribute to tracking link / affiliate if tracking code present
+        $trackingCode = $validated['tracking_code'] ?? $request->cookie('tg_ref');
+        if ($trackingCode) {
+            $this->affiliateService->attributeApplication($application, $trackingCode);
+        }
 
         $organization = MailContext::resolveOrganization($application->organization_id ?? null, $application->user ?? null, $application);
         MailContext::sendMailable($application->email, new VerifyApplicationEmail($application, $organization));
@@ -173,6 +186,13 @@ class ApplicationController extends ApiController
             MailContext::sendMailable($user->email, new SendLoginCredentials($user, $password, $organization));
 
             $application->update(['user_id' => $user->id]);
+
+            // Fire commission rules for auto-approved signups
+            try {
+                $this->commissionEngine->onSignupApproved($organizationId, $user);
+            } catch (\Throwable $e) {
+                // Never block the verification flow
+            }
         }
 
         if ($application->application_type === 'Type2') {

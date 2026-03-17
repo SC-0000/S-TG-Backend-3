@@ -5,6 +5,7 @@ use App\Http\Controllers\QuestionController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\TeacherRegistrationController;
 use App\Http\Controllers\Api\Auth\GuestOnboardingController;
+use App\Http\Controllers\Api\Auth\RoleSwitchController;
 use App\Http\Controllers\Api\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\ProfileController;
@@ -30,6 +31,8 @@ use App\Http\Controllers\Api\Admin\YearGroupController as ApiAdminYearGroupContr
 use App\Http\Controllers\Api\Admin\NotificationController as ApiAdminNotificationController;
 use App\Http\Controllers\Api\Admin\ChildController as ApiAdminChildController;
 use App\Http\Controllers\Api\Admin\UserController as ApiAdminUserController;
+use App\Http\Controllers\Api\Admin\EmailCampaignController as ApiAdminEmailCampaignController;
+use App\Http\Controllers\Api\Admin\EmailSubscriberController as ApiAdminEmailSubscriberController;
 use App\Http\Controllers\Api\Public\ContentController as PublicContentController;
 use App\Http\Controllers\Api\Public\ApplicationController as ApiPublicApplicationController;
 use App\Http\Controllers\Api\Public\ApeAcademyController as ApiPublicApeAcademyController;
@@ -57,6 +60,7 @@ use App\Http\Controllers\TrackerController;
 use App\Http\Controllers\Api\PortalCourseController as ApiPortalCourseController;
 use App\Http\Controllers\Api\PortalLessonController as ApiPortalLessonController;
 use App\Http\Controllers\Api\JourneyController as ApiJourneyController;
+use App\Http\Controllers\Api\MediaAssetController as ApiMediaAssetController;
 use App\Http\Controllers\Api\NotificationController as ApiNotificationController;
 use App\Http\Controllers\Api\TaskController as ApiTaskController;
 use App\Http\Controllers\Api\AIAgentController as ApiAIAgentController;
@@ -103,6 +107,12 @@ use App\Http\Controllers\Api\Admin\Content\MilestoneController as ApiAdminMilest
 use App\Http\Controllers\Api\YearGroupSubscriptionController as ApiYearGroupSubscriptionController;
 use App\Http\Controllers\Api\FeedbackController as ApiFeedbackController;
 use App\Http\Controllers\Api\ParentFlagController as ApiParentFlagController;
+use App\Http\Controllers\Api\Public\TrackingController as ApiPublicTrackingController;
+use App\Http\Controllers\Api\Affiliate\AuthController as ApiAffiliateAuthController;
+use App\Http\Controllers\Api\Affiliate\PortalController as ApiAffiliatePortalController;
+use App\Http\Controllers\Api\Admin\AffiliateController as ApiAdminAffiliateController;
+use App\Http\Controllers\Api\Admin\TrackingLinkController as ApiAdminTrackingLinkController;
+use App\Http\Controllers\Api\Admin\CommissionRuleController as ApiAdminCommissionRuleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -136,6 +146,31 @@ Route::middleware(['throttle:api'])->group(function () {
                 ->name('api.v1.auth.email.verify');
         });
 
+        // Tracking link redirect (public, no auth)
+        Route::get('/r/{code}', [ApiPublicTrackingController::class, 'redirect'])->name('api.v1.tracking.redirect');
+        // Tracking event recording (public, rate-limited, fire-and-forget)
+        Route::post('/track-event', [ApiPublicTrackingController::class, 'event'])
+            ->middleware('throttle:60,1')
+            ->name('api.v1.tracking.event');
+
+        // Affiliate auth (public, rate-limited)
+        Route::prefix('affiliate-auth')->middleware('throttle:6,1')->group(function () {
+            Route::post('/request-magic-link', [ApiAffiliateAuthController::class, 'requestMagicLink'])->name('api.v1.affiliate-auth.request');
+            Route::post('/verify', [ApiAffiliateAuthController::class, 'verifyMagicLink'])->name('api.v1.affiliate-auth.verify');
+            Route::post('/signup', [ApiAffiliateAuthController::class, 'signup'])->name('api.v1.affiliate-auth.signup');
+        });
+
+        // Affiliate portal (cache-based auth)
+        Route::prefix('affiliate')->middleware('affiliate.auth')->group(function () {
+            Route::get('/dashboard', [ApiAffiliatePortalController::class, 'dashboard'])->name('api.v1.affiliate.dashboard');
+            Route::get('/links', [ApiAffiliatePortalController::class, 'links'])->name('api.v1.affiliate.links');
+            Route::get('/conversions', [ApiAffiliatePortalController::class, 'conversions'])->name('api.v1.affiliate.conversions');
+            Route::get('/payouts', [ApiAffiliatePortalController::class, 'payouts'])->name('api.v1.affiliate.payouts');
+            Route::get('/profile', [ApiAffiliatePortalController::class, 'profile'])->name('api.v1.affiliate.profile');
+            Route::put('/profile', [ApiAffiliatePortalController::class, 'updateProfile'])->name('api.v1.affiliate.profile.update');
+            Route::post('/logout', [ApiAffiliatePortalController::class, 'logout'])->name('api.v1.affiliate.logout');
+        });
+
         Route::prefix('public')->group(function () {
             Route::get('/home', [PublicContentController::class, 'home'])->name('api.v1.public.home');
             Route::get('/branding/by-domain', [\App\Http\Controllers\Api\Public\BrandingController::class, 'byDomain'])->name('api.v1.public.branding.by-domain');
@@ -167,6 +202,7 @@ Route::middleware(['throttle:api'])->group(function () {
         Route::get('/services/{service}', [ApiServiceController::class, 'show'])->name('api.v1.services.show');
         Route::get('/services/{service}/available-content', [ApiServiceController::class, 'availableContent'])->name('api.v1.services.available-content');
         Route::post('/services/{service}/selection', [ApiServiceController::class, 'selection'])->name('api.v1.services.selection');
+        Route::get('/services/{service}/available-slots', [\App\Http\Controllers\Api\SlotBookingController::class, 'availableSlots'])->name('api.v1.services.available-slots');
 
         Route::get('/products', [ApiProductController::class, 'index'])->name('api.v1.products.index');
         Route::get('/products/{product}', [ApiProductController::class, 'show'])->name('api.v1.products.show');
@@ -227,6 +263,14 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             ->middleware('role:guest_parent,parent,admin,super_admin')
             ->name('api.v1.checkout.guest.store');
 
+        // Slot Booking Routes
+        Route::prefix('bookings')->middleware('role:parent,guest_parent,admin,super_admin,teacher')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\SlotBookingController::class, 'index'])->name('api.v1.bookings.index');
+            Route::post('/services/{service}/book', [\App\Http\Controllers\Api\SlotBookingController::class, 'book'])->name('api.v1.bookings.book');
+            Route::post('/{lesson}/cancel', [\App\Http\Controllers\Api\SlotBookingController::class, 'cancel'])->name('api.v1.bookings.cancel');
+            Route::post('/{lesson}/reschedule', [\App\Http\Controllers\Api\SlotBookingController::class, 'reschedule'])->name('api.v1.bookings.reschedule');
+        });
+
         Route::prefix('billing')->middleware('role:parent,guest_parent,admin,super_admin')->group(function () {
             Route::get('/setup', [ApiBillingController::class, 'setup'])->name('api.v1.billing.setup');
             Route::get('/invoices', [ApiBillingController::class, 'invoices'])->name('api.v1.billing.invoices');
@@ -278,6 +322,20 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('/{question}', [ApiQuestionBankController::class, 'show'])->name('api.v1.questions.show');
             Route::put('/{question}', [ApiQuestionBankController::class, 'update'])->name('api.v1.questions.update');
             Route::delete('/{question}', [ApiQuestionBankController::class, 'destroy'])->name('api.v1.questions.destroy');
+        });
+
+        // Media Library
+        Route::prefix('media')->middleware('role:admin,teacher,super_admin')->group(function () {
+            Route::get('/', [ApiMediaAssetController::class, 'index'])->name('api.v1.media.index');
+            Route::post('/', [ApiMediaAssetController::class, 'store'])->name('api.v1.media.store');
+            Route::get('/{mediaAsset}', [ApiMediaAssetController::class, 'show'])->name('api.v1.media.show');
+            Route::put('/{mediaAsset}', [ApiMediaAssetController::class, 'update'])->name('api.v1.media.update');
+            Route::post('/{mediaAsset}/archive', [ApiMediaAssetController::class, 'archive'])->name('api.v1.media.archive');
+            Route::post('/{mediaAsset}/restore', [ApiMediaAssetController::class, 'restore'])->name('api.v1.media.restore');
+            Route::delete('/{mediaAsset}', [ApiMediaAssetController::class, 'destroy'])->name('api.v1.media.destroy');
+            Route::post('/{mediaAsset}/attach', [ApiMediaAssetController::class, 'attach'])->name('api.v1.media.attach');
+            Route::post('/{mediaAsset}/detach', [ApiMediaAssetController::class, 'detach'])->name('api.v1.media.detach');
+            Route::post('/{mediaAsset}/replace', [ApiMediaAssetController::class, 'replaceFile'])->name('api.v1.media.replace');
         });
 
         Route::middleware('role:admin,teacher,super_admin')->group(function () {
@@ -605,6 +663,12 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::post('/email/resend', [AuthController::class, 'resendVerification'])->name('api.v1.auth.email.resend');
             Route::get('/guest/onboarding', [GuestOnboardingController::class, 'show'])->name('api.v1.auth.guest.onboarding.show');
             Route::post('/guest/onboarding', [GuestOnboardingController::class, 'store'])->name('api.v1.auth.guest.onboarding.store');
+
+            // Role switching (admin <-> teacher mode)
+            Route::get('/role-switch/status', [RoleSwitchController::class, 'status'])->name('api.v1.auth.role-switch.status');
+            Route::post('/role-switch/create-teacher-profile', [RoleSwitchController::class, 'createTeacherProfile'])->name('api.v1.auth.role-switch.create-teacher-profile');
+            Route::post('/role-switch/to-teacher', [RoleSwitchController::class, 'switchToTeacher'])->name('api.v1.auth.role-switch.to-teacher');
+            Route::post('/role-switch/to-admin', [RoleSwitchController::class, 'switchToAdmin'])->name('api.v1.auth.role-switch.to-admin');
         });
 
         Route::get('/me', [ProfileController::class, 'show'])->name('api.v1.me.show');
@@ -630,6 +694,20 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
             Route::get('/dashboard', [ApiAdminDashboardController::class, 'index'])->name('api.v1.admin.dashboard');
 
+            Route::prefix('email-subscribers')->group(function () {
+                Route::get('/', [ApiAdminEmailSubscriberController::class, 'index'])->name('api.v1.admin.email-subscribers.index');
+                Route::post('/', [ApiAdminEmailSubscriberController::class, 'store'])->name('api.v1.admin.email-subscribers.store');
+            });
+
+            Route::prefix('email-campaigns')->group(function () {
+                Route::get('/', [ApiAdminEmailCampaignController::class, 'index'])->name('api.v1.admin.email-campaigns.index');
+                Route::post('/', [ApiAdminEmailCampaignController::class, 'store'])->name('api.v1.admin.email-campaigns.store');
+                Route::get('/{campaign}', [ApiAdminEmailCampaignController::class, 'show'])->name('api.v1.admin.email-campaigns.show');
+                Route::put('/{campaign}', [ApiAdminEmailCampaignController::class, 'update'])->name('api.v1.admin.email-campaigns.update');
+                Route::post('/{campaign}/send', [ApiAdminEmailCampaignController::class, 'send'])->name('api.v1.admin.email-campaigns.send');
+                Route::post('/{campaign}/test', [ApiAdminEmailCampaignController::class, 'test'])->name('api.v1.admin.email-campaigns.test');
+            });
+
             Route::prefix('subscriptions')->group(function () {
                 Route::get('/', [ApiAdminSubscriptionController::class, 'index'])->name('api.v1.admin.subscriptions.index');
                 Route::post('/', [ApiAdminSubscriptionController::class, 'store'])->name('api.v1.admin.subscriptions.store');
@@ -651,6 +729,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::post('/', [ApiAdminJourneyController::class, 'store'])->name('api.v1.admin.journeys.store');
                 Route::get('/overview', [ApiAdminJourneyController::class, 'overview'])->name('api.v1.admin.journeys.overview');
                 Route::get('/{journey}', [ApiAdminJourneyController::class, 'show'])->name('api.v1.admin.journeys.show');
+                Route::get('/{journey}/full', [ApiAdminJourneyController::class, 'showFull'])->name('api.v1.admin.journeys.full');
                 Route::put('/{journey}', [ApiAdminJourneyController::class, 'update'])->name('api.v1.admin.journeys.update');
                 Route::delete('/{journey}', [ApiAdminJourneyController::class, 'destroy'])->name('api.v1.admin.journeys.destroy');
             });
@@ -658,9 +737,12 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::prefix('journey-categories')->group(function () {
                 Route::get('/', [ApiAdminJourneyCategoryController::class, 'index'])->name('api.v1.admin.journey-categories.index');
                 Route::post('/', [ApiAdminJourneyCategoryController::class, 'store'])->name('api.v1.admin.journey-categories.store');
+                Route::put('/reorder', [ApiAdminJourneyCategoryController::class, 'reorder'])->name('api.v1.admin.journey-categories.reorder');
                 Route::get('/{journeyCategory}', [ApiAdminJourneyCategoryController::class, 'show'])->name('api.v1.admin.journey-categories.show');
                 Route::put('/{journeyCategory}', [ApiAdminJourneyCategoryController::class, 'update'])->name('api.v1.admin.journey-categories.update');
                 Route::delete('/{journeyCategory}', [ApiAdminJourneyCategoryController::class, 'destroy'])->name('api.v1.admin.journey-categories.destroy');
+                Route::post('/{journeyCategory}/media', [ApiAdminJourneyCategoryController::class, 'attachMedia'])->name('api.v1.admin.journey-categories.attach-media');
+                Route::post('/{journeyCategory}/detach-media', [ApiAdminJourneyCategoryController::class, 'detachMedia'])->name('api.v1.admin.journey-categories.detach-media');
             });
 
 
@@ -674,6 +756,10 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::put('/{service}', [ApiAdminServiceController::class, 'update'])->name('api.v1.admin.services.update');
                 Route::delete('/{service}', [ApiAdminServiceController::class, 'destroy'])->name('api.v1.admin.services.destroy');
             });
+
+            // Admin: Teacher availability management
+            Route::get('/teachers/{userId}/availability', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminIndex'])
+                ->name('api.v1.admin.teachers.availability');
 
             Route::prefix('notifications')->group(function () {
                 Route::get('/', [ApiAdminNotificationController::class, 'index'])->name('api.v1.admin.notifications.index');
@@ -902,6 +988,73 @@ Route::prefix('ai-upload')->group(function () {
             Route::post('/access/grant', [AdminAccessController::class, 'store'])->name('api.v1.admin.access.grant');
             Route::post('/access', [AdminAccessController::class, 'store'])->name('api.v1.admin.access.store');
             Route::put('/access/{access}', [AdminAccessController::class, 'update'])->name('api.v1.admin.access.update');
+
+            // Background Agents
+            Route::prefix('agents')->group(function () {
+                Route::get('/dashboard', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'dashboard'])->name('api.v1.admin.agents.dashboard');
+                Route::get('/quality-issues', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'qualityIssues'])->name('api.v1.admin.agents.quality-issues');
+                Route::post('/quality-issues/{id}/dismiss', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'dismissIssue'])->name('api.v1.admin.agents.quality-issues.dismiss');
+                Route::post('/quality-issues/{id}/fix', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'fixIssue'])->name('api.v1.admin.agents.quality-issues.fix');
+
+                // Token management
+                Route::prefix('tokens')->group(function () {
+                    Route::get('/balance', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'balance'])->name('api.v1.admin.agents.tokens.balance');
+                    Route::get('/transactions', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'transactions'])->name('api.v1.admin.agents.tokens.transactions');
+                    Route::post('/purchase', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'purchase'])->name('api.v1.admin.agents.tokens.purchase');
+                    Route::get('/usage', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'usage'])->name('api.v1.admin.agents.tokens.usage');
+                    Route::put('/settings', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'updateSettings'])->name('api.v1.admin.agents.tokens.settings');
+                });
+
+                // Agent CRUD (must come after /dashboard, /quality-issues, /tokens to avoid route conflicts)
+                Route::get('/', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'index'])->name('api.v1.admin.agents.index');
+                Route::get('/{type}', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'show'])->name('api.v1.admin.agents.show');
+                Route::get('/{type}/runs', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'runs'])->name('api.v1.admin.agents.runs');
+                Route::get('/{type}/runs/{id}', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'runDetail'])->name('api.v1.admin.agents.runs.detail');
+                Route::post('/{type}/trigger', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'trigger'])->name('api.v1.admin.agents.trigger');
+                Route::put('/{type}/config', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'updateConfig'])->name('api.v1.admin.agents.config');
+            });
+
+            // Affiliate management
+            Route::prefix('affiliates')->group(function () {
+                Route::get('/', [ApiAdminAffiliateController::class, 'index'])->name('api.v1.admin.affiliates.index');
+                Route::post('/', [ApiAdminAffiliateController::class, 'store'])->name('api.v1.admin.affiliates.store');
+                Route::get('/{affiliate}', [ApiAdminAffiliateController::class, 'show'])->name('api.v1.admin.affiliates.show');
+                Route::put('/{affiliate}', [ApiAdminAffiliateController::class, 'update'])->name('api.v1.admin.affiliates.update');
+                Route::delete('/{affiliate}', [ApiAdminAffiliateController::class, 'destroy'])->name('api.v1.admin.affiliates.destroy');
+                Route::post('/{affiliate}/magic-link', [ApiAdminAffiliateController::class, 'sendMagicLink'])->name('api.v1.admin.affiliates.magic-link');
+                Route::get('/{affiliate}/payouts', [ApiAdminAffiliateController::class, 'payouts'])->name('api.v1.admin.affiliates.payouts');
+                Route::post('/{affiliate}/payouts', [ApiAdminAffiliateController::class, 'recordPayout'])->name('api.v1.admin.affiliates.record-payout');
+            });
+
+            // Tracking links
+            Route::prefix('tracking-links')->group(function () {
+                Route::get('/', [ApiAdminTrackingLinkController::class, 'index'])->name('api.v1.admin.tracking-links.index');
+                Route::post('/', [ApiAdminTrackingLinkController::class, 'store'])->name('api.v1.admin.tracking-links.store');
+                Route::get('/{link}', [ApiAdminTrackingLinkController::class, 'show'])->name('api.v1.admin.tracking-links.show');
+                Route::put('/{link}', [ApiAdminTrackingLinkController::class, 'update'])->name('api.v1.admin.tracking-links.update');
+                Route::delete('/{link}', [ApiAdminTrackingLinkController::class, 'destroy'])->name('api.v1.admin.tracking-links.destroy');
+            });
+
+            // Conversions & attribution
+            Route::get('/conversions', [ApiAdminAffiliateController::class, 'conversions'])->name('api.v1.admin.conversions.index');
+            Route::put('/conversions/{conversion}', [ApiAdminAffiliateController::class, 'updateConversion'])->name('api.v1.admin.conversions.update');
+            Route::post('/conversions/manual', [ApiAdminAffiliateController::class, 'manualAttribution'])->name('api.v1.admin.conversions.manual');
+
+            // Commission rules
+            Route::prefix('commission-rules')->group(function () {
+                Route::get('/', [ApiAdminCommissionRuleController::class, 'index'])->name('api.v1.admin.commission-rules.index');
+                Route::post('/', [ApiAdminCommissionRuleController::class, 'store'])->name('api.v1.admin.commission-rules.store');
+                Route::put('/{rule}', [ApiAdminCommissionRuleController::class, 'update'])->name('api.v1.admin.commission-rules.update');
+                Route::delete('/{rule}', [ApiAdminCommissionRuleController::class, 'destroy'])->name('api.v1.admin.commission-rules.destroy');
+            });
+
+            // Affiliate settings
+            Route::get('/affiliate-settings', [ApiAdminAffiliateController::class, 'settings'])->name('api.v1.admin.affiliate-settings.show');
+            Route::put('/affiliate-settings', [ApiAdminAffiliateController::class, 'updateSettings'])->name('api.v1.admin.affiliate-settings.update');
+
+            // Tracking insights
+            Route::get('/tracking-insights', [ApiAdminAffiliateController::class, 'insights'])->name('api.v1.admin.tracking-insights');
+            Route::get('/tracking-links/{link}/insights', [ApiAdminAffiliateController::class, 'linkInsights'])->name('api.v1.admin.tracking-links.insights');
         });
 
         Route::prefix('superadmin')->middleware('role:super_admin')->group(function () {
@@ -987,6 +1140,14 @@ Route::prefix('ai-upload')->group(function () {
                 Route::get('/audit', [ApiSuperAdminLogsController::class, 'audit'])->name('api.v1.superadmin.logs.audit');
                 Route::get('/performance', [ApiSuperAdminLogsController::class, 'performance'])->name('api.v1.superadmin.logs.performance');
             });
+
+            // Agent Token Pricing Management
+            Route::prefix('agent-pricing')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'pricingIndex'])->name('api.v1.superadmin.agent-pricing.index');
+                Route::post('/', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'pricingStore'])->name('api.v1.superadmin.agent-pricing.store');
+                Route::put('/{id}', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'pricingUpdate'])->name('api.v1.superadmin.agent-pricing.update');
+                Route::delete('/{id}', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'pricingDestroy'])->name('api.v1.superadmin.agent-pricing.destroy');
+            });
         });
 
         Route::prefix('teacher')->middleware('role:teacher,admin')->group(function () {
@@ -997,6 +1158,18 @@ Route::prefix('ai-upload')->group(function () {
             Route::get('/revenue', [ApiTeacherRevenueController::class, 'index'])
                 ->middleware('feature:teacher.revenue_dashboard')
                 ->name('api.v1.teacher.revenue');
+
+            // Teacher Availability & Schedule
+            Route::prefix('availability')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'index'])->name('api.v1.teacher.availability.index');
+                Route::post('/', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'store'])->name('api.v1.teacher.availability.store');
+                Route::put('/bulk', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'bulkUpdate'])->name('api.v1.teacher.availability.bulk-update');
+                Route::put('/settings', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'updateSettings'])->name('api.v1.teacher.availability.settings');
+                Route::delete('/{availability}', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'destroy'])->name('api.v1.teacher.availability.destroy');
+                Route::post('/exceptions', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'storeException'])->name('api.v1.teacher.availability.exceptions.store');
+                Route::delete('/exceptions/{exception}', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'destroyException'])->name('api.v1.teacher.availability.exceptions.destroy');
+            });
+            Route::get('/schedule', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'schedule'])->name('api.v1.teacher.schedule');
 
             Route::prefix('lesson-uploads')->group(function () {
                 Route::get('/', [ApiTeacherLessonUploadController::class, 'index'])->name('api.v1.teacher.lesson-uploads.index');

@@ -10,12 +10,14 @@ class AssessmentSubmission extends Model
         'assessment_id','child_id','user_id','retake_number',
         'total_marks','marks_obtained','status',
         'started_at','finished_at','meta', 'answers_json',
+        'report_generated_at',
     ];
     protected $casts = [
         'meta'=>'array',
         'started_at'=>'datetime',
         'finished_at'=>'datetime',
-         'answers_json' => 'array', 
+        'answers_json' => 'array',
+        'report_generated_at' => 'datetime',
     ];
     public function items()
     {

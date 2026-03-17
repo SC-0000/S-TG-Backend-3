@@ -25,6 +25,9 @@ return [
             ],
             'subscriptions' => true,
         ],
+        'affiliates' => [
+            'enabled' => false,
+        ],
     ],
 
     /*

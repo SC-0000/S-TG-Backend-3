@@ -10,7 +10,7 @@ class Transaction extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'user_email', 'type', 'status',
+        'organization_id', 'user_id', 'user_email', 'type', 'status',
         'payment_method', 'subtotal', 'discount', 'tax',
         'total', 'paid_at', 'comment', 'meta', 'invoice_id',
     ];
@@ -26,4 +26,5 @@ class Transaction extends Model
     public function invoice()     { return $this->hasOne(Invoice::class); }
     public function refunds()     { return $this->hasMany(Refund::class); }
     public function logs()        { return $this->hasMany(TransactionLog::class); }
+    public function paymentFollowup() { return $this->hasOne(PaymentFollowup::class); }
 }

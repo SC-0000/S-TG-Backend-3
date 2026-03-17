@@ -82,7 +82,14 @@ class ProductController extends ApiController
         ]);
 
         if ($request->hasFile('image')) {
-            $validated['image_path'] = $request->file('image')->store('products', 'public');
+            $file = $request->file('image');
+            $validated['image_path'] = $file->store('products', 'public');
+            $orgId = $request->attributes->get('organization_id') ?? $user->current_organization_id;
+            if ($orgId) {
+                \App\Services\MediaAssetService::track($validated['image_path'], $orgId, $user->id, 'public', [
+                    'original_filename' => $file->getClientOriginalName(),
+                ]);
+            }
         }
 
         $validated['organization_id'] = $user->isSuperAdmin() && !empty($validated['organization_id'])
@@ -128,7 +135,14 @@ class ProductController extends ApiController
         ]);
 
         if ($request->hasFile('image')) {
-            $validated['image_path'] = $request->file('image')->store('products', 'public');
+            $file = $request->file('image');
+            $validated['image_path'] = $file->store('products', 'public');
+            $orgId = $request->attributes->get('organization_id') ?? $user->current_organization_id;
+            if ($orgId) {
+                \App\Services\MediaAssetService::track($validated['image_path'], $orgId, $user->id, 'public', [
+                    'original_filename' => $file->getClientOriginalName(),
+                ]);
+            }
         }
 
         $product->update($validated);

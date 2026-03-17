@@ -31,8 +31,9 @@ class User extends Authenticatable implements MustVerifyEmail  // ← implement 
         'name',
         'email',
         'password',
-        'role',  
+        'role',
         'email_verified_at',     // ← allow mass‐assignment of role
+        'avatar_path',
         'address_line1',
         'address_line2',
         'mobile_number',

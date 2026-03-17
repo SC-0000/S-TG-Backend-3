@@ -17,23 +17,30 @@ class Service extends Model
         'organization_id',
         'is_global',
         'service_name',
-        '_type',                   // lesson | assessment | bundle
+        '_type',                   // lesson | assessment | bundle | course | flexible
+        'booking_mode',            // fixed_schedule | flexible_booking | self_paced | none
         'service_level',           // basic | full_membership
         'availability',
         'price',
         'instructor_id',
+        'teacher_ids',             // JSON array — eligible teachers for flexible booking
         'course_id',               // Link to course for course-type services
         'selection_config',        // JSON configuration for flexible service selections
         'start_datetime',
         'end_datetime',
         'display_until',
+        'session_duration_minutes',
+        'max_participants',
         'quantity',
         'quantity_remaining',
         'quantity_allowed_per_child',
+        'credits_per_purchase',    // If set, purchase grants credits instead of direct access
         'restriction_type',        // All | YearGroup | Specific
         'year_groups_allowed',     // JSON array<int>
         'categories',              // JSON array<string>
         'auto_attendance',
+        'allow_recurring',
+        'cancellation_hours',
         'description',
         'schedule',                // array or RRULE text
         'media',                   // array of file paths
@@ -45,6 +52,7 @@ class Service extends Model
     protected $casts = [
         'availability'              => 'boolean',
         'auto_attendance'           => 'boolean',
+        'allow_recurring'           => 'boolean',
         'is_global'                 => 'boolean',
         'price'                     => 'decimal:2',
         'start_datetime'            => 'datetime',
@@ -55,17 +63,47 @@ class Service extends Model
         'categories'                => 'array',
         'year_groups_allowed'       => 'array',
         'selection_config'          => 'array',
+        'teacher_ids'               => 'array',
+        'session_duration_minutes'  => 'integer',
+        'max_participants'          => 'integer',
+        'cancellation_hours'        => 'integer',
+        'credits_per_purchase'      => 'integer',
     ];
 
     /* -----------------------------------------------------------
      |  Relationships
      |----------------------------------------------------------- */
-    public function lessons()     { return $this->belongsToMany(Lesson::class, 'lesson_service', 'service_id', 'lesson_id'); }
-    public function assessments() { return $this->belongsToMany(Assessment::class); }
-    public function children()    { return $this->belongsToMany(Child::class); }
-    public function course()      { return $this->belongsTo(Course::class); }
-    public function organization(){ return $this->belongsTo(Organization::class); }
-    // public function instructor()  { return $this->belongsTo(User::class, 'instructor_id'); }
+    public function lessons()      { return $this->belongsToMany(Lesson::class, 'lesson_service', 'service_id', 'lesson_id'); }
+    public function assessments()  { return $this->belongsToMany(Assessment::class); }
+    public function children()     { return $this->belongsToMany(Child::class); }
+    public function course()       { return $this->belongsTo(Course::class); }
+    public function organization() { return $this->belongsTo(Organization::class); }
+    public function instructor()   { return $this->belongsTo(User::class, 'instructor_id'); }
+    public function credits()      { return $this->hasMany(ServiceCredit::class); }
+
+    /** Get all lessons directly linked via service_id on live_sessions (booking slots) */
+    public function bookingSlots()
+    {
+        return $this->hasMany(Lesson::class, 'service_id');
+    }
+
+    /** Get eligible teachers for this service */
+    public function getEligibleTeachers()
+    {
+        if (!empty($this->teacher_ids)) {
+            return User::whereIn('id', $this->teacher_ids)->get();
+        }
+        if ($this->instructor_id) {
+            return User::where('id', $this->instructor_id)->get();
+        }
+        if ($this->organization_id) {
+            return User::whereHas('organizations', function ($q) {
+                $q->where('organizations.id', $this->organization_id)
+                  ->where('organization_users.role', 'teacher');
+            })->get();
+        }
+        return collect();
+    }
 
     /* -----------------------------------------------------------
      |  Helper Methods
@@ -253,6 +291,43 @@ class Service extends Model
         }
         
         return !empty($parts) ? implode(' • ', $parts) : null;
+    }
+
+    /* -----------------------------------------------------------
+     |  Booking Mode Helpers
+     |----------------------------------------------------------- */
+
+    public function isFlexibleBooking(): bool
+    {
+        return $this->booking_mode === 'flexible_booking';
+    }
+
+    public function isFixedSchedule(): bool
+    {
+        return $this->booking_mode === 'fixed_schedule';
+    }
+
+    public function isSelfPaced(): bool
+    {
+        return $this->booking_mode === 'self_paced';
+    }
+
+    public function isCreditBased(): bool
+    {
+        return $this->credits_per_purchase !== null && $this->credits_per_purchase > 0;
+    }
+
+    public function getRemainingCredits(int $childId): int
+    {
+        $credit = $this->credits()
+            ->where('child_id', $childId)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+            })
+            ->first();
+
+        return $credit ? ($credit->total_credits - $credit->used_credits) : 0;
     }
 
     /* -----------------------------------------------------------

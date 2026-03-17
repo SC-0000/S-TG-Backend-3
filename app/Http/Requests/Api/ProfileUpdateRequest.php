@@ -21,6 +21,8 @@ class ProfileUpdateRequest extends ApiRequest
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
             'password' => ['sometimes', 'required', 'confirmed', 'min:8'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'avatar' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:2048'],
         ];
     }
 }

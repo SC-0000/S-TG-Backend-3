@@ -315,5 +315,22 @@ class GrantAccessForTransactionJob implements ShouldQueue
                 'transaction_id' => $tx->id,
             ]);
         }
+
+        // Fire affiliate commission rules for this paid transaction
+        try {
+            $commissionEngine = app(\App\Services\CommissionEngine::class);
+            $commissions = $commissionEngine->onTransactionPaid($tx);
+            if ($commissions->isNotEmpty()) {
+                Log::info('CommissionEngine: commissions created from transaction', [
+                    'transaction_id' => $tx->id,
+                    'count' => $commissions->count(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('CommissionEngine: failed on transaction paid', [
+                'transaction_id' => $tx->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

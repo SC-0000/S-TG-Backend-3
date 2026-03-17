@@ -319,11 +319,21 @@ class ServiceController extends Controller
             $preselected = [(int) $request->query('lesson_id')];
         }
 
+        $teachers = \App\Models\User::where('role', 'teacher')
+            ->when(!$isSuperAdmin && $orgId, fn ($q) => $q->whereHas('organizations', fn ($oq) => $oq->where('organizations.id', $orgId)))
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('@admin/Services/CreateService', [
-            'lessons'        => Lesson::select('id', 'title', 'lesson_mode', 'start_time', 'end_time', 'organization_id', 'is_global')
+            'lessons'        => Lesson::select('id', 'title', 'lesson_type', 'lesson_mode', 'start_time', 'end_time', 'instructor_id', 'organization_id', 'is_global')
                                     ->when(!$isSuperAdmin && $orgId, fn($q) => $q->visibleToOrg($orgId))
                                     ->orderBy('title')
-                                    ->get(),
+                                    ->get()
+                                    ->map(function ($lesson) use ($teachers) {
+                                        $lesson->instructor_name = $teachers->firstWhere('id', $lesson->instructor_id)?->name;
+                                        return $lesson;
+                                    }),
             'assessments'    => Assessment::select('id', 'title', 'organization_id', 'is_global')
                                     ->when(!$isSuperAdmin && $orgId, fn($q) => $q->visibleToOrg($orgId))
                                     ->orderBy('title')
@@ -337,6 +347,7 @@ class ServiceController extends Controller
                                      ->orderBy('year_group')
                                      ->get()
                                      ->groupBy('year_group'),
+            'teachers'       => $teachers,
             'preselected_lesson_ids' => $preselected,
             'organizations' => $isSuperAdmin
                 ? \App\Models\Organization::select('id', 'name')->orderBy('name')->get()

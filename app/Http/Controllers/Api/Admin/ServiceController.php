@@ -74,11 +74,22 @@ class ServiceController extends ApiController
             $preselected = [(int) $request->query('lesson_id')];
         }
 
+        // Fetch teachers for this org (users with teacher role)
+        $teachers = \App\Models\User::where('role', 'teacher')
+            ->when($orgId, fn ($q) => $q->whereHas('organizations', fn ($oq) => $oq->where('organizations.id', $orgId)))
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+
         return $this->success([
-            'lessons' => Lesson::select('id', 'title', 'lesson_mode', 'start_time', 'end_time', 'organization_id', 'is_global')
+            'lessons' => Lesson::select('id', 'title', 'lesson_type', 'lesson_mode', 'start_time', 'end_time', 'instructor_id', 'organization_id', 'is_global')
                 ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
-                ->get(),
+                ->get()
+                ->map(function ($lesson) use ($teachers) {
+                    $lesson->instructor_name = $teachers->firstWhere('id', $lesson->instructor_id)?->name;
+                    return $lesson;
+                }),
             'assessments' => Assessment::select('id', 'title', 'organization_id', 'is_global')
                 ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
@@ -92,6 +103,7 @@ class ServiceController extends ApiController
                 ->orderBy('year_group')
                 ->get()
                 ->groupBy('year_group'),
+            'teachers' => $teachers,
             'preselected_lesson_ids' => $preselected,
             'organizations' => $isSuperAdmin
                 ? \App\Models\Organization::select('id', 'name')->orderBy('name')->get()
@@ -606,8 +618,19 @@ class ServiceController extends ApiController
             return;
         }
 
+        $user = $request->user();
+        $orgId = $request->attributes->get('organization_id') ?? $user?->current_organization_id ?? $service->organization_id;
+
         $newPaths = collect($request->file('media'))->map(
-            fn ($file) => $file->store("service-media/{$service->id}", 'public')
+            function ($file) use ($service, $orgId, $user) {
+                $path = $file->store("service-media/{$service->id}", 'public');
+                if ($orgId && $user) {
+                    \App\Services\MediaAssetService::track($path, $orgId, $user->id, 'public', [
+                        'original_filename' => $file->getClientOriginalName(),
+                    ]);
+                }
+                return $path;
+            }
         )->all();
 
         if ($replace) {

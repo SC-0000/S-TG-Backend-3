@@ -46,7 +46,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\CalendarFeed;
-use App\Http\Controllers\JourneyController;
+// JourneyController removed — now API-only
 use App\Http\Controllers\ParentFeedbackController;
 
 Route::middleware('auth')->group(function () {
@@ -104,8 +104,8 @@ Route::get('/ai/chat/open', [ChatController::class,'open'])
     ->middleware(['subscription:ai_analysis', 'feature:parent.ai.chatbot']);
 
 
-Route::get('/portal/journey',[JourneyController::class, 'portalOverview'])
-        ->name('portal.journey.overview');
+// Journey overview now served by SPA frontend via API
+Route::view('/portal/journey', 'app-api')->name('portal.journey.overview');
 
 
     // routes/web.php
@@ -126,6 +126,7 @@ Route::get('/portal/calender', [PortalController::class, 'calenderIndex'])->midd
 Route::get('/portal/deadlines', [PortalController::class, 'deadlineIndex'])->middleware('redirect.incomplete.guests')->name('portal.deadline.index');
 Route::get('/portal/submission', [PortalController::class, 'submissionIndex'])->name('portal.submission.index');
 Route::get('/portal/schedule', [PortalController::class, 'scheduleIndex'])->middleware('redirect.incomplete.guests')->name('portal.schedule.index');
+Route::get('/portal/bookings', [PortalController::class, 'bookingsIndex'])->middleware('redirect.incomplete.guests')->name('portal.bookings.index');
 Route::get('/portal/transactions', [PortalController::class, 'transactionsIndex'])->name('portal.transactions.index');
 // Assessment attempt & submit (admin/test mode)
 Route::prefix('assessments/{assessment}')->group(function () {

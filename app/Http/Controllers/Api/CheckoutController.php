@@ -498,6 +498,21 @@ class CheckoutController extends ApiController
                 continue;
             }
 
+            // Credit-based services: grant credits instead of direct access
+            if ($service->isCreditBased()) {
+                \App\Models\ServiceCredit::create([
+                    'child_id'        => $childId,
+                    'service_id'      => $service->id,
+                    'organization_id' => $service->organization_id,
+                    'total_credits'   => $service->credits_per_purchase,
+                    'used_credits'    => 0,
+                    'transaction_id'  => $transaction->id,
+                    'invoice_id'      => $invoiceId,
+                    'expires_at'      => $service->end_datetime,
+                ]);
+                continue;
+            }
+
             $lessonIds = DB::table('lesson_service')->where('service_id', $service->id)->pluck('lesson_id')->toArray();
             $assessmentIds = DB::table('assessment_service')->where('service_id', $service->id)->pluck('assessment_id')->toArray();
 
