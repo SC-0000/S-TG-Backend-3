@@ -277,6 +277,7 @@ class AdminCourseController extends ApiController
             'thumbnail' => 'nullable|string',
             'cover_image' => 'nullable|string',
             'metadata' => 'nullable|array',
+            'metadata.estimated_duration_minutes' => 'required|integer|min:1',
             'journey_category_id' => 'nullable|exists:journey_categories,id',
             'is_global' => 'nullable|boolean',
             'organization_id' => 'nullable|integer|exists:organizations,id',
@@ -337,6 +338,7 @@ class AdminCourseController extends ApiController
             'thumbnail' => 'nullable|string',
             'cover_image' => 'nullable|string',
             'metadata' => 'nullable|array',
+            'metadata.estimated_duration_minutes' => 'required|integer|min:1',
             'journey_category_id' => 'nullable|exists:journey_categories,id',
             'status' => 'nullable|in:draft,review,live,archived',
         ]);

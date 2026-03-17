@@ -31,6 +31,8 @@ use App\Http\Controllers\Api\Admin\YearGroupController as ApiAdminYearGroupContr
 use App\Http\Controllers\Api\Admin\NotificationController as ApiAdminNotificationController;
 use App\Http\Controllers\Api\Admin\ChildController as ApiAdminChildController;
 use App\Http\Controllers\Api\Admin\UserController as ApiAdminUserController;
+use App\Http\Controllers\Api\Admin\EmailCampaignController as ApiAdminEmailCampaignController;
+use App\Http\Controllers\Api\Admin\EmailSubscriberController as ApiAdminEmailSubscriberController;
 use App\Http\Controllers\Api\Public\ContentController as PublicContentController;
 use App\Http\Controllers\Api\Public\ApplicationController as ApiPublicApplicationController;
 use App\Http\Controllers\Api\Public\ApeAcademyController as ApiPublicApeAcademyController;
@@ -691,6 +693,20 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
         Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
             Route::get('/dashboard', [ApiAdminDashboardController::class, 'index'])->name('api.v1.admin.dashboard');
+
+            Route::prefix('email-subscribers')->group(function () {
+                Route::get('/', [ApiAdminEmailSubscriberController::class, 'index'])->name('api.v1.admin.email-subscribers.index');
+                Route::post('/', [ApiAdminEmailSubscriberController::class, 'store'])->name('api.v1.admin.email-subscribers.store');
+            });
+
+            Route::prefix('email-campaigns')->group(function () {
+                Route::get('/', [ApiAdminEmailCampaignController::class, 'index'])->name('api.v1.admin.email-campaigns.index');
+                Route::post('/', [ApiAdminEmailCampaignController::class, 'store'])->name('api.v1.admin.email-campaigns.store');
+                Route::get('/{campaign}', [ApiAdminEmailCampaignController::class, 'show'])->name('api.v1.admin.email-campaigns.show');
+                Route::put('/{campaign}', [ApiAdminEmailCampaignController::class, 'update'])->name('api.v1.admin.email-campaigns.update');
+                Route::post('/{campaign}/send', [ApiAdminEmailCampaignController::class, 'send'])->name('api.v1.admin.email-campaigns.send');
+                Route::post('/{campaign}/test', [ApiAdminEmailCampaignController::class, 'test'])->name('api.v1.admin.email-campaigns.test');
+            });
 
             Route::prefix('subscriptions')->group(function () {
                 Route::get('/', [ApiAdminSubscriptionController::class, 'index'])->name('api.v1.admin.subscriptions.index');

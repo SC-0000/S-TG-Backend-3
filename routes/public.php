@@ -48,6 +48,7 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\PublicService;
 use App\Http\Controllers\PublicServiceController;
+use App\Http\Controllers\Public\NewsletterController;
 
 Route::get('/billing-widget-demo', function (\Illuminate\Http\Request $request) {
     $apiKey = $request->query('api_key');
@@ -90,6 +91,9 @@ Route::get('/payment-widget-demo', function (\Illuminate\Http\Request $request) 
 Route::view('/payment-widget', 'app-api');
 
 Route::view('/widget-test', 'app-api')->name('widget.test');
+
+Route::get('/newsletter/unsubscribe/{token}', [NewsletterController::class, 'unsubscribe'])
+    ->name('newsletter.unsubscribe');
 
 //route for receipt-widget-demo
 Route::get('/receipt-widget-demo', function (\Illuminate\Http\Request $request) {
