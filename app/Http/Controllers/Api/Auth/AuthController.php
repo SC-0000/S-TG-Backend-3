@@ -44,6 +44,18 @@ class AuthController extends ApiController
 
         RateLimiter::clear($request->throttleKey());
 
+        // If user was stuck in teacher mode (admin who switched), restore their original role on fresh login
+        $metadata = $user->metadata ?? [];
+        $originalRole = $metadata['original_role'] ?? null;
+        if ($originalRole && in_array($originalRole, ['admin', 'super_admin'])) {
+            unset($metadata['original_role'], $metadata['switched_at']);
+            $user->update([
+                'role' => $originalRole,
+                'metadata' => !empty($metadata) ? $metadata : null,
+            ]);
+            $user->refresh();
+        }
+
         $tokenName = $request->input('device_name', 'api');
         $token = $user->createToken($tokenName)->plainTextToken;
 
@@ -57,6 +69,21 @@ class AuthController extends ApiController
     public function logout(): JsonResponse
     {
         $user = request()->user();
+
+        // If user is in teacher mode (admin switched to teacher), restore original role on logout
+        if ($user) {
+            $metadata = $user->metadata ?? [];
+            $originalRole = $metadata['original_role'] ?? null;
+
+            if ($originalRole && in_array($originalRole, ['admin', 'super_admin'])) {
+                unset($metadata['original_role'], $metadata['switched_at']);
+                $user->update([
+                    'role' => $originalRole,
+                    'metadata' => !empty($metadata) ? $metadata : null,
+                ]);
+            }
+        }
+
         if ($user?->currentAccessToken()) {
             $user->currentAccessToken()->delete();
         }

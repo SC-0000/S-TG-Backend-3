@@ -41,3 +41,8 @@ Schedule::call(function () {
         \App\Jobs\SyncAllOpenOrders::dispatch();
     }
 })->everyThirtyMinutes()->name('billing:sync-all-open-orders')->withoutOverlapping();
+
+// Background Agent System: dispatch scheduled agents
+Schedule::call(function () {
+    app(\App\Services\AI\BackgroundAgents\BackgroundAgentOrchestrator::class)->dispatchScheduled();
+})->everyFiveMinutes()->name('background-agents:dispatch')->withoutOverlapping();

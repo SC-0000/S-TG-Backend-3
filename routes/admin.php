@@ -45,8 +45,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
-use App\Http\Controllers\JourneyCategoryController;
-use App\Http\Controllers\JourneyController;
+// JourneyController and JourneyCategoryController removed — now API-only
 use App\Http\Controllers\ParentFeedbackController;
 use App\Http\Controllers\Admin\AccessController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -138,14 +137,8 @@ Route::middleware(['auth', 'role:admin,super_admin'])->group(function () {
 
 // Route::post('/attendance/{attendance}/approve', [AttendanceController::class,'approve'])
 //     ->name('attendance.approve');
-Route::resource('journeys', JourneyController::class)
-     ->only(['index','create','store']);
-
-Route::get('/journeys/overview',[JourneyController::class, 'show'])
-        ->name('journeys.overview');
-
-Route::resource('journey-categories', JourneyCategoryController::class)
-     ->only(['index','create','store']);
+// Journey management now fully handled by API + SPA frontend
+// Legacy Inertia routes removed — see routes/api.php for journey API endpoints
 
 // Articles Management (Admin)
 Route::get('/admin/articles', [ArticleController::class, 'adminIndex'])->name('admin.articles.index');

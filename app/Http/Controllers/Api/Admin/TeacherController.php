@@ -26,7 +26,13 @@ class TeacherController extends ApiController
             $orgId = $request->integer('organization_id');
         }
 
-        $query = User::where('role', 'teacher')
+        // Include users with teacher role AND users who have a Teacher record (e.g. admins with teacher profiles)
+        $userIdsWithTeacherProfile = Teacher::whereNotNull('user_id')->pluck('user_id');
+
+        $query = User::where(function ($q) use ($userIdsWithTeacherProfile) {
+                $q->where('role', 'teacher')
+                  ->orWhereIn('id', $userIdsWithTeacherProfile);
+            })
             ->whereNull('deleted_at')
             ->when($orgId, fn ($q) => $q->where('current_organization_id', $orgId))
             ->orderBy('name');
@@ -44,17 +50,30 @@ class TeacherController extends ApiController
             $profile = $profiles->get($teacher->id);
             $metadata = $teacher->metadata ?? [];
             $org = $teacher->current_organization_id ? $orgs->get($teacher->current_organization_id) : null;
+
+            // Resolve avatar: prefer teacher profile image, fall back to user avatar
+            $avatarUrl = null;
+            if ($profile?->image_path) {
+                $avatarUrl = '/storage/' . $profile->image_path;
+            } elseif ($teacher->avatar_path) {
+                $avatarUrl = '/storage/' . $teacher->avatar_path;
+            }
+
             return [
                 'id' => $teacher->id,
                 'name' => $teacher->name,
                 'email' => $teacher->email,
                 'mobile_number' => $teacher->mobile_number,
+                'role' => $teacher->role,
                 'status' => $metadata['status'] ?? null,
+                'avatar_url' => $avatarUrl,
                 'organization_id' => $teacher->current_organization_id,
                 'organization_name' => $org?->name,
                 'profile_id' => $profile?->id,
                 'title' => $profile?->title,
                 'category' => $profile?->category,
+                'bio' => $profile?->bio,
+                'student_count' => $teacher->assignedStudents()->count(),
             ];
         })->all();
 
@@ -76,7 +95,8 @@ class TeacherController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        if ($teacher->role !== User::ROLE_TEACHER) {
+        // Allow users with teacher role OR users who have a Teacher record
+        if ($teacher->role !== User::ROLE_TEACHER && !Teacher::where('user_id', $teacher->id)->exists()) {
             return $this->error('Not found.', [], 404);
         }
 
@@ -101,12 +121,21 @@ class TeacherController extends ApiController
 
         $organization = $teacher->current_organization_id ? Organization::find($teacher->current_organization_id) : null;
 
+        // Resolve avatar
+        $avatarUrl = null;
+        if ($profile?->image_path) {
+            $avatarUrl = '/storage/' . $profile->image_path;
+        } elseif ($teacher->avatar_path) {
+            $avatarUrl = '/storage/' . $teacher->avatar_path;
+        }
+
         $teacherData = [
             'id' => $teacher->id,
             'name' => $teacher->name,
             'email' => $teacher->email,
             'mobile_number' => $teacher->mobile_number,
             'role' => $teacher->role,
+            'avatar_url' => $avatarUrl,
             'metadata' => $teacher->metadata ?? [],
             'organization_id' => $teacher->current_organization_id,
             'organization_name' => $organization?->name,
@@ -306,6 +335,9 @@ class TeacherController extends ApiController
         return $this->success(['teacher' => $teacher]);
     }
 
+    /**
+     * Soft-delete a teacher profile (preserves data, hides from lists).
+     */
     public function destroyProfile(Request $request, Teacher $teacher): JsonResponse
     {
         $user = $request->user();
@@ -313,14 +345,16 @@ class TeacherController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        if ($teacher->image_path) {
-            Storage::disk('public')->delete($teacher->image_path);
-        }
-        $teacher->delete();
+        $teacher->delete(); // soft delete
 
-        return $this->success(['message' => 'Teacher deleted.']);
+        return $this->success(['message' => 'Teacher profile archived.']);
     }
 
+    /**
+     * Soft-delete a teacher user and their profile.
+     * User is soft-deleted (has SoftDeletes), Teacher profile is soft-deleted.
+     * child_teacher assignments are preserved but the teacher won't appear in lists.
+     */
     public function destroyUser(Request $request, User $teacher): JsonResponse
     {
         $user = $request->user();
@@ -328,7 +362,7 @@ class TeacherController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        if ($teacher->role !== User::ROLE_TEACHER) {
+        if ($teacher->role !== User::ROLE_TEACHER && !Teacher::where('user_id', $teacher->id)->exists()) {
             return $this->error('Not found.', [], 404);
         }
 
@@ -336,17 +370,16 @@ class TeacherController extends ApiController
             return $this->error('Not found.', [], 404);
         }
 
+        // Soft-delete the teacher profile
         $profile = Teacher::where('user_id', $teacher->id)->first();
         if ($profile) {
-            if ($profile->image_path) {
-                Storage::disk('public')->delete($profile->image_path);
-            }
-            $profile->delete();
+            $profile->delete(); // soft delete
         }
 
-        $teacher->delete();
+        // Soft-delete the user
+        $teacher->delete(); // User model has SoftDeletes
 
-        return $this->success(['message' => 'Teacher deleted.']);
+        return $this->success(['message' => 'Teacher archived successfully.']);
     }
 
     private function validateProfile(Request $request): array

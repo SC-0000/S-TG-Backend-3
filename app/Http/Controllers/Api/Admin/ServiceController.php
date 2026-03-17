@@ -606,8 +606,19 @@ class ServiceController extends ApiController
             return;
         }
 
+        $user = $request->user();
+        $orgId = $request->attributes->get('organization_id') ?? $user?->current_organization_id ?? $service->organization_id;
+
         $newPaths = collect($request->file('media'))->map(
-            fn ($file) => $file->store("service-media/{$service->id}", 'public')
+            function ($file) use ($service, $orgId, $user) {
+                $path = $file->store("service-media/{$service->id}", 'public');
+                if ($orgId && $user) {
+                    \App\Services\MediaAssetService::track($path, $orgId, $user->id, 'public', [
+                        'original_filename' => $file->getClientOriginalName(),
+                    ]);
+                }
+                return $path;
+            }
         )->all();
 
         if ($replace) {

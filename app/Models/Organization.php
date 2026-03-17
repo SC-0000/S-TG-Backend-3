@@ -159,6 +159,16 @@ class Organization extends Model
         return $this->hasMany(Application::class);
     }
 
+    public function affiliates(): HasMany
+    {
+        return $this->hasMany(Affiliate::class);
+    }
+
+    public function trackingLinks(): HasMany
+    {
+        return $this->hasMany(TrackingLink::class);
+    }
+
     /**
      * Get a setting value
      */

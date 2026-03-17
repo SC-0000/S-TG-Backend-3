@@ -115,8 +115,17 @@ class ArticleController extends ApiController
 
     private function handleUploads(Request $request, array $data, ?Article $article = null): array
     {
+        $user = $request->user();
+        $orgId = $request->attributes->get('organization_id') ?? $user?->current_organization_id;
+
         if ($request->hasFile('thumbnail')) {
-            $data['thumbnail'] = $request->file('thumbnail')->store('articles/thumbnails', 'public');
+            $file = $request->file('thumbnail');
+            $data['thumbnail'] = $file->store('articles/thumbnails', 'public');
+            if ($orgId && $user) {
+                \App\Services\MediaAssetService::track($data['thumbnail'], $orgId, $user->id, 'public', [
+                    'original_filename' => $file->getClientOriginalName(),
+                ]);
+            }
         } elseif ($article && !array_key_exists('thumbnail', $data)) {
             unset($data['thumbnail']);
         }
@@ -128,7 +137,13 @@ class ArticleController extends ApiController
         }
 
         if ($request->hasFile('pdf')) {
-            $data['pdf'] = $request->file('pdf')->store('articles/pdfs', 'public');
+            $file = $request->file('pdf');
+            $data['pdf'] = $file->store('articles/pdfs', 'public');
+            if ($orgId && $user) {
+                \App\Services\MediaAssetService::track($data['pdf'], $orgId, $user->id, 'public', [
+                    'original_filename' => $file->getClientOriginalName(),
+                ]);
+            }
         } elseif ($article && !array_key_exists('pdf', $data)) {
             unset($data['pdf']);
         }
@@ -136,7 +151,13 @@ class ArticleController extends ApiController
         if ($request->hasFile('images')) {
             $imagePaths = [];
             foreach ($request->file('images') as $image) {
-                $imagePaths[] = $image->store('articles/images', 'public');
+                $path = $image->store('articles/images', 'public');
+                $imagePaths[] = $path;
+                if ($orgId && $user) {
+                    \App\Services\MediaAssetService::track($path, $orgId, $user->id, 'public', [
+                        'original_filename' => $image->getClientOriginalName(),
+                    ]);
+                }
             }
             $data['images'] = $imagePaths;
         } elseif ($article && !array_key_exists('images', $data)) {

@@ -11,8 +11,7 @@ use App\Http\Controllers\SubmissionsController;
 use App\Http\Controllers\LessonUploadController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\QuestionController;
-use App\Http\Controllers\JourneyController;
-use App\Http\Controllers\JourneyCategoryController;
+// JourneyController and JourneyCategoryController removed — now API-only
 
 /*
 |--------------------------------------------------------------------------

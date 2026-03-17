@@ -28,6 +28,8 @@ class Application extends Model
         'verified_at',
         'children_data',
         'referral_source',
+        'tracking_code',
+        'affiliate_id',
         'address_line1',
         'address_line2',
         'mobile_number',
@@ -47,5 +49,10 @@ class Application extends Model
      public function user()        // many-to-one
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function affiliate()
+    {
+        return $this->belongsTo(Affiliate::class);
     }
 }

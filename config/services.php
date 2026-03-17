@@ -57,4 +57,9 @@ return [
         'secret' => env('ADMIN_REGISTRATION_SECRET'),
     ],
 
+    'banana' => [
+        'api_key' => env('BANANA_API_KEY'),
+        'endpoint' => env('BANANA_API_ENDPOINT', 'https://api.nanabanana.pro/v1/images/generate'),
+    ],
+
 ];

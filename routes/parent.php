@@ -46,7 +46,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\CalendarFeed;
-use App\Http\Controllers\JourneyController;
+// JourneyController removed — now API-only
 use App\Http\Controllers\ParentFeedbackController;
 
 Route::middleware('auth')->group(function () {
@@ -104,8 +104,8 @@ Route::get('/ai/chat/open', [ChatController::class,'open'])
     ->middleware(['subscription:ai_analysis', 'feature:parent.ai.chatbot']);
 
 
-Route::get('/portal/journey',[JourneyController::class, 'portalOverview'])
-        ->name('portal.journey.overview');
+// Journey overview now served by SPA frontend via API
+Route::view('/portal/journey', 'app-api')->name('portal.journey.overview');
 
 
     // routes/web.php
