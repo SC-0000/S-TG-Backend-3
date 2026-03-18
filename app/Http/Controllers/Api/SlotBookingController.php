@@ -86,6 +86,7 @@ class SlotBookingController extends Controller
                 'credits_per_purchase'    => $service->credits_per_purchase,
                 'allow_recurring'         => $service->allow_recurring,
                 'cancellation_hours'      => $service->cancellation_hours,
+                'default_lesson_mode'     => $service->default_lesson_mode ?? 'both',
             ],
         ]);
     }
@@ -205,12 +206,19 @@ class SlotBookingController extends Controller
                     })
                     ->first();
 
+                // Resolve lesson mode: use service default if not 'both', else use parent's choice
+                $resolvedMode = match ($service->default_lesson_mode ?? 'both') {
+                    'online'    => 'online',
+                    'in_person' => 'in_person',
+                    default     => $request->lesson_mode ?? 'online',
+                };
+
                 // Create new lesson (booking slot)
                 $lesson = Lesson::create([
                     'title'              => $service->service_name,
                     'description'        => $request->notes,
                     'lesson_type'        => $request->lesson_type ?? ($service->max_participants > 1 ? 'group' : '1:1'),
-                    'lesson_mode'        => $request->lesson_mode ?? 'online',
+                    'lesson_mode'        => $resolvedMode,
                     'start_time'         => $slotStart,
                     'end_time'           => $slotEnd,
                     'instructor_id'      => $teacherId,
@@ -248,6 +256,69 @@ class SlotBookingController extends Controller
             Log::error('Booking failed', ['error' => $e->getMessage(), 'service' => $service->id]);
             return response()->json(['message' => 'Booking failed. Please try again.'], 500);
         }
+    }
+
+    /* ================================================================
+     |  POST /api/v1/bookings/services/{service}/request
+     |  For services with booking_mode = 'requested'
+     | ================================================================ */
+    public function requestSession(Request $request, Service $service): JsonResponse
+    {
+        $request->validate([
+            'child_id'       => 'required|integer|exists:children,id',
+            'preferred_date' => 'required|date|after_or_equal:today',
+            'preferred_time' => 'nullable|string|max:20',
+            'lesson_mode'    => 'nullable|in:online,in_person',
+            'notes'          => 'nullable|string|max:1000',
+        ]);
+
+        if ($service->booking_mode !== 'requested') {
+            return response()->json(['message' => 'This service does not accept session requests.'], 422);
+        }
+
+        if (!$service->availability) {
+            return response()->json(['message' => 'This service is not currently available.'], 422);
+        }
+
+        $child = \App\Models\Child::find($request->child_id);
+        if (!$child) {
+            return response()->json(['message' => 'Child not found.'], 422);
+        }
+
+        $timeLabel = $request->preferred_date
+            . ($request->preferred_time ? ' at ' . $request->preferred_time : '');
+
+        $modeLabel = match ($request->lesson_mode) {
+            'online'    => 'Online',
+            'in_person' => 'In-Person',
+            default     => 'No preference',
+        };
+
+        // Create an admin task so the team can review and confirm
+        AdminTask::create([
+            'task_type'       => 'Session Request',
+            'title'           => 'Session Request — ' . $service->service_name,
+            'description'     => "{$child->child_name} has requested a session for '{$service->service_name}'. "
+                . "Preferred: {$timeLabel} ({$modeLabel})."
+                . ($request->notes ? " Notes: {$request->notes}" : ''),
+            'status'          => 'Pending',
+            'organization_id' => $service->organization_id,
+            'metadata'        => [
+                'type'           => 'session_request',
+                'service_id'     => $service->id,
+                'service_name'   => $service->service_name,
+                'child_id'       => $request->child_id,
+                'child_name'     => $child->child_name,
+                'preferred_date' => $request->preferred_date,
+                'preferred_time' => $request->preferred_time,
+                'lesson_mode'    => $request->lesson_mode,
+                'notes'          => $request->notes,
+            ],
+        ]);
+
+        return response()->json([
+            'message' => 'Session request submitted! We\'ll be in touch to confirm your session.',
+        ], 201);
     }
 
     /* ================================================================

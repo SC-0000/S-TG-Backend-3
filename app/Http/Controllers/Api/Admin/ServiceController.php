@@ -148,6 +148,11 @@ class ServiceController extends ApiController
                 if ($isGlobal) {
                     $this->propagateGlobalContent($service, $request);
                 }
+
+                // Create inline sessions for fixed_schedule services
+                if ($request->has('sessions_to_create')) {
+                    $this->createLinkedSessions($service, (array) $request->input('sessions_to_create', []));
+                }
             });
 
             return $this->success([
@@ -251,8 +256,15 @@ class ServiceController extends ApiController
             'organization:id,name',
         ]);
 
+        $teachers = \App\Models\User::where('role', 'teacher')
+            ->when($orgId, fn ($q) => $q->whereHas('organizations', fn ($oq) => $oq->where('organizations.id', $orgId)))
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+
         return $this->success([
             'service' => $this->mapService($service, true),
+            'teachers' => $teachers,
             'lessons' => Lesson::select('id', 'title', 'lesson_mode', 'start_time', 'end_time', 'organization_id', 'is_global')
                 ->when($orgId, fn ($q) => $q->visibleToOrg($orgId))
                 ->orderBy('title')
@@ -305,6 +317,11 @@ class ServiceController extends ApiController
 
             if ($isGlobal) {
                 $this->propagateGlobalContent($service, $request);
+            }
+
+            // Append any newly created inline sessions
+            if ($request->has('sessions_to_create')) {
+                $this->createLinkedSessions($service, (array) $request->input('sessions_to_create', []));
             }
         });
 
@@ -372,6 +389,15 @@ class ServiceController extends ApiController
             'year_groups_allowed' => $service->year_groups_allowed,
             'categories' => $service->categories,
             'auto_attendance' => (bool) $service->auto_attendance,
+            'booking_mode' => $service->booking_mode,
+            'default_lesson_mode' => $service->default_lesson_mode ?? 'both',
+            'session_duration_minutes' => $service->session_duration_minutes,
+            'max_participants' => $service->max_participants,
+            'teacher_ids' => $service->teacher_ids,
+            'instructor_id' => $service->instructor_id,
+            'allow_recurring' => (bool) $service->allow_recurring,
+            'cancellation_hours' => $service->cancellation_hours,
+            'credits_per_purchase' => $service->credits_per_purchase,
             'description' => $service->description,
             'schedule' => $service->schedule,
             'media' => $service->media,
@@ -428,7 +454,58 @@ class ServiceController extends ApiController
             'assessment_ids',
             'child_ids',
             'media',
+            'sessions_to_create',   // handled separately after service is persisted
+            'flexible_content',     // handled via syncRelations
         ]);
+    }
+
+    /**
+     * Create live_sessions records and link them to a service.
+     * Used when admin creates sessions inline from the service form.
+     */
+    private function createLinkedSessions(Service $service, array $sessionsData): void
+    {
+        if (empty($sessionsData)) {
+            return;
+        }
+
+        $duration   = $service->session_duration_minutes ?? 60;
+        $lessonType = ($service->max_participants && $service->max_participants > 1) ? 'group' : '1:1';
+
+        $createdIds = [];
+        foreach ($sessionsData as $index => $sessionData) {
+            if (empty($sessionData['start_datetime'])) {
+                continue;
+            }
+
+            $start = \Carbon\Carbon::parse($sessionData['start_datetime']);
+            $end   = $start->copy()->addMinutes($duration);
+
+            $mode = $sessionData['lesson_mode']
+                ?? ($service->default_lesson_mode && $service->default_lesson_mode !== 'both'
+                    ? $service->default_lesson_mode
+                    : 'online');
+
+            $lesson = Lesson::create([
+                'title'           => $service->service_name . ' — Session ' . ($index + 1),
+                'lesson_type'     => $lessonType,
+                'lesson_mode'     => $mode,
+                'start_time'      => $start,
+                'end_time'        => $end,
+                'instructor_id'   => $sessionData['teacher_id'] ?? null,
+                'service_id'      => $service->id,
+                'organization_id' => $service->organization_id,
+                'status'          => 'scheduled',
+                'is_global'       => $service->is_global,
+            ]);
+
+            $createdIds[] = $lesson->id;
+        }
+
+        // Also ensure they appear via the lesson_service pivot (for flexible/bundle queries)
+        if (!empty($createdIds)) {
+            $service->lessons()->syncWithoutDetaching(array_fill_keys($createdIds, []));
+        }
     }
 
     private function syncRelations(Service $service, StoreServiceRequest $request): void

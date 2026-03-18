@@ -20,7 +20,7 @@ class StoreServiceRequest extends FormRequest
         return [
             'service_name'      => 'required|string|max:255',
             '_type'             => 'required|in:lesson,assessment,bundle,course,flexible',
-            'booking_mode'      => 'nullable|in:fixed_schedule,flexible_booking,self_paced,none',
+            'booking_mode'      => 'nullable|in:fixed_schedule,flexible_booking,self_paced,none,requested',
             'service_level'     => 'required|in:basic,full_membership',
             'availability'      => 'boolean',
             'is_global'         => 'nullable|boolean',
@@ -48,6 +48,7 @@ class StoreServiceRequest extends FormRequest
             'media'                    => 'nullable',
 
             // Booking mode fields
+            'default_lesson_mode'      => 'nullable|in:online,in_person,both',
             'session_duration_minutes' => 'nullable|integer|min:15|max:480',
             'max_participants'         => 'nullable|integer|min:1',
             'teacher_ids'              => 'nullable|array',
@@ -55,6 +56,12 @@ class StoreServiceRequest extends FormRequest
             'allow_recurring'          => 'nullable|boolean',
             'cancellation_hours'       => 'nullable|integer|min:0',
             'credits_per_purchase'     => 'nullable|integer|min:1',
+
+            // Inline session creation (for fixed_schedule services)
+            'sessions_to_create'                        => 'nullable|array',
+            'sessions_to_create.*.start_datetime'       => 'required_with:sessions_to_create|date',
+            'sessions_to_create.*.teacher_id'           => 'nullable|integer|exists:users,id',
+            'sessions_to_create.*.lesson_mode'          => 'nullable|in:online,in_person',
 
             // Flexible service fields
             'selection_config'                      => 'nullable|array',

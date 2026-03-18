@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\Admin\ServiceController as ApiAdminServiceControlle
 use App\Http\Controllers\Api\Admin\FeedbackController as ApiAdminFeedbackController;
 use App\Http\Controllers\Api\Admin\TeacherStudentAssignmentController as ApiTeacherStudentAssignmentController;
 use App\Http\Controllers\Api\Admin\YearGroupController as ApiAdminYearGroupController;
+use App\Http\Controllers\Api\Admin\AdminAuditLogController;
 use App\Http\Controllers\Api\Admin\NotificationController as ApiAdminNotificationController;
 use App\Http\Controllers\Api\Admin\ChildController as ApiAdminChildController;
 use App\Http\Controllers\Api\Admin\UserController as ApiAdminUserController;
@@ -267,6 +268,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::prefix('bookings')->middleware('role:parent,guest_parent,admin,super_admin,teacher')->group(function () {
             Route::get('/', [\App\Http\Controllers\Api\SlotBookingController::class, 'index'])->name('api.v1.bookings.index');
             Route::post('/services/{service}/book', [\App\Http\Controllers\Api\SlotBookingController::class, 'book'])->name('api.v1.bookings.book');
+            Route::post('/services/{service}/request', [\App\Http\Controllers\Api\SlotBookingController::class, 'requestSession'])->name('api.v1.bookings.request');
             Route::post('/{lesson}/cancel', [\App\Http\Controllers\Api\SlotBookingController::class, 'cancel'])->name('api.v1.bookings.cancel');
             Route::post('/{lesson}/reschedule', [\App\Http\Controllers\Api\SlotBookingController::class, 'reschedule'])->name('api.v1.bookings.reschedule');
         });
@@ -1066,6 +1068,9 @@ Route::prefix('ai-upload')->group(function () {
             // Tracking insights
             Route::get('/tracking-insights', [ApiAdminAffiliateController::class, 'insights'])->name('api.v1.admin.tracking-insights');
             Route::get('/tracking-links/{link}/insights', [ApiAdminAffiliateController::class, 'linkInsights'])->name('api.v1.admin.tracking-links.insights');
+
+            // Audit log
+            Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('api.v1.admin.audit-logs.index');
         });
 
         Route::prefix('superadmin')->middleware('role:super_admin')->group(function () {
