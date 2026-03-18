@@ -77,13 +77,15 @@ class SlotBookingController extends Controller
             'slots'    => $slots,
             'teachers' => $teachers,
             'service'  => [
-                'id'                   => $service->id,
-                'name'                 => $service->service_name,
-                'duration'             => $duration,
-                'price'                => $service->price,
-                'max_participants'     => $service->max_participants,
-                'credits_per_purchase' => $service->credits_per_purchase,
-                'allow_recurring'      => $service->allow_recurring,
+                'id'                      => $service->id,
+                'name'                    => $service->service_name,
+                'duration'                => $duration,
+                'session_duration_minutes' => $duration,
+                'price'                   => $service->price,
+                'max_participants'        => $service->max_participants,
+                'credits_per_purchase'    => $service->credits_per_purchase,
+                'allow_recurring'         => $service->allow_recurring,
+                'cancellation_hours'      => $service->cancellation_hours,
             ],
         ]);
     }
@@ -192,6 +194,17 @@ class SlotBookingController extends Controller
                     }
                 }
 
+                // Find matching bookable allocation for this slot (if any)
+                $matchingAllocation = \App\Models\ScheduleAllocation::whereHas('teacherProfile', fn ($q) => $q->where('user_id', $teacherId))
+                    ->where('allocation_type', 'bookable')
+                    ->where('day_of_week', $slotStart->dayOfWeekIso)
+                    ->where('start_time', '<=', $slotStart->format('H:i'))
+                    ->where('end_time', '>=', $slotEnd->format('H:i'))
+                    ->where(function ($q) use ($service) {
+                        $q->whereNull('service_id')->orWhere('service_id', $service->id);
+                    })
+                    ->first();
+
                 // Create new lesson (booking slot)
                 $lesson = Lesson::create([
                     'title'              => $service->service_name,
@@ -202,6 +215,7 @@ class SlotBookingController extends Controller
                     'end_time'           => $slotEnd,
                     'instructor_id'      => $teacherId,
                     'service_id'         => $service->id,
+                    'allocation_id'      => $matchingAllocation?->id,
                     'status'             => 'scheduled',
                     'organization_id'    => $service->organization_id,
                 ]);
@@ -372,9 +386,10 @@ class SlotBookingController extends Controller
 
         $query = Lesson::whereHas('children', fn ($q) => $q->whereIn('children.id', $childIds))
             ->with([
-                'service:id,service_name,price,booking_mode,credits_per_purchase',
+                'service:id,service_name,price,booking_mode,credits_per_purchase,max_participants,cancellation_hours,session_duration_minutes',
                 'children:id,child_name',
             ])
+            ->withCount('children as participants_count')
             ->addSelect(['*'])
             ->selectSub(
                 User::select('name')->whereColumn('users.id', 'live_sessions.instructor_id')->limit(1),
@@ -399,12 +414,14 @@ class SlotBookingController extends Controller
         if ($childIds->isNotEmpty()) {
             $serviceCredits = ServiceCredit::whereIn('child_id', $childIds)
                 ->valid()
+                ->with('service:id,service_name')
                 ->get()
                 ->groupBy('service_id')
                 ->map(fn ($credits) => [
-                    'total'     => $credits->sum('total_credits'),
-                    'used'      => $credits->sum('used_credits'),
-                    'remaining' => $credits->sum(fn ($c) => $c->remaining),
+                    'service_name' => $credits->first()?->service?->service_name ?? 'Service',
+                    'total'        => $credits->sum('total_credits'),
+                    'used'         => $credits->sum('used_credits'),
+                    'remaining'    => $credits->sum(fn ($c) => $c->remaining),
                 ]);
         }
 

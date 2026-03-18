@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Lesson;
+use App\Models\ScheduleAllocation;
 use App\Models\TeacherAvailability;
 use App\Models\TeacherAvailabilityException;
 use App\Models\TeacherProfile;
@@ -57,6 +58,11 @@ class TeacherScheduleService
             ->where('start_time', '>=', $dateFrom)
             ->where('start_time', '<=', $dateTo)
             ->select('start_time', 'end_time')
+            ->get();
+
+        // Get fixed allocations (these block time for specific services, not open for booking)
+        $fixedAllocations = $profile->allocations()
+            ->where('allocation_type', 'fixed')
             ->get();
 
         $maxPerDay = $profile->max_hours_per_day ?? 8;
@@ -169,6 +175,19 @@ class TeacherScheduleService
                         continue;
                     }
 
+                    // Check against fixed allocations (these reserve time for specific services)
+                    $fixedBlock = $fixedAllocations->contains(function ($alloc) use ($slotStart, $slotEnd, $date) {
+                        if (!$alloc->isActiveOn($date)) return false;
+                        $aStart = $date->copy()->setTimeFromTimeString($alloc->start_time);
+                        $aEnd = $date->copy()->setTimeFromTimeString($alloc->end_time);
+                        return $slotStart->lt($aEnd) && $slotEnd->gt($aStart);
+                    });
+
+                    if ($fixedBlock) {
+                        $cursor->addMinutes($durationMinutes + $buffer);
+                        continue;
+                    }
+
                     // Check hour caps
                     if (($dayBookedHours + $slotHours) > $maxPerDay) {
                         break; // No more slots this day
@@ -270,6 +289,24 @@ class TeacherScheduleService
             return false;
         }
 
+        // Check for fixed allocations blocking this slot
+        $fixedAllocationBlock = ScheduleAllocation::where('teacher_profile_id', $profile->id)
+            ->where('allocation_type', 'fixed')
+            ->where('day_of_week', $start->dayOfWeekIso)
+            ->where('start_time', '<', $slotEndTime)
+            ->where('end_time', '>', $slotStartTime)
+            ->where(function ($q) use ($start) {
+                $q->whereNull('effective_from')->orWhere('effective_from', '<=', $start->toDateString());
+            })
+            ->where(function ($q) use ($start) {
+                $q->whereNull('effective_until')->orWhere('effective_until', '>=', $start->toDateString());
+            })
+            ->exists();
+
+        if ($fixedAllocationBlock) {
+            return false;
+        }
+
         // Check recurring availability covers this slot
         $hasAvailability = $profile->availabilities()
             ->where('day_of_week', $dayOfWeek)
@@ -321,8 +358,18 @@ class TeacherScheduleService
             ->whereNotIn('status', ['cancelled', 'draft'])
             ->where('start_time', '>=', $dateFrom)
             ->where('start_time', '<=', $dateTo)
-            ->with(['children:id,child_name', 'service:id,service_name'])
-            ->get();
+            ->with(['children:id,child_name', 'service:id,service_name,max_participants,credits_per_purchase,booking_mode'])
+            ->withCount('children as participants_count')
+            ->get()
+            ->map(function ($l) {
+                $l->service_name = $l->service?->service_name;
+                $l->service_id = $l->service?->id;
+                $l->max_participants = $l->service?->max_participants;
+                $l->is_credit_based = (bool) $l->service?->credits_per_purchase;
+                $l->student_name = $l->children->pluck('child_name')->join(', ') ?: 'Student';
+                $l->session_type = $l->lesson_type;
+                return $l;
+            });
 
         $availableSlots = $this->getAvailableSlots($teacherId, $dateFrom, $dateTo, 60);
 

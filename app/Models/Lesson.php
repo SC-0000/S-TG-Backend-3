@@ -12,7 +12,7 @@ class Lesson extends Model
     protected $fillable = [
         'title','description','lesson_type','lesson_mode',
         'start_time','end_time','address','meeting_link',
-        'live_lesson_session_id','instructor_id','service_id','status','journey_category_id',
+        'live_lesson_session_id','instructor_id','service_id','allocation_id','status','journey_category_id',
         'year_group','organization_id','is_global',
     ];
     protected $casts = [
@@ -37,6 +37,11 @@ class Lesson extends Model
     public function service()
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function allocation()
+    {
+        return $this->belongsTo(ScheduleAllocation::class, 'allocation_id');
     }
 
     public function assessments()
