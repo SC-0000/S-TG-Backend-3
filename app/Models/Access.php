@@ -46,7 +46,7 @@ class Access extends Model
 
     public function lesson()
     {
-        return $this->belongsTo(LiveLessonSession::class, 'lesson_id');
+        return $this->belongsTo(Lesson::class, 'lesson_id');
     }
 
     public function contentLesson()
@@ -87,8 +87,22 @@ class Access extends Model
 
     public function hasAccessToLesson($lessonId)
     {
-        return in_array($lessonId, $this->lesson_ids ?? []) 
-            || $this->content_lesson_id == $lessonId;
+        $contentIds = [];
+        if (is_array($this->metadata) && !empty($this->metadata['content_lesson_ids'])) {
+            $contentIds = $this->metadata['content_lesson_ids'];
+        }
+        return in_array($lessonId, $this->lesson_ids ?? [])
+            || $this->content_lesson_id == $lessonId
+            || in_array($lessonId, $contentIds);
+    }
+
+    public function hasAccessToLiveSession($sessionId)
+    {
+        $liveIds = [];
+        if (is_array($this->metadata) && !empty($this->metadata['live_lesson_session_ids'])) {
+            $liveIds = $this->metadata['live_lesson_session_ids'];
+        }
+        return in_array($sessionId, $liveIds);
     }
 
     public function hasAccessToAssessment($assessmentId)

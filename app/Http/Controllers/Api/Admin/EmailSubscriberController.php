@@ -95,4 +95,59 @@ class EmailSubscriberController extends ApiController
             'subscribed_at' => $subscriber->subscribed_at,
         ], [], 201);
     }
+
+    public function unsubscribe(Request $request, NewsletterSubscriber $subscriber): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
+        $orgId = $request->attributes->get('organization_id') ?: $user->current_organization_id;
+        if ($orgId && (int) $subscriber->organization_id !== (int) $orgId) {
+            return $this->error('Unauthorized access.', [], 403);
+        }
+
+        $subscriber->status = 'unsubscribed';
+        $subscriber->unsubscribed_at = now();
+        $subscriber->save();
+
+        return $this->success([
+            'id' => $subscriber->id,
+            'email' => $subscriber->email,
+            'name' => $subscriber->name,
+            'status' => $subscriber->status,
+            'source' => $subscriber->source,
+            'subscribed_at' => $subscriber->subscribed_at,
+            'unsubscribed_at' => $subscriber->unsubscribed_at,
+        ]);
+    }
+
+    public function resubscribe(Request $request, NewsletterSubscriber $subscriber): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
+        $orgId = $request->attributes->get('organization_id') ?: $user->current_organization_id;
+        if ($orgId && (int) $subscriber->organization_id !== (int) $orgId) {
+            return $this->error('Unauthorized access.', [], 403);
+        }
+
+        $subscriber->status = 'active';
+        $subscriber->subscribed_at = now();
+        $subscriber->unsubscribed_at = null;
+        $subscriber->save();
+
+        return $this->success([
+            'id' => $subscriber->id,
+            'email' => $subscriber->email,
+            'name' => $subscriber->name,
+            'status' => $subscriber->status,
+            'source' => $subscriber->source,
+            'subscribed_at' => $subscriber->subscribed_at,
+            'unsubscribed_at' => $subscriber->unsubscribed_at,
+        ]);
+    }
 }
