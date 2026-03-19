@@ -16,6 +16,49 @@ use Illuminate\Validation\ValidationException;
 
 class LessonController extends ApiController
 {
+    private function portalBaseUrl(?Organization $organization): ?string
+    {
+        $value = $organization?->portal_domain;
+        if (! $value || ! is_string($value)) {
+            $value = (string) config('app.frontend_url');
+        }
+
+        $raw = trim($value);
+        if ($raw === '') {
+            return null;
+        }
+
+        $scheme = null;
+        $host = null;
+        if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://')) {
+            $parsed = parse_url($raw);
+            $scheme = $parsed['scheme'] ?? null;
+            $host = $parsed['host'] ?? null;
+        } else {
+            $host = preg_replace('#/.*$#', '', $raw);
+        }
+
+        if (! $host) {
+            return null;
+        }
+
+        if (! $scheme) {
+            $isLocal = str_starts_with($host, 'localhost') || str_starts_with($host, '127.0.0.1');
+            $scheme = $isLocal ? 'http' : 'https';
+        }
+
+        return $scheme . '://' . $host;
+    }
+
+    private function portalUrl(string $path, ?Organization $organization): ?string
+    {
+        $base = $this->portalBaseUrl($organization);
+        if (! $base) {
+            return null;
+        }
+        return rtrim($base, '/') . '/' . ltrim($path, '/');
+    }
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -55,7 +98,7 @@ class LessonController extends ApiController
         }
 
         $lesson->load([
-            'service:id,service_name',
+            'service:id,service_name,booking_mode,default_lesson_mode,session_duration_minutes',
             'service.children.user:id,name',
             'assessments',
             'assessments.submissions:id,assessment_id',
@@ -63,12 +106,37 @@ class LessonController extends ApiController
             'attendances' => fn ($q) => $q->whereDate('date', optional($lesson->start_time)->toDateString()),
         ]);
 
-        $linkedSession = null;
-        if ($lesson->live_lesson_session_id) {
-            $linkedSession = \App\Models\LiveLessonSession::with('lesson:id,title')
-                ->find($lesson->live_lesson_session_id);
+        $instructor = null;
+        if ($lesson->instructor_id) {
+            $instructor = User::find($lesson->instructor_id, ['id', 'name', 'email', 'avatar']);
         }
 
+        // Live classroom session (recording, stats)
+        $liveSession = null;
+        if ($lesson->live_lesson_session_id) {
+            $liveSession = \App\Models\LiveLessonSession::find($lesson->live_lesson_session_id,
+                ['id', 'status', 'recording_url', 'actual_start_time', 'scheduled_start_time', 'pacing_mode', 'session_code']
+            );
+        }
+
+        // Materials uploaded to this lesson's live session classroom
+        $materials = collect();
+        if ($lesson->live_lesson_session_id) {
+            $materials = \App\Models\LessonMaterial::where('lesson_id', $lesson->live_lesson_session_id)->get();
+        }
+
+        // Content lessons linked via the service (service → lessons pivot in lesson_service)
+        $contentLessons = collect();
+        if ($lesson->service_id) {
+            $contentLessons = \App\Models\ContentLesson::whereHas('liveSessions', function ($q) use ($lesson) {
+                $q->where('lesson_id', $lesson->live_lesson_session_id);
+            })->orWhereHas('liveSessions', function ($q) use ($lesson) {
+                // Also include content lessons linked to this service via live_lesson_sessions
+                $q->where('id', $lesson->live_lesson_session_id);
+            })->select('id', 'title', 'description', 'delivery_mode', 'status')->get();
+        }
+
+        // Children enrolled with attendance status
         $children = collect();
         if ($lesson->service && $lesson->service->children) {
             $children = $lesson->service->children->map(fn ($c) => [
@@ -91,9 +159,12 @@ class LessonController extends ApiController
 
         return $this->success([
             'lesson' => $this->mapLessonDetail($lesson),
+            'instructor' => $instructor,
             'children' => $children,
             'assessments' => $assessments,
-            'linkedSession' => $linkedSession,
+            'live_session' => $liveSession,
+            'materials' => $materials,
+            'content_lessons' => $contentLessons,
         ]);
     }
 
@@ -183,20 +254,38 @@ class LessonController extends ApiController
 
         $lesson = Lesson::create($data);
 
-        $relatedLink = route('api.v1.admin.lessons.show', $lesson->id);
-        if (!empty($data['instructor_id'])) {
-            $instructor = User::find($data['instructor_id']);
-            if ($instructor && $instructor->role === 'teacher') {
-                $relatedLink = route('api.v1.teacher.lessons.show', $lesson->id);
-            }
+        $organization = null;
+        if ($organizationId) {
+            $organization = Organization::find($organizationId);
+        } elseif (! $isGlobal) {
+            $organization = Organization::find($user->current_organization_id);
         }
 
+        $instructor = null;
+        if (! empty($data['instructor_id'])) {
+            $instructor = User::find($data['instructor_id']);
+        }
+
+        $relatedLink = $this->portalUrl("/admin/lessons/{$lesson->id}/edit", $organization);
+        if ($instructor && $instructor->role === 'teacher') {
+            $relatedLink = $this->portalUrl("/teacher/lessons/{$lesson->id}/edit", $organization);
+        }
+
+        $taskType = $instructor
+            ? 'Lesson assigned to ' . $instructor->name
+            : 'Lesson created without instructor';
+
         AdminTask::create([
-            'task_type' => 'Lesson assigned to ' . (isset($data['instructor_id']) ? User::find($data['instructor_id'])->name : 'Unknown'),
+            'organization_id' => $organizationId ?? $user->current_organization_id,
+            'task_type' => $taskType,
             'assigned_to' => $data['instructor_id'] ?? null,
             'status' => 'Pending',
             'related_entity' => $relatedLink,
             'priority' => 'Medium',
+            'metadata' => [
+                'lesson_id' => $lesson->id,
+                'lesson_title' => $lesson->title,
+            ],
         ]);
 
         return $this->success($this->mapLessonDetail($lesson), [], 201);
@@ -280,6 +369,7 @@ class LessonController extends ApiController
         return $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'prep_notes' => 'nullable|string',
             'lesson_type' => 'required|in:1:1,group',
             'lesson_mode' => 'required|in:in_person,online',
             'start_time' => 'nullable|date',
@@ -324,15 +414,20 @@ class LessonController extends ApiController
             'description' => $lesson->description,
             'lesson_type' => $lesson->lesson_type,
             'lesson_mode' => $lesson->lesson_mode,
+            'status' => $lesson->status,
             'start_time' => $lesson->start_time,
             'end_time' => $lesson->end_time,
             'address' => $lesson->address,
             'meeting_link' => $lesson->meeting_link,
+            'instructor_id' => $lesson->instructor_id,
+            'allocation_id' => $lesson->allocation_id,
             'children_count' => $lesson->children_count,
             'assessments_count' => $lesson->assessments_count,
             'service' => $lesson->service ? [
                 'id' => $lesson->service->id,
                 'name' => $lesson->service->service_name,
+                'booking_mode' => $lesson->service->booking_mode,
+                'default_lesson_mode' => $lesson->service->default_lesson_mode,
             ] : null,
         ];
     }
@@ -344,13 +439,16 @@ class LessonController extends ApiController
             'organization_id' => $lesson->organization_id,
             'title' => $lesson->title,
             'description' => $lesson->description,
+            'prep_notes' => $lesson->prep_notes,
             'lesson_type' => $lesson->lesson_type,
             'lesson_mode' => $lesson->lesson_mode,
+            'status' => $lesson->status,
             'start_time' => $lesson->start_time,
             'end_time' => $lesson->end_time,
             'address' => $lesson->address,
             'meeting_link' => $lesson->meeting_link,
             'live_lesson_session_id' => $lesson->live_lesson_session_id,
+            'allocation_id' => $lesson->allocation_id,
             'journey_category_id' => $lesson->journey_category_id,
             'instructor_id' => $lesson->instructor_id,
             'service_id' => $lesson->service_id,
@@ -359,6 +457,9 @@ class LessonController extends ApiController
             'service' => $lesson->service ? [
                 'id' => $lesson->service->id,
                 'name' => $lesson->service->service_name,
+                'booking_mode' => $lesson->service->booking_mode,
+                'default_lesson_mode' => $lesson->service->default_lesson_mode,
+                'session_duration_minutes' => $lesson->service->session_duration_minutes,
             ] : null,
         ];
     }

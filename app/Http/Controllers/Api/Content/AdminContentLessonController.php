@@ -32,7 +32,7 @@ class AdminContentLessonController extends ApiController
             'year_group' => 'nullable|string|max:50',
             'lesson_type' => 'nullable|string|max:50',
             'delivery_mode' => 'nullable|string|max:50',
-            'estimated_minutes' => 'nullable|integer|min:0',
+            'estimated_minutes' => 'required|integer|min:1',
             'completion_rules' => 'nullable|array',
             'enable_ai_help' => 'nullable|boolean',
             'enable_tts' => 'nullable|boolean',
@@ -72,7 +72,7 @@ class AdminContentLessonController extends ApiController
             'year_group' => 'nullable|string|max:50',
             'lesson_type' => 'nullable|string|max:50',
             'delivery_mode' => 'nullable|string|max:50',
-            'estimated_minutes' => 'nullable|integer|min:0',
+            'estimated_minutes' => 'required|integer|min:1',
             'completion_rules' => 'nullable|array',
             'enable_ai_help' => 'nullable|boolean',
             'enable_tts' => 'nullable|boolean',
@@ -142,7 +142,7 @@ class AdminContentLessonController extends ApiController
             });
         }
 
-        $lessons = $query->orderBy('created_at', 'desc')
+        $lessons = $query->orderBy('updated_at', 'desc')
             ->paginate(ApiPagination::perPage($request, 20));
 
         $data = $lessons->getCollection()->map(function ($lesson) {
@@ -154,6 +154,8 @@ class AdminContentLessonController extends ApiController
                 'description' => $lesson->description,
                 'lesson_type' => $lesson->lesson_type,
                 'status' => $lesson->status,
+                'created_at' => $lesson->created_at?->toISOString(),
+                'updated_at' => $lesson->updated_at?->toISOString(),
                 'module' => $module ? [
                     'id' => $module->id,
                     'title' => $module->title,
@@ -257,7 +259,7 @@ class AdminContentLessonController extends ApiController
             'lesson_type' => 'nullable|string|max:50',
             'delivery_mode' => 'nullable|string|max:50',
             'status' => 'nullable|in:draft,published,archived,live',
-            'estimated_minutes' => 'nullable|integer|min:0',
+            'estimated_minutes' => 'required|integer|min:1',
             'completion_rules' => 'nullable|array',
             'enable_ai_help' => 'nullable|boolean',
             'enable_tts' => 'nullable|boolean',

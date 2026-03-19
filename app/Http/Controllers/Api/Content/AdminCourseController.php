@@ -51,7 +51,7 @@ class AdminCourseController extends ApiController
             });
         }
 
-        $courses = $query->orderBy('created_at', 'desc')
+        $courses = $query->orderBy('updated_at', 'desc')
             ->paginate(ApiPagination::perPage($request, 20));
 
         $data = $courses->getCollection()->map(function ($course) use ($user) {
@@ -73,6 +73,7 @@ class AdminCourseController extends ApiController
                     'name' => $course->organization->name,
                 ] : null,
                 'created_at' => $course->created_at?->toISOString(),
+                'updated_at' => $course->updated_at?->toISOString(),
                 'created_by' => $course->created_by,
                 'created_by_me' => $course->created_by === $user?->id,
             ];
@@ -277,6 +278,7 @@ class AdminCourseController extends ApiController
             'thumbnail' => 'nullable|string',
             'cover_image' => 'nullable|string',
             'metadata' => 'nullable|array',
+            'metadata.estimated_duration_minutes' => 'required|integer|min:1',
             'journey_category_id' => 'nullable|exists:journey_categories,id',
             'is_global' => 'nullable|boolean',
             'organization_id' => 'nullable|integer|exists:organizations,id',
@@ -337,6 +339,7 @@ class AdminCourseController extends ApiController
             'thumbnail' => 'nullable|string',
             'cover_image' => 'nullable|string',
             'metadata' => 'nullable|array',
+            'metadata.estimated_duration_minutes' => 'required|integer|min:1',
             'journey_category_id' => 'nullable|exists:journey_categories,id',
             'status' => 'nullable|in:draft,review,live,archived',
         ]);

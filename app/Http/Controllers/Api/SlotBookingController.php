@@ -77,13 +77,16 @@ class SlotBookingController extends Controller
             'slots'    => $slots,
             'teachers' => $teachers,
             'service'  => [
-                'id'                   => $service->id,
-                'name'                 => $service->service_name,
-                'duration'             => $duration,
-                'price'                => $service->price,
-                'max_participants'     => $service->max_participants,
-                'credits_per_purchase' => $service->credits_per_purchase,
-                'allow_recurring'      => $service->allow_recurring,
+                'id'                      => $service->id,
+                'name'                    => $service->service_name,
+                'duration'                => $duration,
+                'session_duration_minutes' => $duration,
+                'price'                   => $service->price,
+                'max_participants'        => $service->max_participants,
+                'credits_per_purchase'    => $service->credits_per_purchase,
+                'allow_recurring'         => $service->allow_recurring,
+                'cancellation_hours'      => $service->cancellation_hours,
+                'default_lesson_mode'     => $service->default_lesson_mode ?? 'both',
             ],
         ]);
     }
@@ -195,16 +198,35 @@ class SlotBookingController extends Controller
                     }
                 }
 
+                // Find matching bookable allocation for this slot (if any)
+                $matchingAllocation = \App\Models\ScheduleAllocation::whereHas('teacherProfile', fn ($q) => $q->where('user_id', $teacherId))
+                    ->where('allocation_type', 'bookable')
+                    ->where('day_of_week', $slotStart->dayOfWeekIso)
+                    ->where('start_time', '<=', $slotStart->format('H:i'))
+                    ->where('end_time', '>=', $slotEnd->format('H:i'))
+                    ->where(function ($q) use ($service) {
+                        $q->whereNull('service_id')->orWhere('service_id', $service->id);
+                    })
+                    ->first();
+
+                // Resolve lesson mode: use service default if not 'both', else use parent's choice
+                $resolvedMode = match ($service->default_lesson_mode ?? 'both') {
+                    'online'    => 'online',
+                    'in_person' => 'in_person',
+                    default     => $request->lesson_mode ?? 'online',
+                };
+
                 // Create new lesson (booking slot)
                 $lesson = Lesson::create([
                     'title'              => $service->service_name,
                     'description'        => $request->notes,
                     'lesson_type'        => $request->lesson_type ?? ($service->max_participants > 1 ? 'group' : '1:1'),
-                    'lesson_mode'        => $request->lesson_mode ?? 'online',
+                    'lesson_mode'        => $resolvedMode,
                     'start_time'         => $slotStart,
                     'end_time'           => $slotEnd,
                     'instructor_id'      => $teacherId,
                     'service_id'         => $service->id,
+                    'allocation_id'      => $matchingAllocation?->id,
                     'status'             => 'scheduled',
                     'organization_id'    => $service->organization_id,
                 ]);
@@ -237,6 +259,69 @@ class SlotBookingController extends Controller
             Log::error('Booking failed', ['error' => $e->getMessage(), 'service' => $service->id]);
             return response()->json(['message' => 'Booking failed. Please try again.'], 500);
         }
+    }
+
+    /* ================================================================
+     |  POST /api/v1/bookings/services/{service}/request
+     |  For services with booking_mode = 'requested'
+     | ================================================================ */
+    public function requestSession(Request $request, Service $service): JsonResponse
+    {
+        $request->validate([
+            'child_id'       => 'required|integer|exists:children,id',
+            'preferred_date' => 'required|date|after_or_equal:today',
+            'preferred_time' => 'nullable|string|max:20',
+            'lesson_mode'    => 'nullable|in:online,in_person',
+            'notes'          => 'nullable|string|max:1000',
+        ]);
+
+        if ($service->booking_mode !== 'requested') {
+            return response()->json(['message' => 'This service does not accept session requests.'], 422);
+        }
+
+        if (!$service->availability) {
+            return response()->json(['message' => 'This service is not currently available.'], 422);
+        }
+
+        $child = \App\Models\Child::find($request->child_id);
+        if (!$child) {
+            return response()->json(['message' => 'Child not found.'], 422);
+        }
+
+        $timeLabel = $request->preferred_date
+            . ($request->preferred_time ? ' at ' . $request->preferred_time : '');
+
+        $modeLabel = match ($request->lesson_mode) {
+            'online'    => 'Online',
+            'in_person' => 'In-Person',
+            default     => 'No preference',
+        };
+
+        // Create an admin task so the team can review and confirm
+        AdminTask::create([
+            'task_type'       => 'Session Request',
+            'title'           => 'Session Request — ' . $service->service_name,
+            'description'     => "{$child->child_name} has requested a session for '{$service->service_name}'. "
+                . "Preferred: {$timeLabel} ({$modeLabel})."
+                . ($request->notes ? " Notes: {$request->notes}" : ''),
+            'status'          => 'Pending',
+            'organization_id' => $service->organization_id,
+            'metadata'        => [
+                'type'           => 'session_request',
+                'service_id'     => $service->id,
+                'service_name'   => $service->service_name,
+                'child_id'       => $request->child_id,
+                'child_name'     => $child->child_name,
+                'preferred_date' => $request->preferred_date,
+                'preferred_time' => $request->preferred_time,
+                'lesson_mode'    => $request->lesson_mode,
+                'notes'          => $request->notes,
+            ],
+        ]);
+
+        return response()->json([
+            'message' => 'Session request submitted! We\'ll be in touch to confirm your session.',
+        ], 201);
     }
 
     /* ================================================================
@@ -375,9 +460,10 @@ class SlotBookingController extends Controller
 
         $query = Lesson::whereHas('children', fn ($q) => $q->whereIn('children.id', $childIds))
             ->with([
-                'service:id,service_name,price,booking_mode,credits_per_purchase',
+                'service:id,service_name,price,booking_mode,credits_per_purchase,max_participants,cancellation_hours,session_duration_minutes',
                 'children:id,child_name',
             ])
+            ->withCount('children as participants_count')
             ->addSelect(['*'])
             ->selectSub(
                 User::select('name')->whereColumn('users.id', 'live_sessions.instructor_id')->limit(1),
@@ -402,12 +488,14 @@ class SlotBookingController extends Controller
         if ($childIds->isNotEmpty()) {
             $serviceCredits = ServiceCredit::whereIn('child_id', $childIds)
                 ->valid()
+                ->with('service:id,service_name')
                 ->get()
                 ->groupBy('service_id')
                 ->map(fn ($credits) => [
-                    'total'     => $credits->sum('total_credits'),
-                    'used'      => $credits->sum('used_credits'),
-                    'remaining' => $credits->sum(fn ($c) => $c->remaining),
+                    'service_name' => $credits->first()?->service?->service_name ?? 'Service',
+                    'total'        => $credits->sum('total_credits'),
+                    'used'         => $credits->sum('used_credits'),
+                    'remaining'    => $credits->sum(fn ($c) => $c->remaining),
                 ]);
         }
 

@@ -108,6 +108,7 @@ class AIUploadController extends ApiController
         ]);
 
         if ($request->boolean('process_now', true)) {
+            set_time_limit(600);
             $agent = app(ContentUploadAgent::class);
             $result = $agent->process($session);
 
@@ -191,6 +192,7 @@ class AIUploadController extends ApiController
             'feedback' => 'required|string|max:2000',
         ]);
 
+        set_time_limit(600);
         $agent = app(ContentUploadAgent::class);
 
         try {
