@@ -10,7 +10,11 @@ class Lesson extends Model
     protected $table = 'live_sessions';
     
     protected $fillable = [
+<<<<<<< HEAD
         'title','description','lesson_type','lesson_mode',
+=======
+        'title','description','prep_notes','lesson_type','lesson_mode','max_participants',
+>>>>>>> a9692f5 (Updated 5)
         'start_time','end_time','address','meeting_link',
         'live_lesson_session_id','instructor_id','service_id','status','journey_category_id',
         'year_group','organization_id','is_global',

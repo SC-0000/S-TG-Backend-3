@@ -431,6 +431,64 @@ class ServiceController extends ApiController
         ]);
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Create live_sessions records and link them to a service.
+     * Used when admin creates sessions inline from the service form.
+     */
+    private function createLinkedSessions(Service $service, array $sessionsData): void
+    {
+        if (empty($sessionsData)) {
+            return;
+        }
+
+        $duration   = $service->session_duration_minutes ?? 60;
+        $lessonType = ($service->max_participants && $service->max_participants > 1) ? 'group' : '1:1';
+
+        $createdIds = [];
+        foreach ($sessionsData as $index => $sessionData) {
+            if (empty($sessionData['start_datetime'])) {
+                continue;
+            }
+
+            $start = \Carbon\Carbon::parse($sessionData['start_datetime']);
+            $end   = $start->copy()->addMinutes($duration);
+
+            $mode = $sessionData['lesson_mode']
+                ?? ($service->default_lesson_mode && $service->default_lesson_mode !== 'both'
+                    ? $service->default_lesson_mode
+                    : 'online');
+
+            // Per-session capacity: override service default when explicitly set on the row
+            $perSessionCap = isset($sessionData['max_participants']) && (int) $sessionData['max_participants'] > 0
+                ? (int) $sessionData['max_participants']
+                : null;
+
+            $lesson = Lesson::create([
+                'title'            => $service->service_name . ' — Session ' . ($index + 1),
+                'lesson_type'      => $lessonType,
+                'lesson_mode'      => $mode,
+                'max_participants' => $perSessionCap,
+                'start_time'       => $start,
+                'end_time'         => $end,
+                'instructor_id'    => $sessionData['teacher_id'] ?? null,
+                'service_id'       => $service->id,
+                'organization_id'  => $service->organization_id,
+                'status'           => 'scheduled',
+                'is_global'        => $service->is_global,
+            ]);
+
+            $createdIds[] = $lesson->id;
+        }
+
+        // Also ensure they appear via the lesson_service pivot (for flexible/bundle queries)
+        if (!empty($createdIds)) {
+            $service->lessons()->syncWithoutDetaching(array_fill_keys($createdIds, []));
+        }
+    }
+
+>>>>>>> a9692f5 (Updated 5)
     private function syncRelations(Service $service, StoreServiceRequest $request): void
     {
         $lessonIds = $request->input('lesson_ids', []);

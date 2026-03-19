@@ -177,12 +177,15 @@ class SlotBookingController extends Controller
                         ->withCount('children')
                         ->first();
 
-                    if ($existingLesson && $existingLesson->children_count < $service->max_participants) {
+                    // Use per-lesson cap when set, otherwise fall back to service-level cap
+                    $effectiveCap = $existingLesson?->max_participants ?? $service->max_participants;
+
+                    if ($existingLesson && $existingLesson->children_count < $effectiveCap) {
                         $existingLesson->children()->syncWithoutDetaching([$childId]);
                         $this->useCredit($service, $childId);
                         $bookings->push($existingLesson->fresh());
                         continue;
-                    } elseif ($existingLesson && $existingLesson->children_count >= $service->max_participants) {
+                    } elseif ($existingLesson && $existingLesson->children_count >= $effectiveCap) {
                         if ($isRecurring) {
                             $errors[] = "Group on {$slotStart->format('D d M')} is full — skipped.";
                             continue;
@@ -451,7 +454,7 @@ class SlotBookingController extends Controller
             ->whereNotIn('status', ['cancelled', 'draft'])
             ->withCount('children')
             ->get()
-            ->filter(fn ($l) => $l->children_count < $service->max_participants);
+            ->filter(fn ($l) => $l->children_count < ($l->max_participants ?? $service->max_participants));
 
         return $slots->filter(function ($slot) use ($service, $existingGroupLessons) {
             // Check if an existing group lesson at this time/teacher is full
@@ -473,7 +476,7 @@ class SlotBookingController extends Controller
                 ->withCount('children')
                 ->first();
 
-            if ($fullLesson && $fullLesson->children_count >= $service->max_participants) {
+            if ($fullLesson && $fullLesson->children_count >= ($fullLesson->max_participants ?? $service->max_participants)) {
                 return false;
             }
 
