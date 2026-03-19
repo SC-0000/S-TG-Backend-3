@@ -56,16 +56,12 @@ class StoreServiceRequest extends FormRequest
             'cancellation_hours'       => 'nullable|integer|min:0',
             'credits_per_purchase'     => 'nullable|integer|min:1',
 
-<<<<<<< HEAD
-=======
             // Inline session creation (for fixed_schedule services)
             'sessions_to_create'                        => 'nullable|array',
             'sessions_to_create.*.start_datetime'       => 'required_with:sessions_to_create|date',
             'sessions_to_create.*.teacher_id'           => 'nullable|integer|exists:users,id',
             'sessions_to_create.*.lesson_mode'          => 'nullable|in:online,in_person',
             'sessions_to_create.*.max_participants'     => 'nullable|integer|min:1',
-
->>>>>>> a9692f5 (Updated 5)
             // Flexible service fields
             'selection_config'                      => 'nullable|array',
             'selection_config.mode'                 => 'nullable|in:simple,groups',

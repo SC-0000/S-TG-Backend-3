@@ -140,6 +140,7 @@ class ServiceController extends ApiController
                 ));
 
                 $this->syncRelations($service, $request);
+                $this->createLinkedSessions($service, $request->input('sessions_to_create', []));
 
                 if ($request->hasFile('media')) {
                     $this->handleMediaUploads($service, $request);
@@ -301,6 +302,7 @@ class ServiceController extends ApiController
             ]);
 
             $this->syncRelations($service, $request);
+            $this->createLinkedSessions($service, $request->input('sessions_to_create', []));
             $this->handleMediaUploads($service, $request, true);
 
             if ($isGlobal) {
@@ -428,11 +430,10 @@ class ServiceController extends ApiController
             'assessment_ids',
             'child_ids',
             'media',
+            'sessions_to_create',
         ]);
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Create live_sessions records and link them to a service.
      * Used when admin creates sessions inline from the service form.
@@ -466,7 +467,7 @@ class ServiceController extends ApiController
                 : null;
 
             $lesson = Lesson::create([
-                'title'            => $service->service_name . ' — Session ' . ($index + 1),
+                'title'            => $service->service_name . ' - Session ' . ($index + 1),
                 'lesson_type'      => $lessonType,
                 'lesson_mode'      => $mode,
                 'max_participants' => $perSessionCap,
@@ -487,8 +488,6 @@ class ServiceController extends ApiController
             $service->lessons()->syncWithoutDetaching(array_fill_keys($createdIds, []));
         }
     }
-
->>>>>>> a9692f5 (Updated 5)
     private function syncRelations(Service $service, StoreServiceRequest $request): void
     {
         $lessonIds = $request->input('lesson_ids', []);
