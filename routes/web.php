@@ -14,6 +14,22 @@ require base_path('routes/channels.php');
 Route::get('/r/{code}', [\App\Http\Controllers\Api\Public\TrackingController::class, 'redirect'])
     ->withoutMiddleware([VerifyCsrfToken::class]);
 
+// Password reset link target (used by Password::sendResetLink)
+Route::get('/reset-password/{token}', function ($token) {
+    $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+    if ($frontendUrl === '') {
+        abort(404);
+    }
+
+    $target = $frontendUrl . '/reset-password/' . $token;
+    $query = request()->getQueryString();
+    if ($query) {
+        $target .= '?' . $query;
+    }
+
+    return redirect()->away($target, 302);
+})->name('password.reset');
+
 Route::get('/{path?}', function () {
     if (request()->is('api/*')) {
         abort(404);

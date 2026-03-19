@@ -112,7 +112,13 @@ class MailContext
     public static function sendMailable(string $to, Mailable $mailable, bool $queue = false): void
     {
         // Ensure org mailer settings are applied before selecting the mailer.
-        $mailable->build();
+        // Modern mailables use envelope()/content() instead of build().
+        if (method_exists($mailable, 'build')) {
+            $mailable->build();
+        } elseif (method_exists($mailable, 'content')) {
+            // Trigger content() to apply org email settings (calls applyEmailSettingsFromOrg)
+            $mailable->content();
+        }
 
         $defaultMailer = config('mail.default');
         $mailerName = $defaultMailer === 'org_dynamic' ? 'org_dynamic' : $defaultMailer;

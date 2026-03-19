@@ -31,6 +31,9 @@ use App\Http\Controllers\Api\Admin\YearGroupController as ApiAdminYearGroupContr
 use App\Http\Controllers\Api\Admin\NotificationController as ApiAdminNotificationController;
 use App\Http\Controllers\Api\Admin\ChildController as ApiAdminChildController;
 use App\Http\Controllers\Api\Admin\UserController as ApiAdminUserController;
+use App\Http\Controllers\Api\Admin\EmailCampaignController as ApiAdminEmailCampaignController;
+use App\Http\Controllers\Api\Admin\EmailSubscriberController as ApiAdminEmailSubscriberController;
+use App\Http\Controllers\Api\Admin\CommunicationController as ApiAdminCommunicationController;
 use App\Http\Controllers\Api\Public\ContentController as PublicContentController;
 use App\Http\Controllers\Api\Public\ApplicationController as ApiPublicApplicationController;
 use App\Http\Controllers\Api\Public\ApeAcademyController as ApiPublicApeAcademyController;
@@ -692,6 +695,24 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
             Route::get('/dashboard', [ApiAdminDashboardController::class, 'index'])->name('api.v1.admin.dashboard');
 
+            Route::prefix('email-subscribers')->group(function () {
+                Route::get('/', [ApiAdminEmailSubscriberController::class, 'index'])->name('api.v1.admin.email-subscribers.index');
+                Route::post('/', [ApiAdminEmailSubscriberController::class, 'store'])->name('api.v1.admin.email-subscribers.store');
+                Route::post('{subscriber}/unsubscribe', [ApiAdminEmailSubscriberController::class, 'unsubscribe'])->name('api.v1.admin.email-subscribers.unsubscribe');
+                Route::post('{subscriber}/resubscribe', [ApiAdminEmailSubscriberController::class, 'resubscribe'])->name('api.v1.admin.email-subscribers.resubscribe');
+            });
+
+            Route::prefix('email-campaigns')->group(function () {
+                Route::get('/', [ApiAdminEmailCampaignController::class, 'index'])->name('api.v1.admin.email-campaigns.index');
+                Route::post('/', [ApiAdminEmailCampaignController::class, 'store'])->name('api.v1.admin.email-campaigns.store');
+                Route::get('/{campaign}', [ApiAdminEmailCampaignController::class, 'show'])->name('api.v1.admin.email-campaigns.show');
+                Route::put('/{campaign}', [ApiAdminEmailCampaignController::class, 'update'])->name('api.v1.admin.email-campaigns.update');
+                Route::post('/{campaign}/send', [ApiAdminEmailCampaignController::class, 'send'])->name('api.v1.admin.email-campaigns.send');
+                Route::post('/{campaign}/test', [ApiAdminEmailCampaignController::class, 'test'])->name('api.v1.admin.email-campaigns.test');
+            });
+
+            Route::post('/communications/send', [ApiAdminCommunicationController::class, 'send'])->name('api.v1.admin.communications.send');
+
             Route::prefix('subscriptions')->group(function () {
                 Route::get('/', [ApiAdminSubscriptionController::class, 'index'])->name('api.v1.admin.subscriptions.index');
                 Route::post('/', [ApiAdminSubscriptionController::class, 'store'])->name('api.v1.admin.subscriptions.store');
@@ -781,6 +802,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             });
 
             Route::prefix('modules')->group(function () {
+                Route::get('/', [ApiAdminModuleController::class, 'index'])->name('api.v1.admin.modules.index');
                 Route::put('/{module}', [ApiAdminModuleController::class, 'update'])->name('api.v1.admin.modules.update');
                 Route::delete('/{module}', [ApiAdminModuleController::class, 'destroy'])->name('api.v1.admin.modules.destroy');
                 Route::post('/{module}/publish', [ApiAdminModuleController::class, 'publish'])->name('api.v1.admin.modules.publish');
@@ -983,6 +1005,7 @@ Route::prefix('ai-upload')->group(function () {
             Route::post('/access/grant', [AdminAccessController::class, 'store'])->name('api.v1.admin.access.grant');
             Route::post('/access', [AdminAccessController::class, 'store'])->name('api.v1.admin.access.store');
             Route::put('/access/{access}', [AdminAccessController::class, 'update'])->name('api.v1.admin.access.update');
+            Route::post('/access/revoke', [AdminAccessController::class, 'revoke'])->name('api.v1.admin.access.revoke');
 
             // Background Agents
             Route::prefix('agents')->group(function () {
@@ -1210,6 +1233,7 @@ Route::prefix('ai-upload')->group(function () {
             });
 
             Route::prefix('modules')->group(function () {
+                Route::get('/', [ApiAdminModuleController::class, 'index'])->name('api.v1.teacher.modules.index');
                 Route::put('/{module}', [ApiAdminModuleController::class, 'update'])->name('api.v1.teacher.modules.update');
                 Route::delete('/{module}', [ApiAdminModuleController::class, 'destroy'])->name('api.v1.teacher.modules.destroy');
                 Route::post('/{module}/publish', [ApiAdminModuleController::class, 'publish'])->name('api.v1.teacher.modules.publish');

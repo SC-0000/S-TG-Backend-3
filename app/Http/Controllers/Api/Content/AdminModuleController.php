@@ -17,6 +17,44 @@ class AdminModuleController extends ApiController
         return $orgId ? (int) $orgId : null;
     }
 
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $orgId = $this->resolveOrgId($request);
+
+        $query = Module::query()->with('course:id,title,organization_id');
+
+        if ($user?->role === 'super_admin') {
+            if ($orgId) {
+                $query->where('organization_id', $orgId);
+            }
+        } else {
+            $query->where('organization_id', $request->attributes->get('organization_id'));
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where('title', 'like', '%' . $search . '%');
+        }
+
+        $modules = $query->orderBy('created_at', 'desc')->get();
+
+        $data = $modules->map(function ($module) {
+            return [
+                'id' => $module->id,
+                'course_id' => $module->course_id,
+                'title' => $module->title,
+                'status' => $module->status,
+                'course' => $module->course ? [
+                    'id' => $module->course->id,
+                    'title' => $module->course->title,
+                ] : null,
+            ];
+        })->all();
+
+        return $this->success($data);
+    }
+
     public function store(Request $request, Course $course): JsonResponse
     {
         $orgId = $this->resolveOrgId($request);

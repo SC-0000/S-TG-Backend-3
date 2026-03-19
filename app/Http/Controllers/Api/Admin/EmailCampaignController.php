@@ -28,9 +28,16 @@ class EmailCampaignController extends ApiController
         $orgId = $request->attributes->get('organization_id') ?: $user->current_organization_id;
         $query = NewsletterCampaign::query()
             ->when($orgId, fn ($q) => $q->where('organization_id', $orgId))
+            ->withCount([
+                'recipients as queued_recipients_count' => fn ($q) => $q->where('status', 'queued'),
+            ])
             ->latest();
 
         $campaigns = $query->paginate(ApiPagination::perPage($request, 20));
+        $campaigns->getCollection()->each(function (NewsletterCampaign $campaign) {
+            $queuedCount = (int) ($campaign->queued_recipients_count ?? 0);
+            $this->normalizeCampaignStatus($campaign, $queuedCount);
+        });
         $data = $campaigns->getCollection()->map(fn (NewsletterCampaign $campaign) => $this->mapCampaign($campaign))->all();
 
         return $this->paginated($campaigns, $data);
@@ -41,6 +48,9 @@ class EmailCampaignController extends ApiController
         if ($response = $this->ensureOrgScope($request, $campaign)) {
             return $response;
         }
+
+        $queuedCount = $campaign->recipients()->where('status', 'queued')->count();
+        $this->normalizeCampaignStatus($campaign, $queuedCount);
 
         return $this->success($this->mapCampaign($campaign));
     }
@@ -261,9 +271,26 @@ class EmailCampaignController extends ApiController
             'open_count' => $campaign->open_count,
             'click_count' => $campaign->click_count,
             'bounce_count' => $campaign->bounce_count,
+            'queued_recipients_count' => $campaign->queued_recipients_count ?? null,
             'created_at' => $campaign->created_at,
             'updated_at' => $campaign->updated_at,
         ];
+    }
+
+    private function normalizeCampaignStatus(NewsletterCampaign $campaign, int $queuedCount): void
+    {
+        if ($campaign->status !== 'sending' || $queuedCount > 0) {
+            return;
+        }
+
+        $sentAt = $campaign->recipients()
+            ->whereNotNull('sent_at')
+            ->latest('sent_at')
+            ->value('sent_at');
+
+        $campaign->status = 'sent';
+        $campaign->sent_at = $campaign->sent_at ?? $sentAt ?? now();
+        $campaign->save();
     }
 
     private function applyMergeTags(NewsletterCampaign $campaign, array $data): array

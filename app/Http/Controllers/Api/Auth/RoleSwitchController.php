@@ -75,6 +75,7 @@ class RoleSwitchController extends ApiController
                     'name' => $request->input('display_name'),
                     'title' => 'Teacher',
                     'role' => 'teacher',
+                    'bio' => $request->input('bio', ''),
                 ]);
             }
 

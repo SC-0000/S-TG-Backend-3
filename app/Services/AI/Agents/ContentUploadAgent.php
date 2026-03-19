@@ -339,6 +339,19 @@ class ContentUploadAgent
         ?string $parentType = null
     ): AIUploadProposal {
         $data = $this->normalizeYearGroupData($data);
+        $sessionYearGroup = $session->getYearGroup();
+        if ($sessionYearGroup) {
+            if ($contentType === AIUploadProposal::TYPE_QUESTION) {
+                if (empty($data['grade'])) {
+                    $data['grade'] = $sessionYearGroup;
+                }
+            }
+            if ($contentType === AIUploadProposal::TYPE_ASSESSMENT) {
+                if (empty($data['year_group'])) {
+                    $data['year_group'] = $sessionYearGroup;
+                }
+            }
+        }
 
         if ($contentType === AIUploadProposal::TYPE_QUESTION) {
             $data = $this->normalizeQuestionProposalData($data);
@@ -410,6 +423,10 @@ class ContentUploadAgent
 
         if (!isset($data['marks']) || $data['marks'] === null) {
             $data['marks'] = 1;
+        }
+
+        if (empty($data['status'])) {
+            $data['status'] = 'active';
         }
 
         if (empty($data['title'])) {
@@ -1074,7 +1091,7 @@ class ContentUploadAgent
         $validStatuses = ['active', 'inactive', 'archived'];
 
         if (!in_array($normalizedStatus, $validStatuses, true)) {
-            $normalizedStatus = 'inactive';
+            $normalizedStatus = 'active';
         }
 
         $data['status'] = $normalizedStatus;

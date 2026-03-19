@@ -9,6 +9,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Sanctum\HasApiTokens;
+use App\Mail\PasswordResetLink;
+use App\Support\MailContext;
 
 class User extends Authenticatable implements MustVerifyEmail  // ← implement interface
 {
@@ -109,6 +111,13 @@ class User extends Authenticatable implements MustVerifyEmail  // ← implement 
     public function hasRole(string $role): bool
     {
         return $this->role === $role;
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $organization = MailContext::resolveOrganization(null, $this, null, request());
+        $mailable = new PasswordResetLink($this, $token, $organization);
+        MailContext::sendMailable($this->email, $mailable);
     }
     public function permissions()
 {
