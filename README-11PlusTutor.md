@@ -200,16 +200,10 @@ function App() {
 -   Glass effects: `bg-white/10 backdrop-blur-sm`
 
 ### Animations
-<<<<<<< Updated upstream
 
 -   **Entrance animations**: `whileInView` with `viewport={{ once: true }}`
 -   **Hover effects**: `whileHover={{ scale: 1.05 }}`
 -   **Stagger children**: Use `staggerChildren` for list animations
-=======
-- **Entrance animations**: `whileInView` with `viewport={{ once: true }}`
-- **Hover effects**: `whilehover={{ scale: 1.05 }}`
-- **Stagger children**: Use `staggerChildren` for list animations
->>>>>>> Stashed changes
 
 ### Responsive Design
 

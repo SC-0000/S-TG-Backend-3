@@ -23,7 +23,7 @@ class QuestionBankController extends BaseQuestionController
         $orgId = $request->attributes->get('organization_id');
 
         $query = Question::query()
-            ->with(['creator:id,name', 'organization:id,name']);
+            ->with(['creator:id,name,avatar_path', 'organization:id,name']);
 
         if ($user?->isSuperAdmin()) {
             if ($request->filled('organization_id')) {

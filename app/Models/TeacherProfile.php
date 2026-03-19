@@ -19,6 +19,7 @@ class TeacherProfile extends Model
         'metadata',
         'max_hours_per_day',
         'max_hours_per_week',
+        'auto_bookable',
     ];
 
     protected $casts = [
@@ -26,6 +27,7 @@ class TeacherProfile extends Model
         'metadata' => 'array',
         'max_hours_per_day' => 'integer',
         'max_hours_per_week' => 'integer',
+        'auto_bookable' => 'boolean',
     ];
 
     /**
@@ -50,6 +52,14 @@ class TeacherProfile extends Model
     public function availabilityExceptions()
     {
         return $this->hasMany(TeacherAvailabilityException::class, 'teacher_profile_id');
+    }
+
+    /**
+     * Schedule allocations (fixed classes + bookable blocks).
+     */
+    public function allocations()
+    {
+        return $this->hasMany(ScheduleAllocation::class, 'teacher_profile_id');
     }
 
     /**

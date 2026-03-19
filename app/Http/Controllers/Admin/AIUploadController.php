@@ -304,7 +304,7 @@ class AIUploadController extends Controller
             foreach ($proposals as $proposal) {
                 if ($proposal->content_type === AIUploadProposal::TYPE_QUESTION
                     && $proposal->parent_type === 'assessment') {
-                    $questionModel = $proposal->createModel($organizationId);
+                    $questionModel = $proposal->createModel($organizationId, $user->id);
 
                     if ($questionModel) {
                         $assessmentQuestions[$proposal->parent_proposal_id][] = [
@@ -402,7 +402,7 @@ class AIUploadController extends Controller
                     $proposal->update([
                         'proposed_data' => $data,
                     ]);
-                    $model = $proposal->createModel($organizationId);
+                    $model = $proposal->createModel($organizationId, $user->id);
                 }
 
                 if ($model) {

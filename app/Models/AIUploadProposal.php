@@ -380,16 +380,30 @@ class AIUploadProposal extends Model
     /**
      * Create the actual model from this proposal
      */
-    public function createModel(int $organizationId = null): ?Model
+    public function createModel(int $organizationId = null, int $userId = null): ?Model
     {
         if (!$this->is_valid) {
             return null;
         }
 
         $data = $this->proposed_data;
-        
+
         if ($organizationId) {
             $data['organization_id'] = $organizationId;
+        }
+
+        if ($userId && empty($data['created_by'])) {
+            $data['created_by'] = $userId;
+        }
+
+        // Mark questions as AI-generated in their ai_metadata
+        if ($this->content_type === self::TYPE_QUESTION) {
+            $meta = $data['ai_metadata'] ?? [];
+            if (is_string($meta)) {
+                $meta = json_decode($meta, true) ?? [];
+            }
+            $meta['is_ai_generated'] = true;
+            $data['ai_metadata'] = $meta;
         }
 
         $model = null;

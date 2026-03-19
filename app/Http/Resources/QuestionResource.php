@@ -30,6 +30,9 @@ class QuestionResource extends ApiResource
                 return [
                     'id' => $this->creator?->id,
                     'name' => $this->creator?->name,
+                    'avatar_url' => $this->creator?->avatar_path
+                        ? '/storage/' . $this->creator->avatar_path
+                        : null,
                 ];
             }),
             'organization' => $this->whenLoaded('organization', function () {

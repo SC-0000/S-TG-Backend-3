@@ -31,8 +31,6 @@ use App\Http\Controllers\Api\Admin\YearGroupController as ApiAdminYearGroupContr
 use App\Http\Controllers\Api\Admin\NotificationController as ApiAdminNotificationController;
 use App\Http\Controllers\Api\Admin\ChildController as ApiAdminChildController;
 use App\Http\Controllers\Api\Admin\UserController as ApiAdminUserController;
-use App\Http\Controllers\Api\Admin\EmailCampaignController as ApiAdminEmailCampaignController;
-use App\Http\Controllers\Api\Admin\EmailSubscriberController as ApiAdminEmailSubscriberController;
 use App\Http\Controllers\Api\Public\ContentController as PublicContentController;
 use App\Http\Controllers\Api\Public\ApplicationController as ApiPublicApplicationController;
 use App\Http\Controllers\Api\Public\ApeAcademyController as ApiPublicApeAcademyController;
@@ -694,20 +692,6 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
             Route::get('/dashboard', [ApiAdminDashboardController::class, 'index'])->name('api.v1.admin.dashboard');
 
-            Route::prefix('email-subscribers')->group(function () {
-                Route::get('/', [ApiAdminEmailSubscriberController::class, 'index'])->name('api.v1.admin.email-subscribers.index');
-                Route::post('/', [ApiAdminEmailSubscriberController::class, 'store'])->name('api.v1.admin.email-subscribers.store');
-            });
-
-            Route::prefix('email-campaigns')->group(function () {
-                Route::get('/', [ApiAdminEmailCampaignController::class, 'index'])->name('api.v1.admin.email-campaigns.index');
-                Route::post('/', [ApiAdminEmailCampaignController::class, 'store'])->name('api.v1.admin.email-campaigns.store');
-                Route::get('/{campaign}', [ApiAdminEmailCampaignController::class, 'show'])->name('api.v1.admin.email-campaigns.show');
-                Route::put('/{campaign}', [ApiAdminEmailCampaignController::class, 'update'])->name('api.v1.admin.email-campaigns.update');
-                Route::post('/{campaign}/send', [ApiAdminEmailCampaignController::class, 'send'])->name('api.v1.admin.email-campaigns.send');
-                Route::post('/{campaign}/test', [ApiAdminEmailCampaignController::class, 'test'])->name('api.v1.admin.email-campaigns.test');
-            });
-
             Route::prefix('subscriptions')->group(function () {
                 Route::get('/', [ApiAdminSubscriptionController::class, 'index'])->name('api.v1.admin.subscriptions.index');
                 Route::post('/', [ApiAdminSubscriptionController::class, 'store'])->name('api.v1.admin.subscriptions.store');
@@ -761,6 +745,17 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('/teachers/{userId}/availability', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminIndex'])
                 ->name('api.v1.admin.teachers.availability');
 
+            // Admin: Unified teacher schedule (allocations + working hours + lessons)
+            Route::prefix('schedule/{teacherId}')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'show'])->name('api.v1.admin.schedule.show');
+                Route::post('/allocations', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'storeAllocation'])->name('api.v1.admin.schedule.allocations.store');
+                Route::put('/allocations/{id}', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'updateAllocation'])->name('api.v1.admin.schedule.allocations.update');
+                Route::delete('/allocations/{id}', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'destroyAllocation'])->name('api.v1.admin.schedule.allocations.destroy');
+                Route::post('/working-hours', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'updateWorkingHours'])->name('api.v1.admin.schedule.working-hours');
+                Route::post('/generate-lessons', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'generateLessons'])->name('api.v1.admin.schedule.generate-lessons');
+                Route::put('/settings', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'updateSettings'])->name('api.v1.admin.schedule.settings');
+                Route::patch('/lessons/{lessonId}/assign', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'assignLesson'])->name('api.v1.admin.schedule.lessons.assign');
+            });
             Route::prefix('notifications')->group(function () {
                 Route::get('/', [ApiAdminNotificationController::class, 'index'])->name('api.v1.admin.notifications.index');
                 Route::get('/create-data', [ApiAdminNotificationController::class, 'createData'])->name('api.v1.admin.notifications.create-data');

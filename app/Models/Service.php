@@ -30,6 +30,7 @@ class Service extends Model
         'end_datetime',
         'display_until',
         'session_duration_minutes',
+        'default_lesson_mode',     // online | in_person | both — controls parent booking mode choice
         'max_participants',
         'quantity',
         'quantity_remaining',
@@ -65,6 +66,7 @@ class Service extends Model
         'selection_config'          => 'array',
         'teacher_ids'               => 'array',
         'session_duration_minutes'  => 'integer',
+        'default_lesson_mode'       => 'string',
         'max_participants'          => 'integer',
         'cancellation_hours'        => 'integer',
         'credits_per_purchase'      => 'integer',

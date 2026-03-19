@@ -11,6 +11,7 @@ class Lesson extends Model
     
     protected $fillable = [
         'title','description','lesson_type','lesson_mode',
+        'max_participants',
         'start_time','end_time','address','meeting_link',
         'live_lesson_session_id','instructor_id','service_id','status','journey_category_id',
         'year_group','organization_id','is_global',
