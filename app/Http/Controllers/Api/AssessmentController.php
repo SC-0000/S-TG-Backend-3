@@ -49,7 +49,7 @@ class AssessmentController extends ApiController
             });
         }
 
-        ApiQuery::applySort($query, $request, ['created_at', 'title', 'deadline', 'availability'], '-created_at');
+        ApiQuery::applySort($query, $request, ['created_at', 'updated_at', 'title', 'deadline', 'availability'], '-updated_at');
 
         $assessments = $query->paginate(ApiPagination::perPage($request, 20));
         $data = AssessmentResource::collection($assessments->items())->resolve();

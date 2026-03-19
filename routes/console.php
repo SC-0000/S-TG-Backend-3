@@ -56,6 +56,19 @@ if (config('queue.agent_queue') && config('queue.agent_queue') !== 'default') {
         ->withoutOverlapping();
 }
 
+// Scheduling: auto-generate lessons from fixed allocations (weekly)
+Schedule::command('schedule:generate-lessons --weeks=1')
+    ->weekly()
+    ->mondays()
+    ->at('06:00')
+    ->name('schedule:generate-lessons')
+    ->withoutOverlapping();
+
+// Audit log: delete records older than 90 days (keep DB lean)
+Schedule::call(function () {
+    \App\Services\AuditLogger::cleanup(90);
+})->daily()->name('audit-logs:cleanup')->withoutOverlapping();
+
 // Background Agent System: clean up stale/orphaned runs
 Schedule::call(function () {
     // Runs stuck as "pending" for more than 10 minutes → mark failed

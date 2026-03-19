@@ -7,12 +7,16 @@ use App\Models\AssessmentSubmission;
 use App\Models\AdminTask;
 use App\Models\ContentLesson;
 use App\Models\Course;
+use App\Models\JourneyCategory;
 use App\Models\Lesson;
 use App\Models\Module;
 use App\Models\Question;
+use App\Models\ScheduleAllocation;
+use App\Models\Service;
 use App\Listeners\BackgroundAgentEventSubscriber;
 use App\Observers\AdminTaskObserver;
 use App\Observers\AssessmentSubmissionObserver;
+use App\Observers\AuditLogObserver;
 use App\Observers\ContentObserver;
 use App\Observers\UidObserver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -47,6 +51,25 @@ class AppServiceProvider extends ServiceProvider
         ContentLesson::observe(ContentObserver::class);
         Course::observe(ContentObserver::class);
         Module::observe(ContentObserver::class);
+
+        // ── Audit logging ────────────────────────────────────────────────────
+        // Records created / updated / deleted events for all key content models.
+        $auditModels = [
+            Question::class,
+            ContentLesson::class,
+            Assessment::class,
+            AssessmentSubmission::class,
+            Course::class,
+            Module::class,
+            Lesson::class,
+            JourneyCategory::class,
+            Service::class,
+            ScheduleAllocation::class,
+            AdminTask::class,
+        ];
+        foreach ($auditModels as $model) {
+            $model::observe(AuditLogObserver::class);
+        }
 
         // Background Agent event subscriber
         Event::subscribe(BackgroundAgentEventSubscriber::class);
