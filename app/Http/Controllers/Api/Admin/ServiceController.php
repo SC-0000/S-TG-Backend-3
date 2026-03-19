@@ -486,17 +486,23 @@ class ServiceController extends ApiController
                     ? $service->default_lesson_mode
                     : 'online');
 
+            // Per-session capacity: override service default when explicitly set on the row
+            $perSessionCap = isset($sessionData['max_participants']) && (int) $sessionData['max_participants'] > 0
+                ? (int) $sessionData['max_participants']
+                : null;
+
             $lesson = Lesson::create([
-                'title'           => $service->service_name . ' — Session ' . ($index + 1),
-                'lesson_type'     => $lessonType,
-                'lesson_mode'     => $mode,
-                'start_time'      => $start,
-                'end_time'        => $end,
-                'instructor_id'   => $sessionData['teacher_id'] ?? null,
-                'service_id'      => $service->id,
-                'organization_id' => $service->organization_id,
-                'status'          => 'scheduled',
-                'is_global'       => $service->is_global,
+                'title'            => $service->service_name . ' — Session ' . ($index + 1),
+                'lesson_type'      => $lessonType,
+                'lesson_mode'      => $mode,
+                'max_participants' => $perSessionCap,
+                'start_time'       => $start,
+                'end_time'         => $end,
+                'instructor_id'    => $sessionData['teacher_id'] ?? null,
+                'service_id'       => $service->id,
+                'organization_id'  => $service->organization_id,
+                'status'           => 'scheduled',
+                'is_global'        => $service->is_global,
             ]);
 
             $createdIds[] = $lesson->id;

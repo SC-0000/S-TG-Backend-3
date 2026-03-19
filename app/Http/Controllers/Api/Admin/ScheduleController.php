@@ -50,18 +50,78 @@ class ScheduleController extends Controller
                             ->orWhere('teacher_ids', 'null');
                     });
             })
-            ->select('id', 'service_name', '_type', 'booking_mode', 'session_duration_minutes', 'max_participants', 'credits_per_purchase', 'price')
+            ->select('id', 'service_name', '_type', 'booking_mode', 'session_duration_minutes', 'max_participants', 'credits_per_purchase', 'price', 'default_lesson_mode', 'teacher_ids')
             ->get();
 
         // If no services matched via teacher filtering, also include org-level services as fallback
         if ($schedule['services']->isEmpty() && $schedule['teacher']) {
             $schedule['services'] = \App\Models\Service::whereIn('booking_mode', ['flexible_booking', 'fixed_schedule'])
                 ->where('availability', true)
-                ->select('id', 'service_name', '_type', 'booking_mode', 'session_duration_minutes', 'max_participants', 'credits_per_purchase', 'price')
+                ->select('id', 'service_name', '_type', 'booking_mode', 'session_duration_minutes', 'max_participants', 'credits_per_purchase', 'price', 'default_lesson_mode', 'teacher_ids')
                 ->get();
         }
 
+        // Pending/unscheduled lessons — sessions linked to this teacher's services
+        // that have no instructor assigned yet (need scheduling attention)
+        $serviceIds = $schedule['services']->pluck('id')->all();
+        if (!empty($serviceIds)) {
+            $schedule['pending_lessons'] = \App\Models\Lesson::whereIn('service_id', $serviceIds)
+                ->whereNull('instructor_id')
+                ->whereNotIn('status', ['cancelled', 'completed', 'draft'])
+                ->with(['service:id,service_name,session_duration_minutes,max_participants,booking_mode,default_lesson_mode', 'children:id,child_name'])
+                ->withCount('children as participants_count')
+                ->orderByRaw('start_time IS NULL DESC')
+                ->orderBy('start_time')
+                ->orderBy('created_at', 'desc')
+                ->limit(100)
+                ->get()
+                ->map(function ($l) {
+                    return [
+                        'id'                 => $l->id,
+                        'title'              => $l->title,
+                        'start_time'         => $l->start_time?->toIso8601String(),
+                        'end_time'           => $l->end_time?->toIso8601String(),
+                        'status'             => $l->status,
+                        'lesson_type'        => $l->lesson_type,
+                        'lesson_mode'        => $l->lesson_mode,
+                        'participants_count' => $l->participants_count,
+                        'max_participants'   => $l->max_participants ?? $l->service?->max_participants,
+                        'student_name'       => $l->children->pluck('child_name')->join(', ') ?: null,
+                        'service_name'       => $l->service?->service_name ?? $l->title,
+                        'service_id'         => $l->service_id,
+                        'booking_mode'       => $l->service?->booking_mode,
+                        'session_duration_minutes' => $l->service?->session_duration_minutes,
+                        'instructor_id'      => $l->instructor_id,
+                    ];
+                });
+        } else {
+            $schedule['pending_lessons'] = collect([]);
+        }
+
         return response()->json($schedule);
+    }
+
+    /* =============================================================
+     |  PATCH /api/v1/admin/schedule/{teacherId}/lessons/{lessonId}/assign
+     |  Quick-assign a lesson to a teacher + time without full validation
+     | ============================================================= */
+    public function assignLesson(Request $request, int $teacherId, int $lessonId): JsonResponse
+    {
+        $data = $request->validate([
+            'instructor_id' => 'required|integer|exists:users,id',
+            'start_time'    => 'required|date',
+            'end_time'      => 'required|date|after:start_time',
+        ]);
+
+        $lesson = \App\Models\Lesson::findOrFail($lessonId);
+        $lesson->update([
+            'instructor_id' => $data['instructor_id'],
+            'start_time'    => $data['start_time'],
+            'end_time'      => $data['end_time'],
+            'status'        => 'scheduled',
+        ]);
+
+        return response()->json(['message' => 'Session assigned.', 'lesson' => $lesson->only(['id', 'instructor_id', 'start_time', 'end_time', 'status'])]);
     }
 
     /* =============================================================

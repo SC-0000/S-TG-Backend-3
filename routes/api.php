@@ -772,6 +772,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::post('/working-hours', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'updateWorkingHours'])->name('api.v1.admin.schedule.working-hours');
                 Route::post('/generate-lessons', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'generateLessons'])->name('api.v1.admin.schedule.generate-lessons');
                 Route::put('/settings', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'updateSettings'])->name('api.v1.admin.schedule.settings');
+                Route::patch('/lessons/{lessonId}/assign', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'assignLesson'])->name('api.v1.admin.schedule.lessons.assign');
             });
 
             Route::prefix('notifications')->group(function () {
