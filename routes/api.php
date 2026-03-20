@@ -60,6 +60,7 @@ use App\Http\Controllers\Api\PortalController as ApiPortalController;
 use App\Http\Controllers\TrackerController;
 use App\Http\Controllers\Api\PortalCourseController as ApiPortalCourseController;
 use App\Http\Controllers\Api\PortalLessonController as ApiPortalLessonController;
+use App\Http\Controllers\Api\PortalHomeworkController as ApiPortalHomeworkController;
 use App\Http\Controllers\Api\JourneyController as ApiJourneyController;
 use App\Http\Controllers\Api\MediaAssetController as ApiMediaAssetController;
 use App\Http\Controllers\Api\NotificationController as ApiNotificationController;
@@ -369,6 +370,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         });
 
         Route::prefix('homework')->group(function () {
+            Route::get('/create-data', [ApiHomeworkAssignmentController::class, 'createData'])
+                ->middleware('role:admin,teacher,super_admin')
+                ->name('api.v1.homework.create-data');
             Route::get('/', [ApiHomeworkAssignmentController::class, 'index'])
                 ->middleware('role:admin,teacher,super_admin')
                 ->name('api.v1.homework.index');
@@ -377,19 +381,24 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 ->name('api.v1.homework.store');
             Route::get('/{homework}', [ApiHomeworkAssignmentController::class, 'show'])
                 ->middleware('role:admin,teacher,super_admin')
+                ->whereNumber('homework')
                 ->name('api.v1.homework.show');
             Route::put('/{homework}', [ApiHomeworkAssignmentController::class, 'update'])
                 ->middleware('role:admin,teacher,super_admin')
+                ->whereNumber('homework')
                 ->name('api.v1.homework.update');
             Route::delete('/{homework}', [ApiHomeworkAssignmentController::class, 'destroy'])
                 ->middleware('role:admin,teacher,super_admin')
+                ->whereNumber('homework')
                 ->name('api.v1.homework.destroy');
 
             Route::get('/{homework}/submissions', [ApiHomeworkSubmissionController::class, 'index'])
                 ->middleware('role:parent,guest_parent,admin,teacher,super_admin')
+                ->whereNumber('homework')
                 ->name('api.v1.homework.submissions.index');
             Route::post('/{homework}/submissions', [ApiHomeworkSubmissionController::class, 'store'])
                 ->middleware('role:parent,guest_parent')
+                ->whereNumber('homework')
                 ->name('api.v1.homework.submissions.store');
         });
 
@@ -555,6 +564,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('/calendar-feed', [ApiPortalController::class, 'calendarFeed'])->name('api.v1.portal.calendar-feed');
             Route::get('/tracker', [ApiPortalController::class, 'tracker'])->name('api.v1.portal.tracker');
             Route::get('/tracker-full', [TrackerController::class, 'show'])->name('api.v1.portal.tracker.full');
+            Route::get('/homework', [ApiPortalHomeworkController::class, 'index'])->name('api.v1.portal.homework.index');
+            Route::get('/homework/{homework}', [ApiPortalHomeworkController::class, 'show'])->name('api.v1.portal.homework.show');
             Route::get('/courses', [ApiPortalCourseController::class, 'browse'])->name('api.v1.portal.courses.browse');
             Route::get('/courses/my', [ApiPortalCourseController::class, 'myCourses'])->name('api.v1.portal.courses.my');
             Route::get('/courses/{course}', [ApiPortalCourseController::class, 'show'])->name('api.v1.portal.courses.show');

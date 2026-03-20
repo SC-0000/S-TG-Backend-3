@@ -6,14 +6,20 @@ class HomeworkSubmissionResource extends ApiResource
 {
     public function toArray($request): array
     {
+        $requestOrigin = request()?->getSchemeAndHttpHost();
         $attachments = $this->attachments ?? [];
-        $attachments = collect($attachments)->map(function ($path) {
+        $attachments = collect($attachments)->map(function ($path) use ($requestOrigin) {
             if (!$path) {
                 return null;
             }
-            return str_starts_with($path, '/storage/')
+            if (is_string($path) && preg_match('/^https?:\/\//i', $path)) {
+                return $path;
+            }
+            $relativePath = str_starts_with($path, '/storage/')
                 ? $path
-                : "/storage/{$path}";
+                : '/storage/' . ltrim((string) $path, '/');
+
+            return $requestOrigin ? "{$requestOrigin}{$relativePath}" : $relativePath;
         })->filter()->values()->all();
 
         return [
@@ -26,6 +32,8 @@ class HomeworkSubmissionResource extends ApiResource
             'attachments' => $attachments,
             'grade' => $this->grade,
             'feedback' => $this->feedback,
+            'graded_by' => $this->graded_by,
+            'attempt' => $this->attempt,
             'submitted_at' => $this->submitted_at?->toISOString(),
             'reviewed_at' => $this->reviewed_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
