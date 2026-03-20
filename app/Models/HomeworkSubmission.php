@@ -15,6 +15,8 @@ class HomeworkSubmission extends Model
         'attachments',
         'grade',
         'feedback',
+        'graded_by',
+        'attempt',
         'submitted_at',
         'reviewed_at',
     ];
@@ -38,5 +40,10 @@ class HomeworkSubmission extends Model
     public function organization()
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function gradedBy()
+    {
+        return $this->belongsTo(User::class, 'graded_by');
     }
 }
