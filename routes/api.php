@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\Admin\UserController as ApiAdminUserController;
 use App\Http\Controllers\Api\Admin\EmailCampaignController as ApiAdminEmailCampaignController;
 use App\Http\Controllers\Api\Admin\EmailSubscriberController as ApiAdminEmailSubscriberController;
 use App\Http\Controllers\Api\Admin\CommunicationController as ApiAdminCommunicationController;
+use App\Http\Controllers\Api\Admin\AdminAuditLogController as ApiAdminAuditLogController;
 use App\Http\Controllers\Api\Public\ContentController as PublicContentController;
 use App\Http\Controllers\Api\Public\ApplicationController as ApiPublicApplicationController;
 use App\Http\Controllers\Api\Public\ApeAcademyController as ApiPublicApeAcademyController;
@@ -694,6 +695,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
         Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
             Route::get('/dashboard', [ApiAdminDashboardController::class, 'index'])->name('api.v1.admin.dashboard');
+            Route::get('/audit-logs', [ApiAdminAuditLogController::class, 'index'])->name('api.v1.admin.audit-logs.index');
 
             Route::prefix('email-subscribers')->group(function () {
                 Route::get('/', [ApiAdminEmailSubscriberController::class, 'index'])->name('api.v1.admin.email-subscribers.index');

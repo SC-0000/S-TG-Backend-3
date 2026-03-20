@@ -23,6 +23,8 @@ class UserResource extends ApiResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role,
+            'phone' => $this->mobile_number,
+            'mobile_number' => $this->mobile_number,
             'avatar_url' => $this->avatar_path
                 ? '/storage/' . $this->avatar_path
                 : null,

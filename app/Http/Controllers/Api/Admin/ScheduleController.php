@@ -98,6 +98,51 @@ class ScheduleController extends Controller
             $schedule['pending_lessons'] = collect([]);
         }
 
+        // All sessions for this teacher's services — wider date range for sidebar display
+        // Covers last 14 days + next 90 days so sidebar shows past + upcoming sessions
+        if (!empty($serviceIds)) {
+            $schedule['service_sessions'] = \App\Models\Lesson::whereIn('service_id', $serviceIds)
+                ->whereNotIn('status', ['cancelled', 'draft'])
+                ->where(function ($q) {
+                    $q->where('start_time', '>=', now()->subDays(14))
+                      ->orWhereNull('start_time');
+                })
+                ->with(['service:id,service_name', 'children:id,child_name'])
+                ->withCount('children as participants_count')
+                ->orderByRaw('start_time IS NULL DESC')
+                ->orderBy('start_time')
+                ->limit(300)
+                ->get()
+                ->map(function ($l) {
+                    // Resolve instructor name from User model
+                    $instructorName = null;
+                    if ($l->instructor_id) {
+                        $instructorName = \App\Models\User::find($l->instructor_id, ['id', 'name'])?->name;
+                    }
+                    return [
+                        'id'                      => $l->id,
+                        'title'                   => $l->title,
+                        'start_time'              => $l->start_time?->toIso8601String(),
+                        'end_time'                => $l->end_time?->toIso8601String(),
+                        'status'                  => $l->status,
+                        'lesson_type'             => $l->lesson_type,
+                        'lesson_mode'             => $l->lesson_mode,
+                        'participants_count'      => $l->participants_count,
+                        'max_participants'        => $l->max_participants,
+                        'student_name'            => $l->children->pluck('child_name')->join(', ') ?: null,
+                        'service_name'            => $l->service?->service_name ?? $l->title,
+                        'service_id'              => $l->service_id,
+                        'instructor_id'           => $l->instructor_id,
+                        'instructor_name'         => $instructorName,
+                        'session_duration_minutes'=> $l->start_time && $l->end_time
+                            ? \Carbon\Carbon::parse($l->start_time)->diffInMinutes(\Carbon\Carbon::parse($l->end_time))
+                            : null,
+                    ];
+                });
+        } else {
+            $schedule['service_sessions'] = collect([]);
+        }
+
         return response()->json($schedule);
     }
 

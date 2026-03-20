@@ -4,15 +4,24 @@ namespace App\Providers;
 
 use App\Models\Assessment;
 use App\Models\AssessmentSubmission;
+use App\Models\Alert;
 use App\Models\AdminTask;
+use App\Models\Article;
 use App\Models\ContentLesson;
 use App\Models\Course;
+use App\Models\Faq;
 use App\Models\JourneyCategory;
 use App\Models\Lesson;
+use App\Models\LessonMaterial;
+use App\Models\LessonSlide;
+use App\Models\MediaAsset;
+use App\Models\Milestone;
 use App\Models\Module;
 use App\Models\Question;
 use App\Models\ScheduleAllocation;
 use App\Models\Service;
+use App\Models\Slide;
+use App\Models\Testimonial;
 use App\Listeners\BackgroundAgentEventSubscriber;
 use App\Observers\AdminTaskObserver;
 use App\Observers\AssessmentSubmissionObserver;
@@ -57,13 +66,22 @@ class AppServiceProvider extends ServiceProvider
         $auditModels = [
             Question::class,
             ContentLesson::class,
+            LessonSlide::class,
             Assessment::class,
             AssessmentSubmission::class,
             Course::class,
             Module::class,
             Lesson::class,
+            LessonMaterial::class,
             JourneyCategory::class,
             Service::class,
+            MediaAsset::class,
+            Article::class,
+            Faq::class,
+            Alert::class,
+            Slide::class,
+            Testimonial::class,
+            Milestone::class,
             ScheduleAllocation::class,
             AdminTask::class,
         ];

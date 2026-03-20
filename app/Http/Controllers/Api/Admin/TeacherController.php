@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\ApiPagination;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
 
@@ -251,6 +252,7 @@ class TeacherController extends ApiController
                 'email' => $email,
                 'password' => Hash::make($password),
                 'role' => User::ROLE_TEACHER,
+                'mobile_number' => $data['user_mobile_number'] ?? null,
                 'current_organization_id' => $orgId,
             ]);
 
@@ -275,7 +277,7 @@ class TeacherController extends ApiController
             : [];
         $data['metadata'] = $data['metadata'] ?? [];
 
-        unset($data['user_email'], $data['user_password'], $data['user_password_confirmation']);
+        unset($data['user_email'], $data['user_password'], $data['user_password_confirmation'], $data['user_mobile_number']);
 
         $teacher = Teacher::create($data);
 
@@ -302,10 +304,12 @@ class TeacherController extends ApiController
         }
 
         $users = User::select('id', 'name', 'email', 'mobile_number')->orderBy('name')->get();
+        $linkedUser = $teacher->user()->select('id', 'name', 'email', 'mobile_number')->first();
 
         return $this->success([
             'teacher' => $teacher,
             'users' => $users,
+            'linked_user' => $linkedUser,
         ]);
     }
 
@@ -316,7 +320,19 @@ class TeacherController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        $data = $this->validateProfile($request);
+        $data = $this->validateProfile($request, $teacher);
+
+        $linkedUserId = $data['user_id'] ?? $teacher->user_id;
+        $linkedUser = $linkedUserId ? User::find($linkedUserId) : null;
+
+        if ($linkedUser) {
+            $linkedUser->fill([
+                'name' => $data['name'],
+                'email' => $data['user_email'] ?? $linkedUser->email,
+                'mobile_number' => $data['user_mobile_number'] ?? $linkedUser->mobile_number,
+            ]);
+            $linkedUser->save();
+        }
 
         if ($request->hasFile('image')) {
             if ($teacher->image_path) {
@@ -329,6 +345,8 @@ class TeacherController extends ApiController
             ? array_map('trim', $data['specialties'])
             : [];
         $data['metadata'] = $data['metadata'] ?? [];
+
+        unset($data['user_email'], $data['user_password'], $data['user_password_confirmation'], $data['user_mobile_number']);
 
         $teacher->update($data);
 
@@ -382,8 +400,10 @@ class TeacherController extends ApiController
         return $this->success(['message' => 'Teacher archived successfully.']);
     }
 
-    private function validateProfile(Request $request): array
+    private function validateProfile(Request $request, ?Teacher $teacher = null): array
     {
+        $linkedUserId = $request->input('user_id') ?: $teacher?->user_id;
+
         return $request->validate([
             'user_id' => 'nullable|exists:users,id',
             'name' => 'required|string|max:255',
@@ -397,7 +417,12 @@ class TeacherController extends ApiController
             'metadata.address' => 'nullable|string',
             'specialties' => 'nullable|array',
             'image' => 'nullable|image|max:2048',
-            'user_email' => 'nullable|email',
+            'user_email' => [
+                'nullable',
+                'email',
+                Rule::unique('users', 'email')->ignore($linkedUserId),
+            ],
+            'user_mobile_number' => 'nullable|string|max:255',
             'user_password' => 'nullable|string|min:8|confirmed',
         ]);
     }

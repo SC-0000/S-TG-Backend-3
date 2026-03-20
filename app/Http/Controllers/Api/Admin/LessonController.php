@@ -108,7 +108,7 @@ class LessonController extends ApiController
 
         $instructor = null;
         if ($lesson->instructor_id) {
-            $instructor = User::find($lesson->instructor_id, ['id', 'name', 'email', 'avatar']);
+            $instructor = User::find($lesson->instructor_id, ['id', 'name', 'email', 'avatar_path']);
         }
 
         // Live classroom session (recording, stats)

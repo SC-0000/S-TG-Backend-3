@@ -37,14 +37,23 @@ class AuditLogger
     /** Map of model class → resource_type slug. */
     private const TYPE_MAP = [
         \App\Models\Question::class         => 'question',
-        \App\Models\ContentLesson::class    => 'content_lesson',
+        \App\Models\ContentLesson::class    => 'lesson',
+        \App\Models\LessonSlide::class      => 'lesson_slide',
         \App\Models\Assessment::class       => 'assessment',
         \App\Models\AssessmentSubmission::class => 'submission',
         \App\Models\Course::class           => 'course',
         \App\Models\Module::class           => 'module',
-        \App\Models\Lesson::class           => 'lesson',
+        \App\Models\Lesson::class           => 'session',
+        \App\Models\LessonMaterial::class   => 'material',
         \App\Models\JourneyCategory::class  => 'journey',
         \App\Models\Service::class          => 'service',
+        \App\Models\MediaAsset::class       => 'media',
+        \App\Models\Article::class          => 'article',
+        \App\Models\Faq::class              => 'faq',
+        \App\Models\Alert::class            => 'alert',
+        \App\Models\Slide::class            => 'slide',
+        \App\Models\Testimonial::class      => 'testimonial',
+        \App\Models\Milestone::class        => 'milestone',
         \App\Models\User::class             => 'user',
         \App\Models\ScheduleAllocation::class => 'allocation',
         \App\Models\AdminTask::class        => 'admin_task',
@@ -58,7 +67,7 @@ class AuditLogger
 
         try {
             $user   = auth()->user();
-            $orgId  = $model->organization_id ?? null;
+            $orgId  = static::resolveOrganizationId($model, $user);
 
             // request()->ip() is only valid in HTTP context — safe null in CLI/queue
             $ip = app()->runningInConsole() ? null : (request()->ip() ?? null);
@@ -134,13 +143,31 @@ class AuditLogger
 
     private static function resolveName(Model $model): ?string
     {
-        foreach (['title', 'name', 'question_text', 'subject', 'label'] as $field) {
+        foreach (['title', 'name', 'service_name', 'question', 'question_text', 'subject', 'label', 'Title', 'UserName', 'original_filename', 'material_url'] as $field) {
             $val = $model->getAttribute($field);
             if (!empty($val) && is_string($val)) {
                 return mb_strlen($val) > 120 ? mb_substr($val, 0, 120) . '…' : $val;
             }
         }
         return null;
+    }
+
+    private static function resolveOrganizationId(Model $model, ?object $user): ?int
+    {
+        $modelOrgId = $model->getAttribute('organization_id');
+        if (!empty($modelOrgId)) {
+            return (int) $modelOrgId;
+        }
+
+        if (!app()->runningInConsole()) {
+            $requestOrgId = request()->attributes->get('organization_id');
+            if (!empty($requestOrgId)) {
+                return (int) $requestOrgId;
+            }
+        }
+
+        $userOrgId = $user->current_organization_id ?? null;
+        return !empty($userOrgId) ? (int) $userOrgId : null;
     }
 
     private static function resolveRole(?object $user): ?string
