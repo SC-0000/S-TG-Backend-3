@@ -14,6 +14,7 @@ class ScheduleAllocation extends Model
     protected $fillable = [
         'teacher_profile_id',
         'service_id',
+        'service_ids',
         'day_of_week',
         'start_time',
         'end_time',
@@ -31,6 +32,7 @@ class ScheduleAllocation extends Model
         'max_participants'  => 'integer',
         'effective_from'    => 'date',
         'effective_until'   => 'date',
+        'service_ids'      => 'array',
     ];
 
     /* -----------------------------------------------------------

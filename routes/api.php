@@ -706,6 +706,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
         Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
             Route::get('/dashboard', [ApiAdminDashboardController::class, 'index'])->name('api.v1.admin.dashboard');
+            Route::get('/dashboard/delivery', [ApiAdminDashboardController::class, 'deliveryHub'])->name('api.v1.admin.dashboard.delivery');
             Route::get('/audit-logs', [ApiAdminAuditLogController::class, 'index'])->name('api.v1.admin.audit-logs.index');
 
             Route::prefix('email-subscribers')->group(function () {
@@ -776,12 +777,28 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             });
 
             // Admin: Teacher availability management
-            Route::get('/teachers/{userId}/availability', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminIndex'])
-                ->name('api.v1.admin.teachers.availability');
+            Route::prefix('teachers/{userId}/availability')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminIndex'])
+                    ->name('api.v1.admin.teachers.availability');
+                Route::post('/', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminStore'])
+                    ->name('api.v1.admin.teachers.availability.store');
+                Route::put('/bulk', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminBulkUpdate'])
+                    ->name('api.v1.admin.teachers.availability.bulk-update');
+                Route::delete('/{availability}', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminDestroy'])
+                    ->name('api.v1.admin.teachers.availability.destroy');
+                Route::post('/exceptions', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminStoreException'])
+                    ->name('api.v1.admin.teachers.availability.exceptions.store');
+                Route::delete('/exceptions/{exception}', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminDestroyException'])
+                    ->name('api.v1.admin.teachers.availability.exceptions.destroy');
+                Route::put('/settings', [\App\Http\Controllers\Api\TeacherAvailabilityController::class, 'adminUpdateSettings'])
+                    ->name('api.v1.admin.teachers.availability.settings');
+            });
 
             // Admin: Unified teacher schedule (allocations + working hours + lessons)
             Route::prefix('schedule/{teacherId}')->group(function () {
                 Route::get('/', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'show'])->name('api.v1.admin.schedule.show');
+                Route::post('/sessions', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'createSession'])->name('api.v1.admin.schedule.sessions.create');
+                Route::post('/sessions/{lessonId}/enrol', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'enrolStudent'])->name('api.v1.admin.schedule.sessions.enrol');
                 Route::post('/allocations', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'storeAllocation'])->name('api.v1.admin.schedule.allocations.store');
                 Route::put('/allocations/{id}', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'updateAllocation'])->name('api.v1.admin.schedule.allocations.update');
                 Route::delete('/allocations/{id}', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'destroyAllocation'])->name('api.v1.admin.schedule.allocations.destroy');
@@ -789,6 +806,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::post('/generate-lessons', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'generateLessons'])->name('api.v1.admin.schedule.generate-lessons');
                 Route::put('/settings', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'updateSettings'])->name('api.v1.admin.schedule.settings');
                 Route::patch('/lessons/{lessonId}/assign', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'assignLesson'])->name('api.v1.admin.schedule.lessons.assign');
+                Route::patch('/lessons/{lessonId}/cancel', [\App\Http\Controllers\Api\Admin\ScheduleController::class, 'cancelLesson'])->name('api.v1.admin.schedule.lessons.cancel');
             });
             Route::prefix('notifications')->group(function () {
                 Route::get('/', [ApiAdminNotificationController::class, 'index'])->name('api.v1.admin.notifications.index');

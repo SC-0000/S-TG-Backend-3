@@ -18,7 +18,7 @@ class Service extends Model
         'is_global',
         'service_name',
         '_type',                   // lesson | assessment | bundle | course | flexible
-        'booking_mode',            // fixed_schedule | flexible_booking | self_paced | none
+        'booking_mode',            // fixed_schedule | flexible_booking | requested | self_paced | none
         'service_level',           // basic | full_membership
         'availability',
         'price',
@@ -312,6 +312,11 @@ class Service extends Model
     public function isSelfPaced(): bool
     {
         return $this->booking_mode === 'self_paced';
+    }
+
+    public function isRequested(): bool
+    {
+        return $this->booking_mode === 'requested';
     }
 
     public function isCreditBased(): bool

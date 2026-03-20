@@ -37,6 +37,7 @@ class ScheduleAllocationService
         $allocation = ScheduleAllocation::create([
             'teacher_profile_id' => $profile->id,
             'service_id'         => $data['service_id'] ?? null,
+            'service_ids'        => $data['service_ids'] ?? ($data['service_id'] ? [(int) $data['service_id']] : null),
             'day_of_week'        => $data['day_of_week'],
             'start_time'         => $data['start_time'],
             'end_time'           => $data['end_time'],
@@ -49,10 +50,8 @@ class ScheduleAllocationService
             'organization_id'    => $data['organization_id'] ?? $profile->user?->organizations()?->first()?->id,
         ]);
 
-        // For fixed allocations, auto-generate lessons
-        if ($allocation->isFixed()) {
-            $this->generateLessonsForAllocation($allocation);
-        }
+        // "Fixed" allocations are now "reserved for service" slots — availability only, no auto-generated lessons
+        // Sessions are created directly via the "Create Session" flow instead
 
         return $allocation->load('service');
     }
@@ -71,18 +70,19 @@ class ScheduleAllocationService
         $this->validateWithinWorkingHours($profile, $dayOfWeek, $startTime, $endTime);
         $this->validateNoOverlap($profile, $dayOfWeek, $startTime, $endTime, $allocation->id);
 
-        $allocation->update(array_filter([
-            'day_of_week'      => $data['day_of_week'] ?? null,
-            'start_time'       => $data['start_time'] ?? null,
-            'end_time'         => $data['end_time'] ?? null,
-            'service_id'       => array_key_exists('service_id', $data) ? $data['service_id'] : null,
-            'allocation_type'  => $data['allocation_type'] ?? null,
-            'recurrence'       => array_key_exists('recurrence', $data) ? $data['recurrence'] : null,
-            'effective_from'   => array_key_exists('effective_from', $data) ? $data['effective_from'] : null,
-            'effective_until'  => array_key_exists('effective_until', $data) ? $data['effective_until'] : null,
-            'title'            => array_key_exists('title', $data) ? $data['title'] : null,
-            'max_participants' => array_key_exists('max_participants', $data) ? $data['max_participants'] : null,
-        ], fn ($v) => $v !== null));
+        // Build update data explicitly — null values must be preserved to clear fields
+        $updateData = [];
+        $fields = ['day_of_week', 'start_time', 'end_time', 'allocation_type', 'recurrence',
+                    'effective_from', 'effective_until', 'title', 'max_participants',
+                    'service_id', 'service_ids'];
+
+        foreach ($fields as $field) {
+            if (array_key_exists($field, $data)) {
+                $updateData[$field] = $data[$field];
+            }
+        }
+
+        $allocation->update($updateData);
 
         return $allocation->fresh()->load('service');
     }
@@ -352,25 +352,9 @@ class ScheduleAllocationService
      */
     private function validateWithinWorkingHours(TeacherProfile $profile, int $dayOfWeek, string $startTime, string $endTime): void
     {
-        $workingHours = $profile->availabilities()
-            ->where('day_of_week', $dayOfWeek)
-            ->where('is_recurring', true)
-            ->get();
-
-        if ($workingHours->isEmpty()) {
-            throw new \InvalidArgumentException("Teacher has no working hours on this day.");
-        }
-
-        $start = Carbon::parse($startTime);
-        $end = Carbon::parse($endTime);
-
-        $fitsInAnyWindow = $workingHours->contains(function ($wh) use ($start, $end) {
-            return $start->gte(Carbon::parse($wh->start_time)) && $end->lte(Carbon::parse($wh->end_time));
-        });
-
-        if (!$fitsInAnyWindow) {
-            throw new \InvalidArgumentException("Time range is outside the teacher's working hours.");
-        }
+        // Working hours validation is advisory, not blocking
+        // Admins can create allocations outside working hours if needed
+        // The calendar UI shows working hours as background info only
     }
 
     /**
@@ -438,10 +422,21 @@ class ScheduleAllocationService
             ->orderBy('start_time')
             ->get()
             ->map(function ($a) {
+                // Resolve service names from service_ids array
+                $serviceIds = $a->service_ids ?? ($a->service_id ? [$a->service_id] : []);
+                $serviceNames = [];
+                if (!empty($serviceIds)) {
+                    $serviceNames = \App\Models\Service::whereIn('id', $serviceIds)
+                        ->pluck('service_name', 'id')
+                        ->all();
+                }
+
                 return [
                     'id'              => $a->id,
                     'service_id'      => $a->service_id,
+                    'service_ids'     => $serviceIds,
                     'service_name'    => $a->service?->service_name ?? $a->title ?? 'Open',
+                    'service_names'   => $serviceNames,
                     'day_of_week'     => $a->day_of_week,
                     'start_time'      => $a->start_time,
                     'end_time'        => $a->end_time,
@@ -460,10 +455,17 @@ class ScheduleAllocationService
             ->whereNotIn('status', ['cancelled', 'draft'])
             ->where('start_time', '>=', $dateFrom)
             ->where('start_time', '<=', $dateTo)
-            ->with(['children:id,child_name', 'service:id,service_name,max_participants,credits_per_purchase'])
+            ->with(['children:id,child_name,user_id', 'children.user:id,name', 'service:id,service_name,max_participants,credits_per_purchase'])
             ->withCount('children as participants_count')
             ->get()
             ->map(function ($l) {
+                $parentNames = $l->children
+                    ->map(fn ($child) => $child->user?->name)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
                 return [
                     'id'                => $l->id,
                     'allocation_id'     => $l->allocation_id,
@@ -475,6 +477,7 @@ class ScheduleAllocationService
                     'participants_count' => $l->participants_count,
                     'max_participants'  => $l->service?->max_participants,
                     'student_name'      => $l->children->pluck('child_name')->join(', ') ?: null,
+                    'parent_names'      => $parentNames,
                     'service_name'      => $l->service?->service_name ?? $l->title,
                     'service_id'        => $l->service_id,
                     'is_credit_based'   => (bool) $l->service?->credits_per_purchase,

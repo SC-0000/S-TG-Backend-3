@@ -53,6 +53,87 @@ class DashboardController extends ApiController
         return $orgId ? (int) $orgId : null;
     }
 
+    /**
+     * GET /api/v1/admin/dashboard/delivery
+     * Enriched data for the Delivery Hub page.
+     */
+    public function deliveryHub(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user) return $this->error('Unauthenticated.', [], 401);
+
+        $orgId = $this->resolveOrganizationId($request);
+
+        // Sessions from start of today + next 14 days
+        $upcomingSessions = \App\Models\Lesson::query()
+            ->whereNotIn('status', ['cancelled', 'draft'])
+            ->whereNotNull('start_time')
+            ->where('start_time', '>=', now()->startOfDay())
+            ->where('start_time', '<=', now()->addDays(14)->endOfDay())
+            ->when($orgId, fn ($q) => $q->where(function ($q2) use ($orgId) {
+                $q2->where('organization_id', $orgId)->orWhereNull('organization_id');
+            }))
+            ->with([
+                'children:id,child_name',
+                'service:id,service_name,max_participants,session_duration_minutes',
+            ])
+            ->withCount('children as participants_count')
+            ->orderBy('start_time')
+            ->limit(50)
+            ->get()
+            ->map(function ($l) {
+                // Resolve instructor
+                $instructor = $l->instructor_id ? \App\Models\User::select('id', 'name', 'avatar_path')->find($l->instructor_id) : null;
+                $teacherRecord = $l->instructor_id ? \App\Models\Teacher::where('user_id', $l->instructor_id)->select('image_path')->first() : null;
+                $avatarUrl = $teacherRecord?->image_path ? '/storage/' . $teacherRecord->image_path
+                    : ($instructor?->avatar_path ? '/storage/' . $instructor->avatar_path : null);
+
+                $duration = $l->start_time && $l->end_time
+                    ? \Carbon\Carbon::parse($l->start_time)->diffInMinutes(\Carbon\Carbon::parse($l->end_time))
+                    : ($l->service?->session_duration_minutes ?? null);
+
+                return [
+                    'id'                 => $l->id,
+                    'title'              => $l->title,
+                    'start_time'         => $l->start_time?->toIso8601String(),
+                    'end_time'           => $l->end_time?->toIso8601String(),
+                    'status'             => $l->status,
+                    'lesson_type'        => $l->lesson_type,
+                    'lesson_mode'        => $l->lesson_mode,
+                    'duration_minutes'   => $duration,
+                    'participants_count' => $l->participants_count,
+                    'max_participants'   => $l->max_participants ?? $l->service?->max_participants,
+                    'student_name'       => $l->children->pluck('child_name')->join(', ') ?: null,
+                    'service_name'       => $l->service?->service_name,
+                    'service_id'         => $l->service_id,
+                    'instructor_id'      => $l->instructor_id,
+                    'instructor_name'    => $instructor?->name,
+                    'instructor_avatar'  => $avatarUrl,
+                ];
+            });
+
+        // Pending tasks
+        $pendingTasks = collect([]);
+        try {
+            $pendingTasks = \App\Models\AdminTask::query()
+                ->where('status', 'Pending')
+                ->when($orgId, fn ($q) => $q->where(function ($q2) use ($orgId) {
+                    $q2->where('organization_id', $orgId)->orWhereNull('organization_id');
+                }))
+                ->orderBy('created_at', 'desc')
+                ->limit(15)
+                ->get(['id', 'title', 'type', 'description', 'priority', 'status', 'created_at']);
+        } catch (\Exception $e) {
+            // AdminTask table may not exist — graceful fallback
+        }
+
+        return $this->success([
+            'upcoming_sessions' => $upcomingSessions,
+            'pending_tasks'     => $pendingTasks,
+            'metrics'           => $this->getDashboardMetrics($orgId),
+        ]);
+    }
+
     private function getDashboardMetrics(?int $orgId): array
     {
         return [

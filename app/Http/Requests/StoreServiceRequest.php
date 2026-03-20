@@ -20,7 +20,7 @@ class StoreServiceRequest extends FormRequest
         return [
             'service_name'      => 'required|string|max:255',
             '_type'             => 'required|in:lesson,assessment,bundle,course,flexible',
-            'booking_mode'      => 'nullable|in:fixed_schedule,flexible_booking,self_paced,none',
+            'booking_mode'      => 'nullable|in:fixed_schedule,flexible_booking,self_paced,none,requested',
             'service_level'     => 'required|in:basic,full_membership',
             'availability'      => 'boolean',
             'is_global'         => 'nullable|boolean',

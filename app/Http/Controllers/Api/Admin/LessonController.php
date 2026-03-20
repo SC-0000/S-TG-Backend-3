@@ -204,7 +204,7 @@ class LessonController extends ApiController
             'instructors' => $this->teacherOptions($user),
             'journey_categories' => $this->journeyCategoriesFor($user),
             'live_lesson_sessions' => $this->liveLessonSessions(),
-            'services' => Service::select('id', 'service_name')->orderBy('service_name')->get(),
+            'services' => Service::select('id', 'service_name', 'session_duration_minutes', 'max_participants', 'booking_mode')->orderBy('service_name')->get(),
             'organizations' => $user->isSuperAdmin()
                 ? Organization::select('id', 'name')->orderBy('name')->get()
                 : null,

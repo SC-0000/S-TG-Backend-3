@@ -59,13 +59,14 @@ class TeacherAvailabilityController extends Controller
     {
         $request->validate([
             'slots' => 'required|array|min:1',
-            'slots.*.day_of_week'   => 'required|integer|between:0,6',
+            'slots.*.day_of_week'   => 'required|integer|between:0,7',
             'slots.*.start_time'    => 'required|date_format:H:i',
             'slots.*.end_time'      => 'required|date_format:H:i|after:slots.*.start_time',
             'slots.*.slot_duration_minutes' => 'nullable|integer|min:15|max:480',
             'slots.*.buffer_minutes' => 'nullable|integer|min:0|max:60',
             'slots.*.effective_from' => 'nullable|date',
             'slots.*.effective_until' => 'nullable|date|after_or_equal:slots.*.effective_from',
+            'replace_days' => 'nullable|boolean', // When true, clear existing hours for affected days first (for presets)
         ]);
 
         $user = $request->user();
@@ -74,16 +75,47 @@ class TeacherAvailabilityController extends Controller
             ['display_name' => $user->name, 'max_hours_per_day' => 8, 'max_hours_per_week' => 40]
         );
 
+        $replaceDays = $request->boolean('replace_days', false);
         $created = [];
 
         DB::beginTransaction();
         try {
+            // If replace_days, clear existing availability for the affected days first (keeps exceptions)
+            if ($replaceDays) {
+                $affectedDays = collect($request->slots)->pluck('day_of_week')->unique()->all();
+                $profile->availabilities()->whereIn('day_of_week', $affectedDays)->delete();
+            }
+
             foreach ($request->slots as $slot) {
+                $dayOfWeek = $slot['day_of_week'];
+                $newStart = $slot['start_time'];
+                $newEnd = $slot['end_time'];
+
+                // Check for overlapping slots on the same day (skip if we just cleared)
+                if (!$replaceDays) {
+                    $overlap = $profile->availabilities()
+                        ->where('day_of_week', $dayOfWeek)
+                        ->where(function ($q) use ($newStart, $newEnd) {
+                            $q->where('start_time', '<', $newEnd)
+                               ->where('end_time', '>', $newStart);
+                        })
+                        ->exists();
+
+                    if ($overlap) {
+                        DB::rollBack();
+                        $dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        $dayName = $dayNames[$dayOfWeek] ?? "Day $dayOfWeek";
+                        return response()->json([
+                            'message' => "Overlapping hours on {$dayName} ({$newStart} – {$newEnd}). Remove the existing slot first.",
+                        ], 422);
+                    }
+                }
+
                 $created[] = TeacherAvailability::create([
                     'teacher_profile_id'  => $profile->id,
-                    'day_of_week'         => $slot['day_of_week'],
-                    'start_time'          => $slot['start_time'],
-                    'end_time'            => $slot['end_time'],
+                    'day_of_week'         => $dayOfWeek,
+                    'start_time'          => $newStart,
+                    'end_time'            => $newEnd,
                     'is_recurring'        => true,
                     'slot_duration_minutes' => $slot['slot_duration_minutes'] ?? 60,
                     'buffer_minutes'      => $slot['buffer_minutes'] ?? 0,
@@ -94,7 +126,7 @@ class TeacherAvailabilityController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => count($created) . ' availability slot(s) created.',
+                'message' => count($created) . ' availability slot(s) created.' . ($replaceDays ? ' Previous hours for those days were replaced.' : ''),
                 'slots'   => $created,
             ], 201);
 
@@ -275,6 +307,199 @@ class TeacherAvailabilityController extends Controller
         $schedule = $this->scheduleService->getTeacherSchedule($user->id, $dateFrom, $dateTo);
 
         return response()->json($schedule);
+    }
+
+    /* =============================================================
+     |  ADMIN ENDPOINTS — operate on a specific teacher by userId
+     | ============================================================= */
+
+    /** Helper: resolve profile for admin endpoints */
+    private function resolveProfileForAdmin(int $userId): TeacherProfile
+    {
+        $user = \App\Models\User::findOrFail($userId);
+        return TeacherProfile::firstOrCreate(
+            ['user_id' => $userId],
+            ['display_name' => $user->name, 'max_hours_per_day' => 8, 'max_hours_per_week' => 40]
+        );
+    }
+
+    /**
+     * POST /api/v1/admin/teachers/{userId}/availability
+     * Admin: create availability slots for a specific teacher.
+     */
+    public function adminStore(Request $request, int $userId): JsonResponse
+    {
+        $request->validate([
+            'slots' => 'required|array|min:1',
+            'slots.*.day_of_week'   => 'required|integer|between:0,7',
+            'slots.*.start_time'    => 'required|date_format:H:i',
+            'slots.*.end_time'      => 'required|date_format:H:i|after:slots.*.start_time',
+            'slots.*.slot_duration_minutes' => 'nullable|integer|min:15|max:480',
+            'slots.*.buffer_minutes' => 'nullable|integer|min:0|max:60',
+            'replace_days' => 'nullable|boolean',
+        ]);
+
+        $profile = $this->resolveProfileForAdmin($userId);
+        $replaceDays = $request->boolean('replace_days', false);
+        $created = [];
+
+        DB::beginTransaction();
+        try {
+            // If replace_days, clear existing availability for affected days first (keeps exceptions)
+            if ($replaceDays) {
+                $affectedDays = collect($request->slots)->pluck('day_of_week')->unique()->all();
+                $profile->availabilities()->whereIn('day_of_week', $affectedDays)->delete();
+            }
+
+            foreach ($request->slots as $slot) {
+                $dayOfWeek = $slot['day_of_week'];
+                $newStart = $slot['start_time'];
+                $newEnd = $slot['end_time'];
+
+                if (!$replaceDays) {
+                    $overlap = $profile->availabilities()
+                        ->where('day_of_week', $dayOfWeek)
+                        ->where(function ($q) use ($newStart, $newEnd) {
+                            $q->where('start_time', '<', $newEnd)
+                                ->where('end_time', '>', $newStart);
+                        })
+                        ->exists();
+
+                    if ($overlap) {
+                        DB::rollBack();
+                        $dayName = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][$dayOfWeek] ?? "Day $dayOfWeek";
+                        return response()->json([
+                            'message' => "Overlapping hours on {$dayName} ({$newStart} – {$newEnd}). Remove the existing slot first.",
+                        ], 422);
+                    }
+                }
+
+                $created[] = TeacherAvailability::create([
+                    'teacher_profile_id'    => $profile->id,
+                    'day_of_week'           => $dayOfWeek,
+                    'start_time'            => $newStart,
+                    'end_time'              => $newEnd,
+                    'is_recurring'          => true,
+                    'slot_duration_minutes' => $slot['slot_duration_minutes'] ?? 60,
+                    'buffer_minutes'        => $slot['buffer_minutes'] ?? 0,
+                ]);
+            }
+            DB::commit();
+            return response()->json(['message' => count($created) . ' slot(s) created.' . ($replaceDays ? ' Previous hours for those days were replaced.' : ''), 'slots' => $created], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Failed to save availability.'], 500);
+        }
+    }
+
+    /**
+     * PUT /api/v1/admin/teachers/{userId}/availability/bulk
+     * Admin: replace all availability for a specific day.
+     */
+    public function adminBulkUpdate(Request $request, int $userId): JsonResponse
+    {
+        $request->validate([
+            'slots' => 'present|array',
+            'slots.*.id'         => 'nullable|integer',
+            'slots.*.day_of_week' => 'required|integer|between:0,7',
+            'slots.*.start_time' => 'required|date_format:H:i',
+            'slots.*.end_time'   => 'required|date_format:H:i|after:slots.*.start_time',
+            'slots.*.slot_duration_minutes' => 'nullable|integer|min:15|max:480',
+            'slots.*.buffer_minutes' => 'nullable|integer|min:0|max:60',
+        ]);
+
+        $profile = $this->resolveProfileForAdmin($userId);
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->slots as $slot) {
+                if (!empty($slot['id'])) {
+                    $existing = $profile->availabilities()->find($slot['id']);
+                    if ($existing) {
+                        $existing->update([
+                            'day_of_week'          => $slot['day_of_week'],
+                            'start_time'           => $slot['start_time'],
+                            'end_time'             => $slot['end_time'],
+                            'slot_duration_minutes' => $slot['slot_duration_minutes'] ?? $existing->slot_duration_minutes,
+                            'buffer_minutes'       => $slot['buffer_minutes'] ?? $existing->buffer_minutes,
+                        ]);
+                    }
+                }
+            }
+            DB::commit();
+            return response()->json(['message' => 'Availability updated.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Failed to update.'], 500);
+        }
+    }
+
+    /**
+     * DELETE /api/v1/admin/teachers/{userId}/availability/{id}
+     */
+    public function adminDestroy(Request $request, int $userId, TeacherAvailability $availability): JsonResponse
+    {
+        $profile = TeacherProfile::where('user_id', $userId)->first();
+        if (!$profile || $availability->teacher_profile_id !== $profile->id) {
+            return response()->json(['message' => 'Not found.'], 404);
+        }
+        $availability->delete();
+        return response()->json(['message' => 'Slot removed.']);
+    }
+
+    /**
+     * POST /api/v1/admin/teachers/{userId}/availability/exceptions
+     */
+    public function adminStoreException(Request $request, int $userId): JsonResponse
+    {
+        $request->validate([
+            'date'       => 'required|date',
+            'start_time' => 'nullable|date_format:H:i',
+            'end_time'   => 'nullable|date_format:H:i|after:start_time',
+            'type'       => 'required|in:unavailable,override',
+            'reason'     => 'nullable|string|max:255',
+        ]);
+
+        $profile = $this->resolveProfileForAdmin($userId);
+        $exception = TeacherAvailabilityException::create([
+            'teacher_profile_id' => $profile->id,
+            'date'               => $request->date,
+            'start_time'         => $request->start_time,
+            'end_time'           => $request->end_time,
+            'type'               => $request->type,
+            'reason'             => $request->reason,
+        ]);
+
+        return response()->json(['message' => 'Exception added.', 'exception' => $exception], 201);
+    }
+
+    /**
+     * DELETE /api/v1/admin/teachers/{userId}/availability/exceptions/{id}
+     */
+    public function adminDestroyException(Request $request, int $userId, TeacherAvailabilityException $exception): JsonResponse
+    {
+        $profile = TeacherProfile::where('user_id', $userId)->first();
+        if (!$profile || $exception->teacher_profile_id !== $profile->id) {
+            return response()->json(['message' => 'Not found.'], 404);
+        }
+        $exception->delete();
+        return response()->json(['message' => 'Exception removed.']);
+    }
+
+    /**
+     * PUT /api/v1/admin/teachers/{userId}/availability/settings
+     */
+    public function adminUpdateSettings(Request $request, int $userId): JsonResponse
+    {
+        $request->validate([
+            'max_hours_per_day'  => 'required|integer|min:1|max:24',
+            'max_hours_per_week' => 'required|integer|min:1|max:168',
+        ]);
+
+        $profile = $this->resolveProfileForAdmin($userId);
+        $profile->update($request->only('max_hours_per_day', 'max_hours_per_week'));
+
+        return response()->json(['message' => 'Settings updated.', 'profile' => $profile]);
     }
 
     /**
