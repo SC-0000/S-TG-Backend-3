@@ -18,8 +18,7 @@ class TransactionController extends Controller
     public function __construct(BillingService $billingService)
     {
         $this->billingService = $billingService;
-         $this->apiKey = config('services.billing.publishable_key');
-        
+        $this->apiKey = $billingService->getPublishableKey();
     }
 
     /**

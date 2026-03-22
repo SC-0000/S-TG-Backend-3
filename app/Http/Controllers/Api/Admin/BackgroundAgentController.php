@@ -42,6 +42,12 @@ class BackgroundAgentController extends ApiController
             $totalRuns = (clone $recentRuns)->count();
             $successfulRuns = (clone $recentRuns)->where('status', 'completed')->count();
 
+            // Lifetime items affected (for hours saved calculation)
+            $lifetimeItemsAffected = BackgroundAgentRun::forAgent($type)
+                ->when($orgId, fn($q) => $q->forOrganization($orgId))
+                ->where('status', 'completed')
+                ->sum('items_affected');
+
             $agentData[$type] = [
                 'type' => $type,
                 'description' => $meta['description'],
@@ -50,6 +56,7 @@ class BackgroundAgentController extends ApiController
                 'default_schedule' => $meta['default_schedule'],
                 'schedule_override' => $config?->schedule_override,
                 'estimated_tokens_per_run' => $meta['estimated_tokens_per_run'],
+                'lifetime_items_affected' => $lifetimeItemsAffected,
                 'last_run' => $lastRun ? [
                     'id' => $lastRun->id,
                     'status' => $lastRun->status,

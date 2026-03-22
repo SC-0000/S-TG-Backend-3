@@ -19,11 +19,23 @@ class AdminTask extends Model
         'description',
         'metadata',
         'completed_at',
+        'due_at',
+        'source',
+        'source_model_type',
+        'source_model_id',
+        'auto_resolve_event',
+        'assigned_at',
+        'snoozed_until',
+        'category',
+        'action_url',
     ];
 
     protected $casts = [
-        'metadata' => 'array',
+        'metadata'     => 'array',
         'completed_at' => 'datetime',
+        'due_at'       => 'datetime',
+        'assigned_at'  => 'datetime',
+        'snoozed_until'=> 'datetime',
     ];
 
     // Append the formatted dates when converting to array/JSON.
@@ -60,6 +72,62 @@ class AdminTask extends Model
     public function scopeForOrganization($query, $organizationId)
     {
         return $query->where('organization_id', $organizationId);
+    }
+
+    public function scopeOverdue($query)
+    {
+        return $query->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->whereNotIn('status', ['Completed']);
+    }
+
+    public function scopeForCategory($query, string $category)
+    {
+        return $query->where('category', $category);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('status', 'Pending');
+    }
+
+    public function scopeOpen($query)
+    {
+        return $query->whereNotIn('status', ['Completed']);
+    }
+
+    public function getIsOverdueAttribute(): bool
+    {
+        return $this->due_at
+            && $this->due_at->isPast()
+            && $this->status !== 'Completed';
+    }
+
+    public function getDaysOpenAttribute(): ?int
+    {
+        if ($this->status === 'Completed') {
+            return null;
+        }
+        $start = $this->assigned_at ?? $this->created_at;
+        return $start ? (int) $start->diffInDays(now()) : null;
+    }
+
+    public function getDueAtFormattedAttribute(): ?string
+    {
+        return $this->due_at?->format('d-m-Y H:i');
+    }
+
+    public function getIsSystemTaskAttribute(): bool
+    {
+        return $this->source === 'system' || $this->source === 'agent';
+    }
+
+    /**
+     * The source model that triggered this task (polymorphic).
+     */
+    public function sourceModel()
+    {
+        return $this->morphTo('source_model', 'source_model_type', 'source_model_id');
     }
 
     protected static function booted()

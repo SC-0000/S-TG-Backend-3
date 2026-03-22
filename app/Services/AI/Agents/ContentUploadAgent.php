@@ -12,7 +12,7 @@ use OpenAI\Laravel\Facades\OpenAI;
 
 class ContentUploadAgent
 {
-    protected string $model = 'gpt-5-mini';
+    protected string $model = 'gpt-5.4-mini';
     protected int $maxTokens = 4000;
     protected float $temperature = 0.7;
 
@@ -1188,7 +1188,7 @@ class ContentUploadAgent
         ];
 
         // GPT-5 models don't support temperature parameter
-        if (!str_starts_with($this->model, 'gpt-5')) {
+        if (!str_starts_with($this->model, 'gpt-5.4')) {
             $payload['temperature'] = $this->temperature;
         }
 

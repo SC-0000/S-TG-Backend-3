@@ -26,7 +26,12 @@ class SubscriptionCatalogController extends ApiController
 
     private function buildCatalog(): array
     {
-        $subscriptions = Subscription::all()->map(function ($subscription) {
+        // Only show active, organization-owned subscriptions in the public catalog
+        // Platform AI subscriptions are served via SubscriptionCheckoutController::catalog()
+        $subscriptions = Subscription::active()
+            ->where('owner_type', 'organization')
+            ->get()
+            ->map(function ($subscription) {
             $filters = $subscription->content_filters ?? [];
             $yearGroups = $filters['year_groups'] ?? [];
             $features = $subscription->features ?? [];
@@ -94,6 +99,10 @@ class SubscriptionCatalogController extends ApiController
                 'description' => $subscription->description ?? 'Access all courses and assessments for selected year groups',
                 'features' => $subscription->features ?? [],
                 'content_filters' => $subscription->content_filters,
+                'price' => $subscription->price,
+                'currency' => $subscription->currency,
+                'billing_interval' => $subscription->billing_interval,
+                'owner_type' => $subscription->owner_type,
                 'year_groups' => $yearGroups,
                 'has_ai' => $hasAI,
                 'has_ai_analysis' => $hasAIAnalysis,

@@ -16,7 +16,7 @@ class AIGradingService
     public function __construct()
     {
         $this->apiKey = Config::get('openai.api_key');
-        $this->model = Config::get('openai.connections.main.model', 'gpt-5-nano');
+        $this->model = Config::get('openai.connections.main.model', 'gpt-5.4-nano');
         $this->timeout = Config::get('openai.connections.main.timeout', 60);
     }
 

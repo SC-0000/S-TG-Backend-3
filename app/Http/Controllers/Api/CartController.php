@@ -9,8 +9,10 @@ use App\Http\Requests\Api\Cart\CartUpdateRequest;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Service;
 use App\Services\FlexibleServiceAccessService;
+use App\Services\PromotionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -133,6 +135,93 @@ class CartController extends ApiController
         return $this->respondWithCart($cart);
     }
 
+    public function applyPromotion(Request $request, PromotionService $promoService): JsonResponse
+    {
+        $request->validate(['code' => 'required|string|max:50']);
+
+        $cart = CartSession::current()->load('items.service', 'items.product');
+        $cartData = $this->buildCartItems($cart);
+        $subtotal = collect($cartData)->sum('line_total');
+
+        $user = $request->user();
+        $orgId = $user?->current_organization_id;
+
+        $result = $promoService->validateCode(
+            strtoupper($request->input('code')),
+            $subtotal,
+            $user?->id ?? 0,
+            $orgId,
+            $cartData
+        );
+
+        if (!$result['valid']) {
+            return $this->error($result['error'], [], 422);
+        }
+
+        $cart->promotion_code = strtoupper($request->input('code'));
+        $cart->save();
+
+        return $this->respondWithCart($cart);
+    }
+
+    public function removePromotion(Request $request): JsonResponse
+    {
+        $cart = CartSession::current()->load('items.service', 'items.product');
+        $cart->promotion_code = null;
+        $cart->save();
+
+        return $this->respondWithCart($cart);
+    }
+
+    public function validatePromotion(Request $request, PromotionService $promoService): JsonResponse
+    {
+        $request->validate(['code' => 'required|string|max:50']);
+
+        $cart = CartSession::current()->load('items.service', 'items.product');
+        $cartData = $this->buildCartItems($cart);
+        $subtotal = collect($cartData)->sum('line_total');
+
+        $user = $request->user();
+        $orgId = $user?->current_organization_id;
+
+        $result = $promoService->validateCode(
+            strtoupper($request->input('code')),
+            $subtotal,
+            $user?->id ?? 0,
+            $orgId,
+            $cartData
+        );
+
+        if (!$result['valid']) {
+            return $this->error($result['error'], [], 422);
+        }
+
+        $discount = $promoService->calculateDiscount($result['promotion'], $subtotal, $cartData);
+
+        return $this->success([
+            'valid' => true,
+            'promotion' => [
+                'name' => $result['promotion']->name,
+                'code' => $result['promotion']->code,
+                'discount_type' => $result['promotion']->discount_type,
+                'discount_value' => $result['promotion']->discount_value,
+            ],
+            'discount_amount' => $discount,
+            'new_total' => max(0, $subtotal - $discount),
+        ]);
+    }
+
+    private function buildCartItems(Cart $cart): array
+    {
+        return $cart->items->map(function (CartItem $item) {
+            return [
+                'type' => $item->service_id ? 'service' : 'product',
+                'id' => $item->service_id ?? $item->product_id,
+                'line_total' => $item->quantity * $item->price,
+            ];
+        })->toArray();
+    }
+
     private function mapCart(Cart $cart): array
     {
         $items = $cart->items->map(function (CartItem $item) {
@@ -155,10 +244,33 @@ class CartController extends ApiController
 
         $subtotal = $items->sum('line_total');
 
+        $discount = 0;
+        $discountDescription = null;
+        $promotionCode = $cart->promotion_code;
+
+        if ($promotionCode) {
+            $promotion = Promotion::where('code', $promotionCode)->active()->first();
+            if ($promotion) {
+                $promoService = app(PromotionService::class);
+                $cartData = $this->buildCartItems($cart);
+                $discount = $promoService->calculateDiscount($promotion, $subtotal, $cartData);
+                $discountDescription = $promotion->name;
+            } else {
+                // Promotion no longer valid, clear it
+                $cart->promotion_code = null;
+                $cart->save();
+                $promotionCode = null;
+            }
+        }
+
         return [
             'id' => $cart->id,
             'items' => $items,
             'subtotal' => $subtotal,
+            'discount' => $discount,
+            'discount_description' => $discountDescription,
+            'promotion_code' => $promotionCode,
+            'total' => max(0, $subtotal - $discount),
         ];
     }
 

@@ -8,6 +8,9 @@ use App\Services\AI\BackgroundAgents\Agents\DataQualityAgent;
 use App\Services\AI\BackgroundAgents\Agents\GrowthSalesAgent;
 use App\Services\AI\BackgroundAgents\Agents\ParentManagerAgent;
 use App\Services\AI\BackgroundAgents\Agents\PaymentCollectorAgent;
+use App\Services\AI\BackgroundAgents\Agents\TaskGeneratorAgent;
+use App\Services\AI\BackgroundAgents\Agents\ClientHealthAgent;
+use App\Services\AI\BackgroundAgents\Agents\WhatsAppAgent;
 
 class BackgroundAgentRegistry
 {
@@ -18,6 +21,9 @@ class BackgroundAgentRegistry
         'payment_collector' => PaymentCollectorAgent::class,
         'growth_sales' => GrowthSalesAgent::class,
         'customer_support' => CustomerSupportAgent::class,
+        'task_generator' => TaskGeneratorAgent::class,
+        'whatsapp_agent' => WhatsAppAgent::class,
+        'client_health' => ClientHealthAgent::class,
     ];
 
     /**

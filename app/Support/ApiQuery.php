@@ -35,12 +35,20 @@ class ApiQuery
             }
 
             if ($handler === true || is_int($key)) {
-                $query->where($field, $value);
+                if (is_string($value) && str_contains($value, ',')) {
+                    $query->whereIn($field, array_map('trim', explode(',', $value)));
+                } else {
+                    $query->where($field, $value);
+                }
                 continue;
             }
 
             if (is_string($handler)) {
-                $query->where($handler, $value);
+                if (is_string($value) && str_contains($value, ',')) {
+                    $query->whereIn($handler, array_map('trim', explode(',', $value)));
+                } else {
+                    $query->where($handler, $value);
+                }
             }
         }
 

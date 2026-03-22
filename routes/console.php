@@ -19,28 +19,28 @@ Schedule::call(function () {
         ->update(['status' => 'canceled']);
 })->daily();
 
-// Billing sync: for every user with a billing_customer_id, dispatch a SyncBillingInvoicesJob.
-// Runs every 15 minutes and avoids overlapping runs.
+// Billing sync: for users with pending transactions, sync invoice statuses from billing provider.
+// Runs every 15 minutes (webhooks handle real-time updates, this is a safety net).
 Schedule::call(function () {
-    $customerIds = DB::table('users')
-        ->whereNotNull('billing_customer_id')
-        ->pluck('billing_customer_id')
+    // Only sync users who have pending transactions (not all billing customers)
+    $customerIds = DB::table('transactions')
+        ->where('status', 'pending')
+        ->whereNotNull('invoice_id')
+        ->join('users', 'users.id', '=', 'transactions.user_id')
+        ->whereNotNull('users.billing_customer_id')
+        ->pluck('users.billing_customer_id')
         ->unique();
 
     foreach ($customerIds as $cid) {
-        // Dispatch the job for each billing customer ID
         \App\Jobs\SyncBillingInvoicesJob::dispatch($cid);
     }
-})->everyMinute()->name('billing:sync-invoices')->withoutOverlapping();
+})->everyFifteenMinutes()->name('billing:sync-invoices')->withoutOverlapping();
 
-// Optionally add a lighter sync for open orders (if you have many customers)
-// Runs every 30 minutes and dispatches a global sync job (if implemented)
-Schedule::call(function () {
-    // If you have an app/Jobs/SyncAllOpenOrders job, you can dispatch it here.
-    if (class_exists(\App\Jobs\SyncAllOpenOrders::class)) {
-        \App\Jobs\SyncAllOpenOrders::dispatch();
-    }
-})->everyThirtyMinutes()->name('billing:sync-all-open-orders')->withoutOverlapping();
+// Daily billing reconciliation: catch missed webhooks, expire plans, sync customer data.
+Schedule::job(new \App\Jobs\DailyBillingReconciliationJob())
+    ->dailyAt('04:00')
+    ->name('billing:daily-reconciliation')
+    ->withoutOverlapping();
 
 // Background Agent System: dispatch scheduled agents
 Schedule::call(function () {
@@ -71,9 +71,9 @@ Schedule::call(function () {
 
 // Background Agent System: clean up stale/orphaned runs
 Schedule::call(function () {
-    // Runs stuck as "pending" for more than 10 minutes → mark failed
+    // Runs stuck as "pending" for more than 5 minutes → mark failed
     \App\Models\BackgroundAgentRun::where('status', 'pending')
-        ->where('created_at', '<', now()->subMinutes(10))
+        ->where('created_at', '<', now()->subMinutes(5))
         ->update([
             'status' => 'failed',
             'completed_at' => now(),
@@ -97,3 +97,45 @@ Schedule::call(function () {
         ->whereDoesntHave('actions')
         ->delete();
 })->everyFiveMinutes()->name('background-agents:cleanup')->withoutOverlapping();
+
+// Communications: daily digest emails for admin/teachers
+Schedule::job(new \App\Jobs\SendDigestEmailsJob('daily'))
+    ->dailyAt('08:00')
+    ->name('communications:daily-digest')
+    ->withoutOverlapping();
+
+// Communications: weekly digest emails (Mondays)
+Schedule::job(new \App\Jobs\SendDigestEmailsJob('weekly'))
+    ->weeklyOn(1, '08:00')
+    ->name('communications:weekly-digest')
+    ->withoutOverlapping();
+
+// Communications: process automated reminders (lesson, payment, homework)
+Schedule::job(new \App\Jobs\ProcessAutomatedRemindersJob())
+    ->hourly()
+    ->name('communications:automated-reminders')
+    ->withoutOverlapping();
+
+// Applications: send verification reminders for unverified applications (24h+)
+Schedule::job(new \App\Jobs\SendVerificationReminderJob())
+    ->hourly()
+    ->name('applications:verification-reminders')
+    ->withoutOverlapping();
+
+// Organization billing: sync invoice statuses from I-BLS-2
+Schedule::call(function () {
+    app(\App\Services\BillingService::class)->syncOrganizationInvoiceStatuses();
+})->everyFifteenMinutes()->name('billing:sync-org-invoices')->withoutOverlapping();
+
+// Organization billing: auto-generate monthly invoices for orgs with active plans
+Schedule::job(new \App\Jobs\GenerateOrganizationInvoicesJob())
+    ->monthlyOn(1, '03:00')
+    ->name('billing:generate-org-invoices')
+    ->withoutOverlapping();
+
+// Plans & Usage: capture daily usage snapshots and reset AI action counters
+Schedule::command('plans:capture-snapshots')
+    ->daily()
+    ->at('02:00')
+    ->name('plans:capture-snapshots')
+    ->withoutOverlapping();

@@ -11,24 +11,34 @@ class AgentTokenPricingSeeder extends Seeder
     {
         $pricing = [
             [
-                'name' => 'GPT-5 Nano Text',
-                'ai_model' => 'gpt-5-nano',
+                'name' => 'GPT-5.4 Nano Text',
+                'ai_model' => 'gpt-5.4-nano',
                 'operation_type' => 'text_generation',
                 'platform_tokens_per_1k_input' => 2,
                 'platform_tokens_per_1k_output' => 4,
                 'platform_tokens_flat' => null,
                 'effective_from' => '2026-01-01',
-                'notes' => 'Default pricing for GPT-5 Nano text generation',
+                'notes' => 'Cheapest model — background agents, simple tasks',
             ],
             [
-                'name' => 'GPT-5 Text',
-                'ai_model' => 'gpt-5',
+                'name' => 'GPT-5.4 Mini Text',
+                'ai_model' => 'gpt-5.4-mini',
+                'operation_type' => 'text_generation',
+                'platform_tokens_per_1k_input' => 4,
+                'platform_tokens_per_1k_output' => 8,
+                'platform_tokens_flat' => null,
+                'effective_from' => '2026-01-01',
+                'notes' => 'Mid-tier model — content upload, complex parsing',
+            ],
+            [
+                'name' => 'GPT-5.4 Text',
+                'ai_model' => 'gpt-5.4',
                 'operation_type' => 'text_generation',
                 'platform_tokens_per_1k_input' => 10,
                 'platform_tokens_per_1k_output' => 20,
                 'platform_tokens_flat' => null,
                 'effective_from' => '2026-01-01',
-                'notes' => 'Default pricing for GPT-5 full model text generation',
+                'notes' => 'Flagship model — detailed reports, feedback PDFs',
             ],
             [
                 'name' => 'Nana Banana Pro Image',
@@ -57,10 +67,15 @@ class AgentTokenPricingSeeder extends Seeder
                 [
                     'ai_model' => $rule['ai_model'],
                     'operation_type' => $rule['operation_type'],
-                    'effective_from' => $rule['effective_from'],
                 ],
                 $rule
             );
         }
+
+        // Deactivate old model pricing that no longer matches any code
+        AgentTokenPricing::where('ai_model', 'gpt-5-nano')->update(['is_active' => false]);
+        AgentTokenPricing::where('ai_model', 'gpt-5')
+            ->where('ai_model', '!=', 'gpt-5.4')
+            ->update(['is_active' => false]);
     }
 }

@@ -27,7 +27,7 @@ class BillingController extends ApiController
 
         $orgId = $request->attributes->get('organization_id') ?? $user->current_organization_id;
         $org = $orgId ? Organization::find($orgId) : null;
-        $publishableKey = $org?->getApiKey('billing') ?? $org?->getApiKey('stripe') ?? config('services.billing.publishable_key');
+        $publishableKey = $org?->getApiKey('billing_publishable') ?? $org?->getApiKey('billing') ?? $org?->getApiKey('stripe') ?? config('services.billing.publishable_key');
 
         return $this->success([
             'customer_id' => $user->billing_customer_id,
@@ -82,5 +82,31 @@ class BillingController extends ApiController
     public function portal(Request $request, BillingService $billing): JsonResponse
     {
         return $this->setup($request, $billing);
+    }
+
+    public function downloadInvoice(Request $request, int $transactionId)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
+        $transaction = \App\Models\Transaction::where('id', $transactionId)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $transaction) {
+            return $this->error('Transaction not found.', [], 404);
+        }
+
+        $pdfService = app(\App\Services\InvoicePdfService::class);
+
+        // Check if PDF already exists
+        $existingPath = "invoices/transactions/{$transaction->id}.pdf";
+        if (! \Illuminate\Support\Facades\Storage::exists($existingPath)) {
+            $pdfService->generateForTransaction($transaction);
+        }
+
+        return \Illuminate\Support\Facades\Storage::download($existingPath, "invoice-{$transaction->id}.pdf");
     }
 }

@@ -10,6 +10,8 @@ use App\Models\Child;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Service;
+use App\Models\Transaction;
+use App\Models\TransactionItem;
 use App\Support\ApiPagination;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,7 +27,9 @@ class ServiceController extends ApiController
             return $this->error('Unauthenticated.', [], 401);
         }
 
-        $query = Service::with('organization:id,name')->latest();
+        $query = Service::with('organization:id,name')
+            ->withCount(['lessons', 'assessments'])
+            ->latest();
 
         $orgId = $request->attributes->get('organization_id');
         if ($user->isSuperAdmin() && $request->filled('organization_id')) {
@@ -214,10 +218,78 @@ class ServiceController extends ApiController
             ];
         }
 
+        // Revenue: sum of all paid transaction items for this service
+        $revenue = TransactionItem::where('item_type', Service::class)
+            ->where('item_id', $service->id)
+            ->whereHas('transaction', fn ($q) => $q->whereIn('status', Transaction::PAID_STATUSES))
+            ->sum('line_total');
+
+        // Transaction count
+        $transactionCount = TransactionItem::where('item_type', Service::class)
+            ->where('item_id', $service->id)
+            ->whereHas('transaction', fn ($q) => $q->whereIn('status', Transaction::PAID_STATUSES))
+            ->count();
+
+        // Enrolled children via access records
+        $enrolledChildren = DB::table('access')
+            ->join('children', 'access.child_id', '=', 'children.id')
+            ->where(function ($q) use ($service) {
+                $q->whereRaw("JSON_CONTAINS(access.metadata, ?, '$.service_id')", [json_encode($service->id)])
+                  ->orWhere(function ($q2) use ($service) {
+                      $lessonIds = $service->lessons->pluck('id')->toArray();
+                      if (!empty($lessonIds)) {
+                          foreach ($lessonIds as $lid) {
+                              $q2->orWhereRaw("JSON_CONTAINS(access.lesson_ids, ?)", [json_encode($lid)]);
+                          }
+                      }
+                  });
+            })
+            ->select('children.id', 'children.child_name', 'children.year_group', 'access.purchase_date', 'access.payment_status')
+            ->distinct()
+            ->get();
+
+        // Lessons with instructor info
+        $lessonsWithTeachers = $service->lessons->map(function ($lesson) {
+            $instructorName = null;
+            if ($lesson->instructor_id) {
+                $instructorName = DB::table('users')->where('id', $lesson->instructor_id)->value('name');
+            }
+            return [
+                'id' => $lesson->id,
+                'title' => $lesson->title,
+                'lesson_mode' => $lesson->lesson_mode,
+                'start_time' => $lesson->start_time,
+                'end_time' => $lesson->end_time,
+                'instructor_id' => $lesson->instructor_id,
+                'instructor_name' => $instructorName,
+            ];
+        })->values();
+
+        // Primary instructor info
+        $instructorName = null;
+        if ($service->instructor_id) {
+            $instructorName = DB::table('users')->where('id', $service->instructor_id)->value('name');
+        }
+
+        // Teacher list
+        $teacherNames = [];
+        if ($service->teacher_ids) {
+            $ids = is_array($service->teacher_ids) ? $service->teacher_ids : json_decode($service->teacher_ids, true);
+            if (!empty($ids)) {
+                $teacherNames = DB::table('users')->whereIn('id', $ids)->pluck('name', 'id')->toArray();
+            }
+        }
+
         return $this->success([
             'service' => $this->mapService($service, true),
             'timeline' => $timeline->sortBy('at')->values()->all(),
             'flexibleData' => $flexibleData,
+            'revenue' => round($revenue, 2),
+            'transaction_count' => $transactionCount,
+            'enrolled_children' => $enrolledChildren,
+            'lessons_with_teachers' => $lessonsWithTeachers,
+            'instructor_name' => $instructorName,
+            'teacher_names' => $teacherNames,
         ]);
     }
 
@@ -360,16 +432,24 @@ class ServiceController extends ApiController
             'service_name' => $service->service_name,
             '_type' => $service->_type,
             'service_level' => $service->service_level,
+            'booking_mode' => $service->booking_mode,
             'availability' => (bool) $service->availability,
             'price' => $service->price,
             'course_id' => $service->course_id,
             'selection_config' => $service->selection_config,
+            'session_duration_minutes' => $service->session_duration_minutes,
+            'max_participants' => $service->max_participants,
+            'credits_per_purchase' => $service->credits_per_purchase,
+            'lessons_count' => $service->lessons_count ?? null,
+            'assessments_count' => $service->assessments_count ?? null,
             'start_datetime' => $service->start_datetime?->toISOString(),
             'end_datetime' => $service->end_datetime?->toISOString(),
             'display_until' => $service->display_until?->toDateString(),
             'quantity' => $service->quantity,
             'quantity_remaining' => $service->quantity_remaining,
             'quantity_allowed_per_child' => $service->quantity_allowed_per_child,
+            'instructor_id' => $service->instructor_id,
+            'teacher_ids' => $service->teacher_ids,
             'restriction_type' => $service->restriction_type,
             'year_groups_allowed' => $service->year_groups_allowed,
             'categories' => $service->categories,

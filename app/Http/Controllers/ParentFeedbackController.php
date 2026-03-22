@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ParentFeedback;
-use App\Models\AdminTask;
 use App\Models\ParentFeedbacks;
+use App\Services\Tasks\TaskService;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
@@ -95,14 +95,11 @@ class ParentFeedbackController extends Controller
         ]);
 
         // 5) Create the corresponding AdminTask:
-        AdminTask::create([
-            'task_type'      => 'Parent Concern',
-            'assigned_to'    => null,                                          // admin can pick it up
-            'status'         => 'Pending',
-            // so we know which ParentFeedback this task belongs to:
+        TaskService::createFromEvent('parent_concern', [
+            'assigned_to'    => null,
             'related_entity' => route('portal.feedback.show', $pf->id),
-            'priority'       => 'Medium',                                      // default (or you could let parent choose)
             'organization_id'=> Auth::user()?->current_organization_id,
+            'source_model'   => $pf,
         ]);
 
         return redirect()

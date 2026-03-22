@@ -99,6 +99,14 @@ class OrganizationBrandingController extends ApiController
             'email.admin_task_notifications.tasks.flag_review',
             'api_keys.openai',
             'api_keys.billing',
+            'api_keys.billing_webhook',
+            'api_keys.billing_admin',
+            'api_keys.billing_publishable',
+            'api_keys.telnyx',
+            'telnyx.messaging_profile_id',
+            'telnyx.connection_id',
+            'telnyx.whatsapp_business_id',
+            'telnyx.phone_number',
             'theme.custom_css',
         ];
 
@@ -118,6 +126,16 @@ class OrganizationBrandingController extends ApiController
 
         foreach ($dataToUpdate as $key => $value) {
             $organization->setSetting($key, $value);
+        }
+
+        // Sync billing customer if org name or contact email changed
+        $billingFields = ['branding.organization_name', 'contact.email'];
+        if ($organization->billing_customer_id && array_intersect($billingFields, array_keys($dataToUpdate))) {
+            try {
+                app(\App\Services\BillingService::class)->updateOrganizationCustomer($organization);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Branding update: billing sync failed', ['org_id' => $organization->id]);
+            }
         }
 
         return $this->success([

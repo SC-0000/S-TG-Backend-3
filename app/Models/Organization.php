@@ -17,6 +17,7 @@ class Organization extends Model
         'public_domain',
         'portal_domain',
         'status',
+        'billing_customer_id',
         'owner_id',
         'settings',
     ];

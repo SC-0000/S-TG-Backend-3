@@ -23,8 +23,12 @@ use App\Models\Service;
 use App\Models\Slide;
 use App\Models\Testimonial;
 use App\Listeners\BackgroundAgentEventSubscriber;
+use App\Models\Application;
+use App\Models\Attendance;
 use App\Observers\AdminTaskObserver;
+use App\Observers\ApplicationObserver;
 use App\Observers\AssessmentSubmissionObserver;
+use App\Observers\AttendanceObserver;
 use App\Observers\AuditLogObserver;
 use App\Observers\ContentObserver;
 use App\Observers\UidObserver;
@@ -49,10 +53,31 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // In local/dev, OpenSSL 3.6 may fail to verify OpenAI's cert chain.
+        // Extend the OpenAI client to use a Guzzle client with verify=false.
+        if ($this->app->environment('local', 'development', 'testing')) {
+            $this->app->extend(\OpenAI\Contracts\ClientContract::class, function ($client) {
+                $apiKey = config('openai.api_key');
+                $organization = config('openai.organization');
+
+                return \OpenAI::factory()
+                    ->withApiKey($apiKey)
+                    ->withOrganization($organization)
+                    ->withHttpHeader('OpenAI-Beta', 'assistants=v2')
+                    ->withHttpClient(new \GuzzleHttp\Client([
+                        'timeout' => config('openai.request_timeout', 90),
+                        'verify'  => false,
+                    ]))
+                    ->make();
+            });
+        }
+
         Lesson::observe(UidObserver::class);
         Assessment::observe(UidObserver::class);
         AssessmentSubmission::observe(AssessmentSubmissionObserver::class);
         AdminTask::observe(AdminTaskObserver::class);
+        Attendance::observe(AttendanceObserver::class);
+        Application::observe(ApplicationObserver::class);
 
         // Background Agent System: content quality observers
         Question::observe(ContentObserver::class);
@@ -94,7 +119,15 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('api', function (Request $request) {
             $key = $request->user()?->id ?? $request->ip();
-            return Limit::perMinute(120)->by($key);
+
+            // Authenticated users get a higher limit to avoid 429s during normal navigation
+            if ($request->user()) {
+                $limit = app()->environment(['local', 'development']) ? 600 : 240;
+            } else {
+                $limit = app()->environment(['local', 'development']) ? 300 : 120;
+            }
+
+            return Limit::perMinute($limit)->by($key);
         });
     }
 }

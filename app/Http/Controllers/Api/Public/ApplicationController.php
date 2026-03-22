@@ -3,36 +3,30 @@
 namespace App\Http\Controllers\Api\Public;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Mail\SendLoginCredentials;
 use App\Mail\VerifyApplicationEmail;
-use App\Models\AdminTask;
 use App\Models\Application;
-use App\Models\Child;
-use App\Models\Permission;
-use App\Models\User;
+use App\Models\TermsAcceptance;
+use App\Models\TermsCondition;
+use App\Services\Tasks\TaskService;
 use App\Services\AffiliateService;
-use App\Services\BillingService;
-use App\Services\CommissionEngine;
+use App\Services\ApplicationApprovalService;
 use App\Support\MailContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ApplicationController extends ApiController
 {
-    protected BillingService $billing;
     protected AffiliateService $affiliateService;
-    protected CommissionEngine $commissionEngine;
+    protected ApplicationApprovalService $approvalService;
 
-    public function __construct(BillingService $billing, AffiliateService $affiliateService, CommissionEngine $commissionEngine)
+    public function __construct(AffiliateService $affiliateService, ApplicationApprovalService $approvalService)
     {
-        $this->billing = $billing;
         $this->affiliateService = $affiliateService;
-        $this->commissionEngine = $commissionEngine;
+        $this->approvalService  = $approvalService;
     }
 
     public function store(Request $request): JsonResponse
@@ -129,6 +123,17 @@ class ApplicationController extends ApiController
             $this->affiliateService->attributeApplication($application, $trackingCode);
         }
 
+        // Record terms acceptance (pre-user, linked to application)
+        if ($request->filled('terms_condition_id')) {
+            TermsAcceptance::create([
+                'terms_condition_id' => $request->input('terms_condition_id'),
+                'application_id'     => $application->application_id,
+                'accepted_at'        => now(),
+                'ip_address'         => $request->ip(),
+                'user_agent'         => $request->userAgent(),
+            ]);
+        }
+
         $organization = MailContext::resolveOrganization($application->organization_id ?? null, $application->user ?? null, $application);
         MailContext::sendMailable($application->email, new VerifyApplicationEmail($application, $organization));
 
@@ -138,75 +143,74 @@ class ApplicationController extends ApiController
         ], [], 201);
     }
 
+    /**
+     * Get active terms & conditions for the given organization.
+     */
+    public function getTerms(Request $request): JsonResponse
+    {
+        $request->validate([
+            'organization_id' => 'required|integer|exists:organizations,id',
+        ]);
+
+        $orgId = $request->integer('organization_id');
+
+        // Try org-specific T&C first, fall back to platform-level
+        $terms = TermsCondition::query()
+            ->where('is_active', true)
+            ->whereJsonContains('applies_to', 'parent')
+            ->where(function ($q) use ($orgId) {
+                $q->where(function ($sub) use ($orgId) {
+                    $sub->where('owner_type', 'organization')
+                        ->where('organization_id', $orgId);
+                })->orWhere('owner_type', 'platform');
+            })
+            ->orderByRaw("CASE WHEN owner_type = 'organization' THEN 0 ELSE 1 END")
+            ->orderByDesc('version')
+            ->first();
+
+        if (!$terms) {
+            return $this->success(['terms' => null]);
+        }
+
+        return $this->success([
+            'terms' => [
+                'id'      => $terms->id,
+                'title'   => $terms->title,
+                'content' => $terms->content,
+                'version' => $terms->version,
+            ],
+        ]);
+    }
+
     public function verify(string $token): JsonResponse
     {
         $application = Application::where('verification_token', $token)->firstOrFail();
 
         if (!$application->verified_at) {
-            $application->update(['verified_at' => now()]);
-        }
-
-        if ($application->application_type === 'Type1') {
-            $application->update(['application_status' => 'Approved']);
-            $password = Str::random(8);
-            $organizationId = $application->organization_id ?? 2;
-
-            $user = User::firstOrCreate(
-                ['email' => $application->email],
-                [
-                    'name' => $application->applicant_name,
-                    'password' => bcrypt($password),
-                    'role' => 'parent',
-                    'email_verified_at' => now(),
-                    'address_line1' => $application->address_line1,
-                    'address_line2' => $application->address_line2,
-                    'mobile_number' => $application->mobile_number,
-                    'current_organization_id' => $organizationId,
-                ]
-            );
-
-            if (!$user->billing_customer_id) {
-                $custId = $this->billing->createCustomer($user);
-                if ($custId) {
-                    $user->billing_customer_id = $custId;
-                    $user->saveQuietly();
-                }
-            }
-
-            if (!$user->organizations()->where('organization_id', $organizationId)->exists()) {
-                $user->organizations()->attach($organizationId, [
-                    'role' => 'parent',
-                    'status' => 'active',
-                    'invited_by' => null,
-                    'joined_at' => now(),
-                ]);
-            }
-
-            $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
-            MailContext::sendMailable($user->email, new SendLoginCredentials($user, $password, $organization));
-
-            $application->update(['user_id' => $user->id]);
-
-            // Fire commission rules for auto-approved signups
-            try {
-                $this->commissionEngine->onSignupApproved($organizationId, $user);
-            } catch (\Throwable $e) {
-                // Never block the verification flow
-            }
-        }
-
-        if ($application->application_type === 'Type2') {
-            AdminTask::create([
-                'task_type' => 'Application Review',
-                'assigned_to' => null,
-                'status' => 'Pending',
-                'related_entity' => route('applications.edit', $application->application_id),
-                'priority' => 'High',
+            $application->update([
+                'verified_at'                => now(),
+                'pipeline_status'            => Application::PIPELINE_VERIFIED,
+                'pipeline_status_changed_at' => now(),
             ]);
         }
 
+        if ($application->application_type === 'Type1') {
+            // Auto-approve Type1 applications
+            $this->approvalService->approve($application);
+        }
+
+        if ($application->application_type === 'Type2') {
+            // Queue for admin review and notify applicant
+            TaskService::createFromEvent('application_review', [
+                'source_model'   => $application,
+                'related_entity' => route('applications.edit', $application->application_id),
+            ]);
+
+            $this->approvalService->notifyUnderReview($application);
+        }
+
         return $this->success([
-            'message' => 'Email verified.',
+            'message'          => 'Email verified.',
             'application_type' => $application->application_type,
         ]);
     }

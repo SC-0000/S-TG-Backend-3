@@ -124,7 +124,7 @@ class ChatController extends Controller
 
         // 5. Send to OpenAI
         $openaiResponse = OpenAI::chat()->create([
-            'model'    => 'gpt-5-nano',
+            'model'    => 'gpt-5.4-nano',
             'user'     => (string) $childId,
             'messages' => $messages,
         ]);
@@ -211,7 +211,7 @@ class ChatController extends Controller
 
         // 3️⃣ Call OpenAI
         $apiResponse = OpenAI::chat()->create([
-            'model'    => 'gpt-5-nano',
+            'model'    => 'gpt-5.4-nano',
             'user'     => (string) $request->child_id,
             'messages' => $messages,
         ]);

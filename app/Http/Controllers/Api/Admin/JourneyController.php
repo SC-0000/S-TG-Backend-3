@@ -316,4 +316,81 @@ class JourneyController extends ApiController
 
         return $this->success($data);
     }
+
+    /**
+     * Returns all content items for a journey category — used by the journey content viewer.
+     */
+    public function categoryContent(Request $request, int $categoryId): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user) {
+            return $this->error('Unauthenticated.', [], 401);
+        }
+
+        $category = \App\Models\JourneyCategory::with([
+            'lessons:id,title,journey_category_id',
+            'contentLessons:id,uid,title,status,lesson_type,estimated_minutes,journey_category_id',
+            'assessments:id,title,type,status,journey_category_id',
+            'courses:id,uid,title,status,journey_category_id',
+            'mediaAssets',
+        ])->findOrFail($categoryId);
+
+        // Verify org access
+        $orgId = $this->resolveOrgId($request, $user);
+        if (!$user->isSuperAdmin() && $orgId && (int) $category->organization_id !== (int) $orgId) {
+            return $this->error('Forbidden.', [], 403);
+        }
+
+        return $this->success([
+            'category' => [
+                'id' => $category->id,
+                'topic' => $category->topic,
+                'name' => $category->name,
+                'description' => $category->description,
+            ],
+            'content' => [
+                'lessons' => $category->lessons->map(fn ($l) => [
+                    'id' => $l->id,
+                    'title' => $l->title,
+                    'type' => 'lesson',
+                    'href' => "/admin/lessons/{$l->id}",
+                ])->values(),
+                'content_lessons' => $category->contentLessons->map(fn ($l) => [
+                    'id' => $l->id,
+                    'uid' => $l->uid,
+                    'title' => $l->title,
+                    'status' => $l->status,
+                    'lesson_type' => $l->lesson_type,
+                    'estimated_minutes' => $l->estimated_minutes,
+                    'type' => 'content_lesson',
+                    'href' => "/admin/content-lessons/{$l->id}",
+                ])->values(),
+                'assessments' => $category->assessments->map(fn ($a) => [
+                    'id' => $a->id,
+                    'title' => $a->title,
+                    'status' => $a->status,
+                    'assessment_type' => $a->type,
+                    'type' => 'assessment',
+                    'href' => "/assessments/{$a->id}",
+                ])->values(),
+                'courses' => $category->courses->map(fn ($c) => [
+                    'id' => $c->id,
+                    'uid' => $c->uid,
+                    'title' => $c->title,
+                    'status' => $c->status,
+                    'type' => 'course',
+                    'href' => "/admin/courses/{$c->id}",
+                ])->values(),
+                'media' => $category->mediaAssets->map(fn ($m) => [
+                    'id' => $m->id,
+                    'title' => $m->title,
+                    'file_name' => $m->original_filename,
+                    'file_type' => $m->mime_type,
+                    'file_size' => $m->size_bytes,
+                    'type' => 'media',
+                    'href' => "/admin/files",
+                ])->values(),
+            ],
+        ]);
+    }
 }

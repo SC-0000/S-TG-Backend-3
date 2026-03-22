@@ -36,13 +36,19 @@ class ScheduleController extends Controller
             return response()->json(['message' => 'Teacher not found.'], 404);
         }
 
-        // Return ALL services — tag which ones are eligible for this teacher
+        // Return services scoped to user's organization
+        $orgId = $request->user()->current_organization_id ?? $request->user()->organization_id ?? null;
         $schedule['services'] = \App\Models\Service::query()
+            ->where(function ($q) use ($orgId) {
+                if ($orgId) {
+                    $q->where('organization_id', $orgId)->orWhereNull('organization_id');
+                }
+            })
             ->with([
                 'lessons:id,title,lesson_mode,start_time',
                 'assessments:id,title,deadline',
             ])
-            ->select('id', 'service_name', '_type', 'booking_mode', 'session_duration_minutes', 'max_participants', 'credits_per_purchase', 'price', 'default_lesson_mode', 'teacher_ids', 'selection_config', 'availability')
+            ->select('id', 'service_name', '_type', 'booking_mode', 'session_duration_minutes', 'max_participants', 'credits_per_purchase', 'price', 'default_lesson_mode', 'teacher_ids', 'selection_config', 'availability', 'organization_id')
             ->get()
             ->map(function ($service) use ($teacherId) {
                 $tIds = $service->teacher_ids;
@@ -211,7 +217,7 @@ class ScheduleController extends Controller
      *
      * @param int|null $serviceId  If provided and a group session for this service exists with capacity, returns the lesson instead of blocking
      */
-    private function checkDoubleBooking(int $instructorId, string $startTime, string $endTime, ?int $excludeLessonId = null, ?int $serviceId = null): null|JsonResponse|\App\Models\Lesson
+    private function checkDoubleBooking(int $instructorId, string $startTime, string $endTime, ?int $excludeLessonId = null, ?int $serviceId = null, bool $forBooking = false): null|JsonResponse|\App\Models\Lesson
     {
         $query = \App\Models\Lesson::where('instructor_id', $instructorId)
             ->whereNotIn('status', ['cancelled', 'draft'])
@@ -234,8 +240,19 @@ class ScheduleController extends Controller
                     if ($maxP && $maxP > 1 && $conflict->participants_count < $maxP) {
                         return $conflict;
                     }
-                    // 1:1 for same service at same time — this IS a conflict
-                    // (don't fall through to generic error, give specific message)
+                    // 1:1 for same service — for booking flow, return the existing session
+                    // so the frontend can enrol the child into it instead of creating a new one
+                    if ($forBooking && $maxP && $maxP <= 1 && $conflict->participants_count < $maxP) {
+                        return $conflict; // joinable 1:1 with no one enrolled yet
+                    }
+                    if ($forBooking) {
+                        return response()->json([
+                            'message' => "A session for this service already exists at this time (\"{$conflict->title}\").",
+                            'existing_lesson_id' => $conflict->id,
+                            'existing_lesson_title' => $conflict->title,
+                            'can_join' => $conflict->participants_count < ($maxP ?? 999),
+                        ], 409); // 409 Conflict — frontend can handle this
+                    }
                     return response()->json([
                         'message' => "A session for this service already exists at this time (\"{$conflict->title}\"). You can assign the child to the existing session instead.",
                     ], 422);
@@ -273,7 +290,8 @@ class ScheduleController extends Controller
         $service = $data['service_id'] ? \App\Models\Service::find($data['service_id']) : null;
 
         // Double-booking check — may return an existing joinable group lesson
-        $dbCheck = $this->checkDoubleBooking($teacherId, $data['start_time'], $data['end_time'], null, $data['service_id'] ?? null);
+        $forBooking = $request->boolean('for_booking', false);
+        $dbCheck = $this->checkDoubleBooking($teacherId, $data['start_time'], $data['end_time'], null, $data['service_id'] ?? null, $forBooking);
         if ($dbCheck instanceof JsonResponse) return $dbCheck;
         if ($dbCheck instanceof \App\Models\Lesson) {
             // Existing group session with capacity — return it instead of creating a new one
@@ -297,7 +315,7 @@ class ScheduleController extends Controller
             'max_participants'  => $data['max_participants'] ?? $service?->max_participants ?? null,
             'address'          => $data['address'] ?? null,
             'meeting_link'     => $data['meeting_link'] ?? null,
-            'organization_id'  => $request->user()->organization_id ?? null,
+            'organization_id'  => $request->user()->current_organization_id ?? $request->user()->organization_id ?? null,
         ]);
 
         return response()->json([
@@ -346,13 +364,13 @@ class ScheduleController extends Controller
                     'user_id'         => $parent->id,
                     'user_email'      => $parent->email,
                     'type'            => 'purchase',
-                    'status'          => 'completed',
-                    'payment_method'  => 'manual',
+                    'status'          => $price > 0 ? 'pending' : 'completed',
+                    'payment_method'  => $price > 0 ? 'card' : 'manual',
                     'subtotal'        => $price,
                     'discount'        => 0,
                     'tax'             => 0,
                     'total'           => $price,
-                    'paid_at'         => now(),
+                    'paid_at'         => $price > 0 ? null : now(),
                     'comment'         => 'Admin-initiated booking via scheduler',
                     'meta'            => json_encode(['admin_user_id' => $request->user()?->id, 'lesson_id' => $lesson->id, 'child_id' => $child->id]),
                 ]);
@@ -367,7 +385,52 @@ class ScheduleController extends Controller
                         'line_total' => $price,
                     ]);
                 }
-                if ($price > 0) $messages[] = "Transaction of £{$price} created";
+
+                // Create invoice in billing system for paid services
+                if ($price > 0) {
+                    try {
+                        $billing = app(\App\Services\BillingService::class);
+
+                        // Ensure parent has billing customer
+                        if (! $parent->billing_customer_id) {
+                            $custId = $billing->createCustomer($parent);
+                            if ($custId) {
+                                $parent->billing_customer_id = $custId;
+                                $parent->saveQuietly();
+                            }
+                        }
+
+                        if ($parent->billing_customer_id) {
+                            $dueDate = $lesson->start_datetime
+                                ? \Carbon\Carbon::parse($lesson->start_datetime)->subDay()->toDateString()
+                                : now()->addDays(7)->toDateString();
+
+                            $invoiceId = $billing->createInvoice([
+                                'customer_id' => $parent->billing_customer_id,
+                                'currency'    => 'gbp',
+                                'due_date'    => $dueDate,
+                                'items'       => [[
+                                    'description' => $service->service_name . ' — ' . ($lesson->title ?? 'Session'),
+                                    'quantity'    => 1,
+                                    'unit_amount' => (int) round($price * 100),
+                                ]],
+                                'auto_bill' => true,
+                            ]);
+
+                            if ($invoiceId) {
+                                $transaction->update(['invoice_id' => $invoiceId]);
+                                $messages[] = "Invoice created — payment of £{$price} due {$dueDate}";
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('ScheduleController: billing invoice creation failed', [
+                            'transaction_id' => $transaction->id,
+                            'error'          => $e->getMessage(),
+                        ]);
+                        $messages[] = "Transaction of £{$price} created (invoice pending)";
+                    }
+                }
+                if ($price <= 0) $messages[] = "Free session enrolled";
             }
 
             // 2. Enrol child into the lesson

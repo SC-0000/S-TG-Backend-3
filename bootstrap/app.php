@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.broadcast' => \App\Http\Middleware\AuthBroadcastToken::class,
             'affiliate.auth' => \App\Http\Middleware\AffiliateAuth::class,
             'track.referer' => \App\Http\Middleware\TrackReferer::class,
+            'plan.access' => \App\Http\Middleware\CheckPlanAccess::class,
         ]);
         //
     })

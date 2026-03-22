@@ -36,6 +36,8 @@ class BackgroundAgentAction extends Model
     public const ACTION_GENERATE_TEXT = 'generate_text';
     public const ACTION_GENERATE_IMAGE = 'generate_image';
     public const ACTION_SEND_EMAIL = 'send_email';
+    public const ACTION_SEND_SMS = 'send_sms';
+    public const ACTION_SEND_WHATSAPP = 'send_whatsapp';
     public const ACTION_CREATE_RECORD = 'create_record';
     public const ACTION_UPDATE_RECORD = 'update_record';
 

@@ -16,6 +16,7 @@ use App\Models\Access;
 use App\Models\ContentLesson;
 use App\Models\LiveLessonSession;
 use App\Services\LiveKitTokenService;
+use App\Services\Tasks\TaskService;
 use App\Support\ApiPagination;
 use App\Support\ApiQuery;
 use Illuminate\Http\JsonResponse;
@@ -476,23 +477,20 @@ class LiveSessionController extends ApiController
     {
         try {
             if ($creatorRole === 'admin') {
-                \App\Models\AdminTask::create([
-                    'task_type' => 'Live Session Scheduled',
-                    'assigned_to' => $session->teacher_id,
-                    'status' => 'Pending',
+                TaskService::createFromEvent('live_session_scheduled', [
+                    'assigned_to'    => $session->teacher_id,
+                    'source_model'   => $session,
                     'related_entity' => route('teacher.live-sessions.index'),
-                    'priority' => 'Medium',
-                    'description' => "A new live session '{$lesson->title}' has been scheduled for " .
+                    'description'    => "A new live session '{$lesson->title}' has been scheduled for " .
                         $session->scheduled_start_time->format('M d, Y \a\t g:i A') . ". Please review and prepare for the session.",
                 ]);
             } elseif ($creatorRole === 'teacher') {
-                \App\Models\AdminTask::create([
-                    'task_type' => 'Live Session Created by Teacher',
-                    'assigned_to' => null,
-                    'status' => 'Pending',
+                TaskService::createFromEvent('live_session_scheduled', [
+                    'source_model'   => $session,
                     'related_entity' => route('admin.live-sessions.index'),
-                    'priority' => 'Low',
-                    'description' => "Teacher {$session->teacher?->name} has created a new live session '{$lesson->title}' scheduled for " .
+                    'priority'       => 'Low',
+                    'title'          => 'Live Session Created by Teacher',
+                    'description'    => "Teacher {$session->teacher?->name} has created a new live session '{$lesson->title}' scheduled for " .
                         $session->scheduled_start_time->format('M d, Y \a\t g:i A') . ".",
                 ]);
             }

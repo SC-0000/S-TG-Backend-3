@@ -5,10 +5,12 @@ namespace App\Services\AI;
 use App\Models\AgentTokenBalance;
 use App\Models\AgentTokenPricing;
 use App\Models\AgentTokenTransaction;
+use App\Models\AppNotification;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class TokenBillingService
 {
@@ -45,6 +47,12 @@ class TokenBillingService
             if (!$balance) {
                 $balance = AgentTokenBalance::getOrCreate($org->id);
                 $balance = AgentTokenBalance::where('organization_id', $org->id)->lockForUpdate()->first();
+            }
+
+            if ($balance->balance < $platformTokens) {
+                throw new \App\Exceptions\InsufficientTokenBalanceException(
+                    "Insufficient token balance. Required: {$platformTokens}, available: {$balance->balance}",
+                );
             }
 
             $balance->balance -= $platformTokens;
@@ -185,11 +193,27 @@ class TokenBillingService
             ->pluck('total_tokens', 'agent_type')
             ->toArray();
 
+        // Communication channel breakdown (sms, whatsapp, etc.)
+        $byChannel = AgentTokenTransaction::where('organization_id', $org->id)
+            ->forPeriod($from, $to)
+            ->where('type', AgentTokenTransaction::TYPE_CONSUMPTION)
+            ->whereIn('source_type', ['sms', 'whatsapp', 'whatsapp_ai_response', 'voice', 'call_transcription'])
+            ->selectRaw('source_type as channel, SUM(ABS(amount)) as total_tokens, COUNT(*) as message_count')
+            ->groupBy('source_type')
+            ->get()
+            ->keyBy('channel')
+            ->map(fn ($row) => [
+                'tokens' => (int) $row->total_tokens,
+                'messages' => (int) $row->message_count,
+            ])
+            ->toArray();
+
         return [
             'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'consumed' => (int) $consumed,
             'purchased' => (int) $purchased,
             'by_agent' => $byAgent,
+            'by_channel' => $byChannel,
             'balance' => $this->getBalance($org),
         ];
     }
@@ -203,16 +227,105 @@ class TokenBillingService
     }
 
     /**
-     * Notify org admins of low balance.
+     * Notify org admins of low balance. Rate-limited to once per hour per org.
      */
     protected function notifyLowBalance(Organization $org, AgentTokenBalance $balance): void
     {
+        $cacheKey = "low_balance_notified:{$org->id}";
+        if (Cache::has($cacheKey)) {
+            return;
+        }
+
         Log::info('[TokenBilling] Low balance alert', [
             'organization_id' => $org->id,
             'balance' => $balance->balance,
             'threshold' => $balance->low_balance_threshold,
         ]);
 
-        // TODO: Send in-app notification and email to org admin
+        // Attempt auto-topup if enabled
+        if ($balance->auto_topup_enabled && $balance->auto_topup_amount > 0) {
+            $this->processAutoTopup($org, $balance);
+            return;
+        }
+
+        // Send in-app notification to all org admins
+        $adminIds = $org->users()
+            ->wherePivotIn('role', ['org_admin', 'super_admin'])
+            ->wherePivot('status', 'active')
+            ->pluck('users.id');
+
+        foreach ($adminIds as $adminId) {
+            AppNotification::create([
+                'user_id' => $adminId,
+                'title' => 'Low AI Token Balance',
+                'message' => "Your AI token balance is low ({$balance->balance} remaining). Top up to avoid service interruption.",
+                'type' => 'billing',
+                'status' => 'unread',
+                'channel' => 'in_app',
+            ]);
+        }
+
+        // Rate limit: don't notify again for 1 hour
+        Cache::put($cacheKey, true, now()->addHour());
+    }
+
+    /**
+     * Process auto-topup when balance is low.
+     */
+    protected function processAutoTopup(Organization $org, AgentTokenBalance $balance): void
+    {
+        $tokens = $balance->auto_topup_amount;
+
+        try {
+            $billingService = app(\App\Services\BillingService::class);
+
+            if (!$org->billing_customer_id) {
+                Log::warning('[TokenBilling] Auto-topup skipped: no billing customer', ['organization_id' => $org->id]);
+                return;
+            }
+
+            $methods = $billingService->getPaymentMethods($org->billing_customer_id);
+            if (empty($methods['data'] ?? [])) {
+                Log::warning('[TokenBilling] Auto-topup skipped: no payment method', ['organization_id' => $org->id]);
+                return;
+            }
+
+            $exchangeRate = $this->getExchangeRate();
+            $amountGbp = $tokens / $exchangeRate;
+            $amountPence = (int) round($amountGbp * 100);
+
+            $invoiceId = $billingService->createInvoice([
+                'customer_id' => $org->billing_customer_id,
+                'currency' => 'gbp',
+                'due_date' => now()->toDateString(),
+                'items' => [[
+                    'description' => "Auto top-up: {$tokens} AI tokens",
+                    'quantity' => 1,
+                    'unit_amount' => $amountPence,
+                ]],
+            ]);
+
+            if ($invoiceId) {
+                $billingService->finalizeInvoice($invoiceId);
+                $autopayResult = $billingService->enableAutopay($invoiceId);
+
+                if ($autopayResult['success'] ?? false) {
+                    $this->purchase($org, $tokens, 'auto_topup', null, null, 'Auto top-up purchase');
+
+                    Log::info('[TokenBilling] Auto-topup successful', [
+                        'organization_id' => $org->id,
+                        'tokens' => $tokens,
+                        'amount_gbp' => $amountGbp,
+                    ]);
+                } else {
+                    Log::warning('[TokenBilling] Auto-topup payment failed', ['organization_id' => $org->id]);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('[TokenBilling] Auto-topup error', [
+                'organization_id' => $org->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

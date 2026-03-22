@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AIGradingFlag;
 use App\Models\AdminTask;
 use App\Models\AssessmentSubmissionItem;
+use App\Services\Tasks\TaskService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -159,7 +160,7 @@ class FlagController extends Controller
     {
         $flag->load(['child', 'submissionItem.submission.assessment']);
         
-        $task = AdminTask::create([
+        $task = TaskService::createFromEvent('flag_review', [
             'title' => 'Review AI Grading Flag',
             'description' => sprintf(
                 'Student %s has flagged a question in assessment "%s" for review. Reason: %s',
@@ -167,22 +168,20 @@ class FlagController extends Controller
                 $flag->submissionItem->submission->assessment->title,
                 str_replace('_', ' ', $flag->flag_reason)
             ),
-            'task_type' => 'flag_review',
-            'priority' => 'medium',
-            'status' => 'pending',
-            'assigned_to' => null, // Can be assigned later
-            'flag_id' => $flag->id,
-             route('admin.submissions.grade',  $flag->submissionItem->submission_id),
+            'assigned_to' => null,
+            'source_model' => $flag,
+            'action_url' => route('admin.submissions.grade', $flag->submissionItem->submission_id),
+            'due_at' => now()->addDays(2),
             'metadata' => [
+                'flag_id' => $flag->id,
                 'submission_id' => $flag->submissionItem->submission_id,
                 'item_id' => $flag->assessment_submission_item_id,
                 'child_id' => $flag->child_id,
                 'original_grade' => $flag->original_grade,
                 'flag_reason' => $flag->flag_reason,
                 'student_explanation' => $flag->student_explanation,
+                'created_by' => $flag->user_id,
             ],
-            'due_date' => now()->addDays(2), // 2 days to review
-            'created_by' => $flag->user_id,
         ]);
 
         return $task;

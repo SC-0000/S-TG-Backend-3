@@ -127,6 +127,7 @@ Route::view('/billing/receipt/{invoice}', 'app-api')->name('billing.receipt');
 
 // Webhook endpoint for billing provider to notify invoice/payment events
 Route::post('/webhooks/billing', [\App\Http\Controllers\BillingWebhookController::class, 'handleInvoice'])
+    ->middleware(\App\Http\Middleware\VerifyBillingWebhookSignature::class)
     ->name('webhooks.billing');
 
 // Public "My Purchases" page for logged-in parents / guest_parent accounts
@@ -238,6 +239,7 @@ Route::view('/applications/verify/{token}', 'app-api')->name('application.verify
 Route::post('/application/resend-verification', [ApplicationController::class, 'resendVerificationEmail'])->middleware('throttle:6,1')->name('application.resend_verification');
 Route::view('/application/verification', 'app-api')->name('application.verification');
 Route::view('/email/verified', 'app-api')->name('email.verified');
+Route::view('/setup-account', 'app-api')->name('setup-account');
 Route::middleware(['auth', 'role:super_admin'])->group(function () {
     Route::view('/applications', 'app-api')
         ->name('applications.index');

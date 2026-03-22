@@ -40,7 +40,12 @@ class AdminCourseController extends ApiController
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $statusValue = $request->status;
+            if (str_contains($statusValue, ',')) {
+                $query->whereIn('status', array_map('trim', explode(',', $statusValue)));
+            } else {
+                $query->where('status', $statusValue);
+            }
         }
 
         if ($request->filled('search')) {
@@ -282,7 +287,7 @@ class AdminCourseController extends ApiController
             'journey_category_id' => 'nullable|exists:journey_categories,id',
             'is_global' => 'nullable|boolean',
             'organization_id' => 'nullable|integer|exists:organizations,id',
-            'status' => 'nullable|in:draft,review,live,archived',
+            'status' => 'nullable|in:draft,review,needs_approval,live,archived',
         ]);
 
         $user = $request->user();
@@ -341,7 +346,7 @@ class AdminCourseController extends ApiController
             'metadata' => 'nullable|array',
             'metadata.estimated_duration_minutes' => 'required|integer|min:1',
             'journey_category_id' => 'nullable|exists:journey_categories,id',
-            'status' => 'nullable|in:draft,review,live,archived',
+            'status' => 'nullable|in:draft,review,needs_approval,live,archived',
         ]);
 
         $course->update($validated);

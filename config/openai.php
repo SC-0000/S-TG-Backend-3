@@ -5,7 +5,7 @@ return [
     'connections' => [
         'main' => [
             'key'       => env('OPENAI_API_KEY'),
-            'model'     => 'gpt-5-nano',
+            'model'     => 'gpt-5.4-nano',
             'timeout'   => 60,
             'retry'     => false,
             'rate_limit' => [

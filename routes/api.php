@@ -9,7 +9,9 @@ use App\Http\Controllers\Api\Auth\RoleSwitchController;
 use App\Http\Controllers\Api\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\Admin\ContentDashboardController as ApiAdminContentDashboardController;
 use App\Http\Controllers\Api\Admin\DashboardController as ApiAdminDashboardController;
+use App\Http\Controllers\Api\Admin\GrowthDashboardController as ApiAdminGrowthDashboardController;
 use App\Http\Controllers\Api\Admin\AccessController as AdminAccessController;
 use App\Http\Controllers\Api\Admin\AdminTaskController as ApiAdminTaskController;
 use App\Http\Controllers\Api\Admin\LessonUploadController as ApiAdminLessonUploadController;
@@ -25,6 +27,7 @@ use App\Http\Controllers\Api\Admin\JourneyCategoryController as ApiAdminJourneyC
 use App\Http\Controllers\Api\Admin\TeacherApplicationController as ApiTeacherApplicationController;
 use App\Http\Controllers\Api\Admin\PortalFeedbackController as ApiAdminPortalFeedbackController;
 use App\Http\Controllers\Api\Admin\ServiceController as ApiAdminServiceController;
+use App\Http\Controllers\Api\Admin\PromotionController as ApiAdminPromotionController;
 use App\Http\Controllers\Api\Admin\FeedbackController as ApiAdminFeedbackController;
 use App\Http\Controllers\Api\Admin\TeacherStudentAssignmentController as ApiTeacherStudentAssignmentController;
 use App\Http\Controllers\Api\Admin\YearGroupController as ApiAdminYearGroupController;
@@ -37,10 +40,15 @@ use App\Http\Controllers\Api\Admin\CommunicationController as ApiAdminCommunicat
 use App\Http\Controllers\Api\Admin\AdminAuditLogController as ApiAdminAuditLogController;
 use App\Http\Controllers\Api\Public\ContentController as PublicContentController;
 use App\Http\Controllers\Api\Public\ApplicationController as ApiPublicApplicationController;
+use App\Http\Controllers\Api\Public\SetupAccountController as ApiPublicSetupAccountController;
+use App\Http\Controllers\Api\Admin\ApplicationActivityController as ApiAdminApplicationActivityController;
+use App\Http\Controllers\Api\Admin\ApplicationContactController as ApiAdminApplicationContactController;
 use App\Http\Controllers\Api\Public\ApeAcademyController as ApiPublicApeAcademyController;
 use App\Http\Controllers\Api\ProductController as ApiProductController;
 use App\Http\Controllers\Api\ServiceController as ApiServiceController;
 use App\Http\Controllers\Api\SubscriptionCatalogController as ApiSubscriptionCatalogController;
+use App\Http\Controllers\Api\SubscriptionCheckoutController as ApiSubscriptionCheckoutController;
+use App\Http\Controllers\Api\SuperAdmin\SubscriptionController as ApiSuperAdminSubscriptionController;
 use App\Http\Controllers\Api\CartController as ApiCartController;
 use App\Http\Controllers\Api\CheckoutController as ApiCheckoutController;
 use App\Http\Controllers\Api\BillingController as ApiBillingController;
@@ -104,6 +112,8 @@ use App\Http\Controllers\Api\Admin\UserSubscriptionController as ApiAdminUserSub
 use App\Http\Controllers\Api\Admin\Content\ArticleController as ApiAdminArticleController;
 use App\Http\Controllers\Api\Admin\Content\FaqController as ApiAdminFaqController;
 use App\Http\Controllers\Api\Admin\Content\AlertController as ApiAdminAlertController;
+use App\Http\Controllers\Api\Admin\Content\ChangelogController as ApiAdminChangelogController;
+use App\Http\Controllers\Api\ChangelogController as ApiChangelogController;
 use App\Http\Controllers\Api\Admin\Content\SlideController as ApiAdminSlideController;
 use App\Http\Controllers\Api\Admin\Content\TestimonialController as ApiAdminTestimonialController;
 use App\Http\Controllers\Api\Admin\Content\MilestoneController as ApiAdminMilestoneController;
@@ -116,6 +126,9 @@ use App\Http\Controllers\Api\Affiliate\PortalController as ApiAffiliatePortalCon
 use App\Http\Controllers\Api\Admin\AffiliateController as ApiAdminAffiliateController;
 use App\Http\Controllers\Api\Admin\TrackingLinkController as ApiAdminTrackingLinkController;
 use App\Http\Controllers\Api\Admin\CommissionRuleController as ApiAdminCommissionRuleController;
+use App\Http\Controllers\Api\TermsAcceptanceController as ApiTermsAcceptanceController;
+use App\Http\Controllers\Api\SuperAdmin\TermsController as ApiSuperAdminTermsController;
+use App\Http\Controllers\Api\Admin\TermsController as ApiAdminTermsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -197,9 +210,13 @@ Route::middleware(['throttle:api'])->group(function () {
         Route::get('/testimonials', [PublicContentController::class, 'testimonials'])->name('api.v1.testimonials.index');
 
         Route::post('/applications', [ApiPublicApplicationController::class, 'store'])->name('api.v1.applications.store');
+        Route::get('/applications/terms', [ApiPublicApplicationController::class, 'getTerms'])->name('api.v1.applications.terms');
         Route::get('/applications/verify/{token}', [ApiPublicApplicationController::class, 'verify'])->name('api.v1.applications.verify');
         Route::post('/applications/resend-verification', [ApiPublicApplicationController::class, 'resendVerification'])
             ->name('api.v1.applications.resend');
+
+        Route::post('/setup-account/verify', [ApiPublicSetupAccountController::class, 'verify'])->name('api.v1.setup-account.verify');
+        Route::post('/setup-account/set-password', [ApiPublicSetupAccountController::class, 'setPassword'])->name('api.v1.setup-account.set-password');
 
         Route::get('/services', [ApiServiceController::class, 'index'])->name('api.v1.services.index');
         Route::get('/services/{service}', [ApiServiceController::class, 'show'])->name('api.v1.services.show');
@@ -211,6 +228,7 @@ Route::middleware(['throttle:api'])->group(function () {
         Route::get('/products/{product}', [ApiProductController::class, 'show'])->name('api.v1.products.show');
 
         Route::get('/subscription-plans', [ApiSubscriptionCatalogController::class, 'index'])->name('api.v1.subscription-plans.index');
+        Route::get('/subscriptions/catalog', [ApiSubscriptionCheckoutController::class, 'catalog'])->name('api.v1.subscriptions.catalog');
 
         Route::prefix('cart')->group(function () {
             Route::get('/', [ApiCartController::class, 'index'])->name('api.v1.cart.index');
@@ -218,7 +236,11 @@ Route::middleware(['throttle:api'])->group(function () {
             Route::post('/flexible', [ApiCartController::class, 'storeFlexible'])->name('api.v1.cart.flexible.store');
             Route::patch('/items/{item}', [ApiCartController::class, 'update'])->name('api.v1.cart.items.update');
             Route::delete('/items/{item}', [ApiCartController::class, 'destroy'])->name('api.v1.cart.items.destroy');
+            Route::post('/apply-promotion', [ApiCartController::class, 'applyPromotion'])->name('api.v1.cart.apply-promotion');
+            Route::delete('/remove-promotion', [ApiCartController::class, 'removePromotion'])->name('api.v1.cart.remove-promotion');
         });
+
+        Route::post('/promotions/validate', [ApiCartController::class, 'validatePromotion'])->name('api.v1.promotions.validate');
 
         Route::prefix('checkout/guest')->group(function () {
             Route::post('/send-code', [ApiCheckoutController::class, 'sendGuestCode'])->name('api.v1.checkout.guest.send-code');
@@ -226,7 +248,11 @@ Route::middleware(['throttle:api'])->group(function () {
         });
 
         Route::post('/webhooks/billing', [\App\Http\Controllers\BillingWebhookController::class, 'handleInvoice'])
+            ->middleware(\App\Http\Middleware\VerifyBillingWebhookSignature::class)
             ->name('api.v1.webhooks.billing');
+
+        Route::post('/webhooks/telnyx', [\App\Http\Controllers\Api\Webhooks\TelnyxWebhookController::class, 'handle'])
+            ->name('api.v1.webhooks.telnyx');
         
         Route::get('/courses', [ApiCourseController::class, 'index'])->name('api.v1.courses.index');
         Route::get('/courses/{course}', [ApiCourseController::class, 'show'])->name('api.v1.courses.show');
@@ -259,6 +285,15 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('/questions/search', [QuestionController::class, 'searchApiV1'])->name('api.v1.questions.search');
             Route::get('/questions/batch', [QuestionController::class, 'batchFetchV1'])->name('api.v1.questions.batch');
 
+            // Terms & Conditions — available to all authenticated users
+            Route::get('/terms/pending', [ApiTermsAcceptanceController::class, 'pending'])->name('api.v1.terms.pending');
+            Route::post('/terms/{term}/accept', [ApiTermsAcceptanceController::class, 'accept'])->name('api.v1.terms.accept');
+
+            // Changelog — available to all authenticated users
+            Route::get('/changelog', [ApiChangelogController::class, 'index'])->name('api.v1.changelog.index');
+            Route::get('/changelog/unread-count', [ApiChangelogController::class, 'unreadCount'])->name('api.v1.changelog.unread-count');
+            Route::post('/changelog/{id}/read', [ApiChangelogController::class, 'markRead'])->name('api.v1.changelog.mark-read');
+
         Route::post('/checkout', [ApiCheckoutController::class, 'store'])
             ->middleware('role:parent,guest_parent,admin,super_admin')
             ->name('api.v1.checkout.store');
@@ -279,6 +314,14 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('/invoices', [ApiBillingController::class, 'invoices'])->name('api.v1.billing.invoices');
             Route::get('/payments', [ApiBillingController::class, 'paymentMethods'])->name('api.v1.billing.payments');
             Route::get('/portal', [ApiBillingController::class, 'portal'])->name('api.v1.billing.portal');
+            Route::get('/invoice/{transaction}/download', [ApiBillingController::class, 'downloadInvoice'])->name('api.v1.billing.invoice.download');
+        });
+
+        // Subscription checkout (parent self-purchase)
+        Route::prefix('subscriptions')->middleware('role:parent,guest_parent,admin,super_admin')->group(function () {
+            Route::post('/subscribe', [ApiSubscriptionCheckoutController::class, 'subscribe'])->name('api.v1.subscriptions.subscribe');
+            Route::get('/mine', [ApiSubscriptionCheckoutController::class, 'mySubscriptions'])->name('api.v1.subscriptions.mine');
+            Route::post('/{pivot}/cancel', [ApiSubscriptionCheckoutController::class, 'cancel'])->name('api.v1.subscriptions.cancel');
         });
 
         Route::get('/transactions', [ApiTransactionController::class, 'index'])
@@ -432,10 +475,10 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
         Route::prefix('ai')->group(function () {
             Route::post('/admin/chat', [ApiOrgAIAgentController::class, 'adminChat'])
-                ->middleware('role:admin,super_admin')
+                ->middleware(['role:admin,super_admin', 'plan.access:ai_chat'])
                 ->name('api.v1.ai.admin.chat');
             Route::post('/teacher/chat', [ApiOrgAIAgentController::class, 'teacherChat'])
-                ->middleware('role:teacher')
+                ->middleware(['role:teacher', 'plan.access:ai_chat'])
                 ->name('api.v1.ai.teacher.chat');
 
             Route::post('/chat', [ApiParentChatController::class, 'ask'])
@@ -452,88 +495,88 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 ->name('api.v1.ai.hint-loop');
 
             Route::post('/tutor/chat', [ApiAIAgentController::class, 'tutorChat'])
-                ->middleware(['role:parent,admin,teacher', 'feature:parent.ai.chatbot'])
+                ->middleware(['role:parent,admin,teacher', 'feature:parent.ai.chatbot', 'plan.access:ai_chat'])
                 ->name('api.v1.ai.tutor.chat');
             Route::post('/grading/review', [ApiAIAgentController::class, 'gradingReview'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_grading'])
                 ->name('api.v1.ai.grading.review');
             Route::post('/progress/analyze', [ApiAIAgentController::class, 'progressAnalysis'])
-                ->middleware(['role:parent,admin,teacher', 'feature:parent.ai.report_generation'])
+                ->middleware(['role:parent,admin,teacher', 'feature:parent.ai.report_generation', 'plan.access:ai_reports'])
                 ->name('api.v1.ai.progress.analyze');
             Route::post('/hints/generate', [ApiAIAgentController::class, 'generateHint'])
-                ->middleware(['role:parent,admin,teacher', 'feature:parent.ai.post_submission_help'])
+                ->middleware(['role:parent,admin,teacher', 'feature:parent.ai.post_submission_help', 'plan.access:ai_feedback'])
                 ->name('api.v1.ai.hints.generate');
             Route::post('/review/initiate', [ApiAIAgentController::class, 'initiateReviewChat'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_chat'])
                 ->name('api.v1.ai.review.initiate');
             Route::post('/review/chat', [ApiAIAgentController::class, 'reviewChat'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_chat'])
                 ->name('api.v1.ai.review.chat');
 
             Route::get('/sessions/{child_id}', [ApiAIAgentController::class, 'getSessions'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_chat'])
                 ->name('api.v1.ai.sessions');
             Route::get('/data-options/{child_id}', [ApiAIAgentController::class, 'getDataOptions'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_basic_grading'])
                 ->name('api.v1.ai.data-options');
             Route::get('/conversations/{child_id}', [ApiAIAgentController::class, 'getConversations'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_chat'])
                 ->name('api.v1.ai.conversations');
             Route::get('/performance/{child_id}', [ApiAIAgentController::class, 'getPerformanceData'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_reports'])
                 ->name('api.v1.ai.performance');
 
             Route::get('/recommendations/{child_id}', [ApiAIAgentController::class, 'getRecommendations'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_custom_agents'])
                 ->name('api.v1.ai.recommendations');
             Route::post('/recommendations/execute', [ApiAIAgentController::class, 'executeRecommendation'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_custom_agents'])
                 ->name('api.v1.ai.recommendations.execute');
             Route::post('/recommendations/{id}/dismiss', [ApiAIAgentController::class, 'dismissRecommendation'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_custom_agents'])
                 ->name('api.v1.ai.recommendations.dismiss');
 
             Route::get('/weakness-analysis/{child_id}', [ApiAIAgentController::class, 'getWeaknessAnalysis'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_reports'])
                 ->name('api.v1.ai.weakness-analysis');
             Route::post('/interventions/execute', [ApiAIAgentController::class, 'executeIntervention'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_custom_agents'])
                 ->name('api.v1.ai.interventions.execute');
 
             Route::post('/contextual-prompts/generate', [ApiAIAgentController::class, 'generateContextualPrompts'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_custom_agents'])
                 ->name('api.v1.ai.contextual-prompts.generate');
             Route::get('/prompt-library/{child_id}', [ApiAIAgentController::class, 'getPromptLibrary'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_custom_agents'])
                 ->name('api.v1.ai.prompt-library');
             Route::post('/prompts/custom-generate', [ApiAIAgentController::class, 'generateCustomPrompt'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_custom_agents'])
                 ->name('api.v1.ai.prompts.custom');
             Route::post('/prompts/execute', [ApiAIAgentController::class, 'executePrompt'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_custom_agents'])
                 ->name('api.v1.ai.prompts.execute');
 
             Route::get('/learning-paths/{child_id}', [ApiAIAgentController::class, 'getLearningPaths'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_studio'])
                 ->name('api.v1.ai.learning-paths');
             Route::get('/learning-paths/{child_id}/progress', [ApiAIAgentController::class, 'getPathProgress'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_studio'])
                 ->name('api.v1.ai.learning-paths.progress');
             Route::post('/learning-paths/generate', [ApiAIAgentController::class, 'generateLearningPath'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_studio'])
                 ->name('api.v1.ai.learning-paths.generate');
             Route::post('/learning-paths/{path_id}/start', [ApiAIAgentController::class, 'startLearningPath'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_studio'])
                 ->name('api.v1.ai.learning-paths.start');
             Route::post('/learning-paths/{path_id}/steps/{step_id}/execute', [ApiAIAgentController::class, 'executePathStep'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_studio'])
                 ->name('api.v1.ai.learning-paths.step');
 
             Route::get('/agents/capabilities', [ApiAIAgentController::class, 'getCapabilities'])
-                ->middleware('role:parent,admin,teacher')
+                ->middleware(['role:parent,admin,teacher', 'plan.access:ai_basic_grading'])
                 ->name('api.v1.ai.capabilities');
 
-            Route::prefix('uploads')->middleware('role:admin,teacher,super_admin')->group(function () {
+            Route::prefix('uploads')->middleware(['role:admin,teacher,super_admin', 'plan.access:ai_content_gen'])->group(function () {
                 Route::get('/', [ApiAdminAIUploadController::class, 'index'])->name('api.v1.ai.uploads.index');
                 Route::post('/', [ApiAdminAIUploadController::class, 'store'])->name('api.v1.ai.uploads.store');
                 Route::put('/proposals/{proposal}', [ApiAdminAIUploadController::class, 'updateProposal'])->name('api.v1.ai.uploads.proposals.update');
@@ -547,7 +590,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::post('/{session}/upload', [ApiAdminAIUploadController::class, 'upload'])->name('api.v1.ai.uploads.upload');
             });
 
-            Route::prefix('flags')->middleware('role:admin,teacher,super_admin')->group(function () {
+            Route::prefix('flags')->middleware(['role:admin,teacher,super_admin', 'plan.access:ai_chat'])->group(function () {
                 Route::get('/', [ApiAdminFlagController::class, 'index'])->name('api.v1.ai.flags.index');
                 Route::get('/stats', [ApiAdminFlagController::class, 'stats'])->name('api.v1.ai.flags.stats');
                 Route::get('/{flag}', [ApiAdminFlagController::class, 'show'])->name('api.v1.ai.flags.show');
@@ -583,6 +626,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('/unread', [ApiNotificationController::class, 'unread'])->name('api.v1.notifications.unread');
             Route::patch('/{id}/read', [ApiNotificationController::class, 'markRead'])->name('api.v1.notifications.read');
             Route::patch('/read-all', [ApiNotificationController::class, 'markAllRead'])->name('api.v1.notifications.read-all');
+            Route::get('/preferences', [\App\Http\Controllers\Api\Parent\NotificationPreferenceController::class, 'show'])->name('api.v1.notifications.preferences.show');
+            Route::put('/preferences', [\App\Http\Controllers\Api\Parent\NotificationPreferenceController::class, 'update'])->name('api.v1.notifications.preferences.update');
         });
 
         Route::prefix('tasks')->middleware('role:parent,guest_parent,admin,super_admin')->group(function () {
@@ -707,7 +752,25 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::prefix('admin')->middleware('role:admin,super_admin')->group(function () {
             Route::get('/dashboard', [ApiAdminDashboardController::class, 'index'])->name('api.v1.admin.dashboard');
             Route::get('/dashboard/delivery', [ApiAdminDashboardController::class, 'deliveryHub'])->name('api.v1.admin.dashboard.delivery');
+            Route::get('/dashboard/growth', [ApiAdminGrowthDashboardController::class, 'index'])->name('api.v1.admin.dashboard.growth');
+            // Client Relationship Hub
+            Route::prefix('clients')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'index'])->name('api.v1.admin.clients.index');
+                Route::get('/preview', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'preview'])->name('api.v1.admin.clients.preview');
+                Route::get('/alerts', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'alerts'])->name('api.v1.admin.clients.alerts');
+                Route::get('/stats', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'stats'])->name('api.v1.admin.clients.stats');
+                Route::get('/{user}', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'show'])->name('api.v1.admin.clients.show');
+                Route::get('/{user}/timeline', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'timeline'])->name('api.v1.admin.clients.timeline');
+                Route::post('/{user}/refresh-score', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'refreshScore'])->name('api.v1.admin.clients.refresh-score');
+                Route::post('/{user}/actions/book', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'bookOnBehalf'])->name('api.v1.admin.clients.book');
+                Route::post('/{user}/actions/purchase', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'purchaseOnBehalf'])->name('api.v1.admin.clients.purchase');
+                Route::post('/{user}/actions/subscribe', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'subscribeOnBehalf'])->name('api.v1.admin.clients.subscribe');
+                Route::post('/{user}/actions/message', [\App\Http\Controllers\Api\Admin\ClientRelationshipController::class, 'messageOnBehalf'])->name('api.v1.admin.clients.message');
+            });
+
             Route::get('/audit-logs', [ApiAdminAuditLogController::class, 'index'])->name('api.v1.admin.audit-logs.index');
+            Route::get('/content-dashboard/approval-summary', [ApiAdminContentDashboardController::class, 'approvalSummary'])->name('api.v1.admin.content-dashboard.approval-summary');
+            Route::get('/content-dashboard/journey-completeness', [ApiAdminContentDashboardController::class, 'journeyCompleteness'])->name('api.v1.admin.content-dashboard.journey-completeness');
 
             Route::prefix('email-subscribers')->group(function () {
                 Route::get('/', [ApiAdminEmailSubscriberController::class, 'index'])->name('api.v1.admin.email-subscribers.index');
@@ -727,12 +790,60 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
             Route::post('/communications/send', [ApiAdminCommunicationController::class, 'send'])->name('api.v1.admin.communications.send');
 
+            // Communications Hub: Conversations
+            Route::post('/communications/send-to-parent', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'sendToParent'])->name('api.v1.admin.conversations.send-to-parent');
+            Route::get('/communications/search-recipients', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'searchRecipients'])->name('api.v1.admin.communications.search-recipients');
+            Route::get('/communications/pending', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'pending'])->name('api.v1.admin.communications.pending');
+            Route::prefix('conversations')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'index'])->name('api.v1.admin.conversations.index');
+                Route::get('/{conversation}', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'show'])->name('api.v1.admin.conversations.show');
+                Route::post('/{conversation}/messages', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'reply'])->name('api.v1.admin.conversations.reply');
+                Route::patch('/{conversation}/assign', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'assign'])->name('api.v1.admin.conversations.assign');
+                Route::post('/{conversation}/create-task', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'createTask'])->name('api.v1.admin.conversations.create-task');
+                Route::post('/{conversation}/check-in', [\App\Http\Controllers\Api\Admin\ConversationController::class, 'recordCheckIn'])->name('api.v1.admin.conversations.check-in');
+            });
+
+            // Communications Hub: Templates
+            Route::prefix('communications/templates')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\CommunicationTemplateController::class, 'index'])->name('api.v1.admin.communication-templates.index');
+                Route::post('/', [\App\Http\Controllers\Api\Admin\CommunicationTemplateController::class, 'store'])->name('api.v1.admin.communication-templates.store');
+                Route::get('/{template}', [\App\Http\Controllers\Api\Admin\CommunicationTemplateController::class, 'show'])->name('api.v1.admin.communication-templates.show');
+                Route::put('/{template}', [\App\Http\Controllers\Api\Admin\CommunicationTemplateController::class, 'update'])->name('api.v1.admin.communication-templates.update');
+                Route::delete('/{template}', [\App\Http\Controllers\Api\Admin\CommunicationTemplateController::class, 'destroy'])->name('api.v1.admin.communication-templates.destroy');
+            });
+
+            // Communications Hub: Analytics
+            Route::get('/communications/analytics', [\App\Http\Controllers\Api\Admin\CommunicationAnalyticsController::class, 'index'])->name('api.v1.admin.communications.analytics');
+
+            // Communications Settings: Phone Numbers & Channel Setup
+            Route::prefix('communications/settings')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\PhoneNumberController::class, 'index'])->name('api.v1.admin.comms-settings.index');
+                Route::put('/', [\App\Http\Controllers\Api\Admin\PhoneNumberController::class, 'updateSettings'])->name('api.v1.admin.comms-settings.update');
+                Route::get('/test-connection', [\App\Http\Controllers\Api\Admin\PhoneNumberController::class, 'testConnection'])->name('api.v1.admin.comms-settings.test-connection');
+                Route::get('/search-numbers', [\App\Http\Controllers\Api\Admin\PhoneNumberController::class, 'searchNumbers'])->name('api.v1.admin.comms-settings.search-numbers');
+                Route::post('/purchase-number', [\App\Http\Controllers\Api\Admin\PhoneNumberController::class, 'purchaseNumber'])->name('api.v1.admin.comms-settings.purchase-number');
+                Route::delete('/numbers/{phoneNumber}', [\App\Http\Controllers\Api\Admin\PhoneNumberController::class, 'deleteNumber'])->name('api.v1.admin.comms-settings.delete-number');
+                Route::post('/numbers/{phoneNumber}/default', [\App\Http\Controllers\Api\Admin\PhoneNumberController::class, 'setDefault'])->name('api.v1.admin.comms-settings.set-default');
+            });
+
+            // Calling
+            Route::prefix('calls')->group(function () {
+                Route::post('/initiate', [\App\Http\Controllers\Api\Admin\CallController::class, 'initiate'])->name('api.v1.admin.calls.initiate');
+                Route::post('/{callLog}/hangup', [\App\Http\Controllers\Api\Admin\CallController::class, 'hangup'])->name('api.v1.admin.calls.hangup');
+                Route::get('/{callLog}/status', [\App\Http\Controllers\Api\Admin\CallController::class, 'status'])->name('api.v1.admin.calls.status');
+                Route::get('/history', [\App\Http\Controllers\Api\Admin\CallController::class, 'history'])->name('api.v1.admin.calls.history');
+                Route::get('/active', [\App\Http\Controllers\Api\Admin\CallController::class, 'activeCall'])->name('api.v1.admin.calls.active');
+                Route::get('/flow', [\App\Http\Controllers\Api\Admin\CallController::class, 'getCallFlow'])->name('api.v1.admin.calls.flow');
+                Route::put('/flow', [\App\Http\Controllers\Api\Admin\CallController::class, 'updateCallFlow'])->name('api.v1.admin.calls.flow.update');
+            });
+
             Route::prefix('subscriptions')->group(function () {
                 Route::get('/', [ApiAdminSubscriptionController::class, 'index'])->name('api.v1.admin.subscriptions.index');
                 Route::post('/', [ApiAdminSubscriptionController::class, 'store'])->name('api.v1.admin.subscriptions.store');
                 Route::get('/{subscription}', [ApiAdminSubscriptionController::class, 'show'])->name('api.v1.admin.subscriptions.show');
                 Route::put('/{subscription}', [ApiAdminSubscriptionController::class, 'update'])->name('api.v1.admin.subscriptions.update');
                 Route::delete('/{subscription}', [ApiAdminSubscriptionController::class, 'destroy'])->name('api.v1.admin.subscriptions.destroy');
+                Route::post('/{subscription}/toggle-active', [ApiAdminSubscriptionController::class, 'toggleActive'])->name('api.v1.admin.subscriptions.toggle-active');
             });
 
             Route::prefix('products')->group(function () {
@@ -751,6 +862,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::get('/{journey}/full', [ApiAdminJourneyController::class, 'showFull'])->name('api.v1.admin.journeys.full');
                 Route::put('/{journey}', [ApiAdminJourneyController::class, 'update'])->name('api.v1.admin.journeys.update');
                 Route::delete('/{journey}', [ApiAdminJourneyController::class, 'destroy'])->name('api.v1.admin.journeys.destroy');
+                Route::get('/category/{categoryId}/content', [ApiAdminJourneyController::class, 'categoryContent'])->name('api.v1.admin.journeys.category-content');
             });
 
             Route::prefix('journey-categories')->group(function () {
@@ -774,6 +886,14 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
                 Route::get('/{service}', [ApiAdminServiceController::class, 'show'])->name('api.v1.admin.services.show');
                 Route::put('/{service}', [ApiAdminServiceController::class, 'update'])->name('api.v1.admin.services.update');
                 Route::delete('/{service}', [ApiAdminServiceController::class, 'destroy'])->name('api.v1.admin.services.destroy');
+            });
+
+            Route::prefix('promotions')->group(function () {
+                Route::get('/', [ApiAdminPromotionController::class, 'index'])->name('api.v1.admin.promotions.index');
+                Route::post('/', [ApiAdminPromotionController::class, 'store'])->name('api.v1.admin.promotions.store');
+                Route::get('/{promotion}', [ApiAdminPromotionController::class, 'show'])->name('api.v1.admin.promotions.show');
+                Route::put('/{promotion}', [ApiAdminPromotionController::class, 'update'])->name('api.v1.admin.promotions.update');
+                Route::delete('/{promotion}', [ApiAdminPromotionController::class, 'destroy'])->name('api.v1.admin.promotions.destroy');
             });
 
             // Admin: Teacher availability management
@@ -947,6 +1067,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
             Route::prefix('tasks')->group(function () {
                 Route::get('/', [ApiAdminTaskController::class, 'index'])->name('api.v1.admin.tasks.index');
+                Route::get('/types', [ApiAdminTaskController::class, 'types'])->name('api.v1.admin.tasks.types');
+                Route::get('/oversight', [ApiAdminTaskController::class, 'oversight'])->name('api.v1.admin.tasks.oversight');
                 Route::post('/', [ApiAdminTaskController::class, 'store'])->name('api.v1.admin.tasks.store');
                 Route::get('/{task}', [ApiAdminTaskController::class, 'show'])->name('api.v1.admin.tasks.show');
                 Route::put('/{task}', [ApiAdminTaskController::class, 'update'])->name('api.v1.admin.tasks.update');
@@ -986,7 +1108,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             });
 
 
-Route::prefix('ai-upload')->group(function () {
+Route::prefix('ai-upload')->middleware('plan.access:ai_content_gen')->group(function () {
                 Route::get('/', [ApiAdminAIUploadController::class, 'index'])->name('api.v1.admin.ai-upload.index');
                 Route::post('/', [ApiAdminAIUploadController::class, 'store'])->name('api.v1.admin.ai-upload.store');
                 Route::put('/proposals/{proposal}', [ApiAdminAIUploadController::class, 'updateProposal'])->name('api.v1.admin.ai-upload.proposals.update');
@@ -1000,7 +1122,7 @@ Route::prefix('ai-upload')->group(function () {
                 Route::post('/{session}/upload', [ApiAdminAIUploadController::class, 'upload'])->name('api.v1.admin.ai-upload.upload');
             });
 
-            Route::prefix('flags')->group(function () {
+            Route::prefix('flags')->middleware('plan.access:ai_chat')->group(function () {
                 Route::get('/', [ApiAdminFlagController::class, 'index'])->name('api.v1.admin.flags.index');
                 Route::get('/stats', [ApiAdminFlagController::class, 'stats'])->name('api.v1.admin.flags.stats');
                 Route::get('/{flag}', [ApiAdminFlagController::class, 'show'])->name('api.v1.admin.flags.show');
@@ -1010,9 +1132,20 @@ Route::prefix('ai-upload')->group(function () {
 
             Route::prefix('applications')->group(function () {
                 Route::get('/', [ApiAdminApplicationController::class, 'index'])->name('api.v1.admin.applications.index');
+                Route::get('/kanban', [ApiAdminApplicationController::class, 'kanban'])->name('api.v1.admin.applications.kanban');
                 Route::get('/{application}', [ApiAdminApplicationController::class, 'show'])->name('api.v1.admin.applications.show');
                 Route::put('/{application}/review', [ApiAdminApplicationController::class, 'review'])->name('api.v1.admin.applications.review');
+                Route::patch('/{application}/pipeline-status', [ApiAdminApplicationController::class, 'updatePipelineStatus'])->name('api.v1.admin.applications.pipeline-status');
                 Route::delete('/{application}', [ApiAdminApplicationController::class, 'destroy'])->name('api.v1.admin.applications.destroy');
+
+                // Activities
+                Route::get('/{application}/activities', [ApiAdminApplicationActivityController::class, 'index'])->name('api.v1.admin.applications.activities.index');
+                Route::post('/{application}/activities', [ApiAdminApplicationActivityController::class, 'store'])->name('api.v1.admin.applications.activities.store');
+
+                // Contact actions
+                Route::post('/{application}/contact/send', [ApiAdminApplicationContactController::class, 'sendMessage'])->name('api.v1.admin.applications.contact.send');
+                Route::post('/{application}/contact/log-call', [ApiAdminApplicationContactController::class, 'logCall'])->name('api.v1.admin.applications.contact.log-call');
+                Route::post('/{application}/contact/schedule-follow-up', [ApiAdminApplicationContactController::class, 'scheduleFollowUp'])->name('api.v1.admin.applications.contact.schedule-follow-up');
             });
 
             Route::prefix('users')->group(function () {
@@ -1040,27 +1173,53 @@ Route::prefix('ai-upload')->group(function () {
 
             // Background Agents
             Route::prefix('agents')->group(function () {
-                Route::get('/dashboard', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'dashboard'])->name('api.v1.admin.agents.dashboard');
-                Route::get('/quality-issues', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'qualityIssues'])->name('api.v1.admin.agents.quality-issues');
-                Route::post('/quality-issues/{id}/dismiss', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'dismissIssue'])->name('api.v1.admin.agents.quality-issues.dismiss');
-                Route::post('/quality-issues/{id}/fix', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'fixIssue'])->name('api.v1.admin.agents.quality-issues.fix');
+                Route::get('/dashboard', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'dashboard'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.dashboard');
+                Route::get('/quality-issues', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'qualityIssues'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.quality-issues');
+                Route::post('/quality-issues/{id}/dismiss', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'dismissIssue'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.quality-issues.dismiss');
+                Route::post('/quality-issues/{id}/fix', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'fixIssue'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.quality-issues.fix');
 
-                // Token management
+                // Token management (no plan.access — these are billing endpoints)
                 Route::prefix('tokens')->group(function () {
                     Route::get('/balance', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'balance'])->name('api.v1.admin.agents.tokens.balance');
                     Route::get('/transactions', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'transactions'])->name('api.v1.admin.agents.tokens.transactions');
                     Route::post('/purchase', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'purchase'])->name('api.v1.admin.agents.tokens.purchase');
                     Route::get('/usage', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'usage'])->name('api.v1.admin.agents.tokens.usage');
                     Route::put('/settings', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'updateSettings'])->name('api.v1.admin.agents.tokens.settings');
+                    Route::post('/confirm-purchase', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'confirmPurchase'])->name('api.v1.admin.agents.tokens.confirm-purchase');
+                    Route::get('/billing-setup', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'billingSetup'])->name('api.v1.admin.agents.tokens.billing-setup');
                 });
 
                 // Agent CRUD (must come after /dashboard, /quality-issues, /tokens to avoid route conflicts)
-                Route::get('/', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'index'])->name('api.v1.admin.agents.index');
-                Route::get('/{type}', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'show'])->name('api.v1.admin.agents.show');
-                Route::get('/{type}/runs', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'runs'])->name('api.v1.admin.agents.runs');
-                Route::get('/{type}/runs/{id}', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'runDetail'])->name('api.v1.admin.agents.runs.detail');
-                Route::post('/{type}/trigger', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'trigger'])->name('api.v1.admin.agents.trigger');
-                Route::put('/{type}/config', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'updateConfig'])->name('api.v1.admin.agents.config');
+                Route::get('/', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'index'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.index');
+                Route::get('/{type}', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'show'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.show');
+                Route::get('/{type}/runs', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'runs'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.runs');
+                Route::get('/{type}/runs/{id}', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'runDetail'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.runs.detail');
+                Route::post('/{type}/trigger', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'trigger'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.trigger');
+                Route::put('/{type}/config', [\App\Http\Controllers\Api\Admin\BackgroundAgentController::class, 'updateConfig'])->middleware('plan.access:ai_custom_agents')->name('api.v1.admin.agents.config');
+            });
+
+            // Plans & Usage
+            Route::prefix('plans')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\PlanController::class, 'index'])->name('api.v1.admin.plans.index');
+                Route::get('/pricing', [\App\Http\Controllers\Api\Admin\PlanController::class, 'pricing'])->name('api.v1.admin.plans.pricing');
+                Route::post('/subscribe', [\App\Http\Controllers\Api\Admin\PlanController::class, 'subscribe'])->name('api.v1.admin.plans.subscribe');
+                Route::post('/{plan}/cancel', [\App\Http\Controllers\Api\Admin\PlanController::class, 'cancel'])->name('api.v1.admin.plans.cancel');
+                Route::get('/invoices', [\App\Http\Controllers\Api\Admin\PlanController::class, 'invoices'])->name('api.v1.admin.plans.invoices');
+                Route::get('/ai-usage', [\App\Http\Controllers\Api\Admin\PlanController::class, 'aiUsage'])->name('api.v1.admin.plans.ai-usage');
+                Route::get('/billing-setup', [\App\Http\Controllers\Api\Admin\PlanController::class, 'billingSetup'])->name('api.v1.admin.plans.billing-setup');
+                Route::get('/ai-members', [\App\Http\Controllers\Api\Admin\PlanController::class, 'aiMembers'])->name('api.v1.admin.plans.ai-members');
+                Route::post('/enable-ai-all', [\App\Http\Controllers\Api\Admin\PlanController::class, 'enableAiAll'])->name('api.v1.admin.plans.enable-ai-all');
+                Route::get('/billing-reconciliation', [\App\Http\Controllers\Api\Admin\PlanController::class, 'billingReconciliation'])->name('api.v1.admin.plans.billing-reconciliation');
+                Route::get('/billing-invoice/{invoiceId}', [\App\Http\Controllers\Api\Admin\PlanController::class, 'billingInvoiceDetail'])->name('api.v1.admin.plans.billing-invoice-detail');
+            });
+
+            // Workspace settings (org branding, colors, contact, social, email appearance)
+            Route::prefix('workspace-settings')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\WorkspaceSettingsController::class, 'index'])->name('api.v1.admin.workspace-settings.index');
+                Route::put('/', [\App\Http\Controllers\Api\Admin\WorkspaceSettingsController::class, 'update'])->name('api.v1.admin.workspace-settings.update');
+                Route::post('/upload-logo', [\App\Http\Controllers\Api\Admin\WorkspaceSettingsController::class, 'uploadLogo'])->name('api.v1.admin.workspace-settings.upload-logo');
+                Route::post('/upload-favicon', [\App\Http\Controllers\Api\Admin\WorkspaceSettingsController::class, 'uploadFavicon'])->name('api.v1.admin.workspace-settings.upload-favicon');
+                Route::delete('/delete-asset', [\App\Http\Controllers\Api\Admin\WorkspaceSettingsController::class, 'deleteAsset'])->name('api.v1.admin.workspace-settings.delete-asset');
             });
 
             // Affiliate management
@@ -1100,6 +1259,16 @@ Route::prefix('ai-upload')->group(function () {
             // Affiliate settings
             Route::get('/affiliate-settings', [ApiAdminAffiliateController::class, 'settings'])->name('api.v1.admin.affiliate-settings.show');
             Route::put('/affiliate-settings', [ApiAdminAffiliateController::class, 'updateSettings'])->name('api.v1.admin.affiliate-settings.update');
+
+            // Terms & Conditions Management (org-level)
+            Route::prefix('terms')->group(function () {
+                Route::get('/', [ApiAdminTermsController::class, 'index'])->name('api.v1.admin.terms.index');
+                Route::post('/', [ApiAdminTermsController::class, 'store'])->name('api.v1.admin.terms.store');
+                Route::get('/{term}', [ApiAdminTermsController::class, 'show'])->name('api.v1.admin.terms.show');
+                Route::put('/{term}', [ApiAdminTermsController::class, 'update'])->name('api.v1.admin.terms.update');
+                Route::post('/{term}/publish', [ApiAdminTermsController::class, 'publish'])->name('api.v1.admin.terms.publish');
+                Route::post('/{term}/unpublish', [ApiAdminTermsController::class, 'unpublish'])->name('api.v1.admin.terms.unpublish');
+            });
 
             // Tracking insights
             Route::get('/tracking-insights', [ApiAdminAffiliateController::class, 'insights'])->name('api.v1.admin.tracking-insights');
@@ -1150,6 +1319,12 @@ Route::prefix('ai-upload')->group(function () {
                 Route::post('/{type}/{id}/feature', [ApiSuperAdminContentController::class, 'feature'])->name('api.v1.superadmin.content.feature');
                 Route::post('/{type}/{id}/unfeature', [ApiSuperAdminContentController::class, 'unfeature'])->name('api.v1.superadmin.content.unfeature');
                 Route::delete('/{type}/{id}', [ApiSuperAdminContentController::class, 'delete'])->name('api.v1.superadmin.content.delete');
+
+                Route::get('/changelog', [ApiAdminChangelogController::class, 'index'])->name('api.v1.superadmin.content.changelog.index');
+                Route::post('/changelog', [ApiAdminChangelogController::class, 'store'])->name('api.v1.superadmin.content.changelog.store');
+                Route::get('/changelog/{id}', [ApiAdminChangelogController::class, 'show'])->name('api.v1.superadmin.content.changelog.show');
+                Route::put('/changelog/{id}', [ApiAdminChangelogController::class, 'update'])->name('api.v1.superadmin.content.changelog.update');
+                Route::delete('/changelog/{id}', [ApiAdminChangelogController::class, 'destroy'])->name('api.v1.superadmin.content.changelog.destroy');
             });
 
             Route::prefix('system')->group(function () {
@@ -1174,6 +1349,16 @@ Route::prefix('ai-upload')->group(function () {
                 Route::get('/export', [ApiSuperAdminBillingController::class, 'export'])->name('api.v1.superadmin.billing.export');
             });
 
+            // Organization billing management
+            Route::prefix('org/{organization}/billing')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\SuperAdmin\OrganizationBillingController::class, 'index'])->name('api.v1.superadmin.org-billing.index');
+                Route::post('/setup-customer', [\App\Http\Controllers\Api\SuperAdmin\OrganizationBillingController::class, 'setupCustomer'])->name('api.v1.superadmin.org-billing.setup-customer');
+                Route::post('/invoice', [\App\Http\Controllers\Api\SuperAdmin\OrganizationBillingController::class, 'createInvoice'])->name('api.v1.superadmin.org-billing.create-invoice');
+                Route::post('/invoice/{invoice}/finalize', [\App\Http\Controllers\Api\SuperAdmin\OrganizationBillingController::class, 'finalizeInvoice'])->name('api.v1.superadmin.org-billing.finalize-invoice');
+                Route::post('/invoice/{invoice}/void', [\App\Http\Controllers\Api\SuperAdmin\OrganizationBillingController::class, 'voidInvoice'])->name('api.v1.superadmin.org-billing.void-invoice');
+                Route::post('/invoice/{invoice}/enable-autopay', [\App\Http\Controllers\Api\SuperAdmin\OrganizationBillingController::class, 'enableAutopay'])->name('api.v1.superadmin.org-billing.enable-autopay');
+            });
+
             Route::prefix('analytics')->group(function () {
                 Route::get('/dashboard', [ApiSuperAdminAnalyticsController::class, 'dashboard'])->name('api.v1.superadmin.analytics.dashboard');
                 Route::get('/users', [ApiSuperAdminAnalyticsController::class, 'users'])->name('api.v1.superadmin.analytics.users');
@@ -1188,6 +1373,7 @@ Route::prefix('ai-upload')->group(function () {
                 Route::get('/errors', [ApiSuperAdminLogsController::class, 'errors'])->name('api.v1.superadmin.logs.errors');
                 Route::get('/audit', [ApiSuperAdminLogsController::class, 'audit'])->name('api.v1.superadmin.logs.audit');
                 Route::get('/performance', [ApiSuperAdminLogsController::class, 'performance'])->name('api.v1.superadmin.logs.performance');
+                Route::get('/billing-audit', [ApiSuperAdminLogsController::class, 'billingAudit'])->name('api.v1.superadmin.logs.billing-audit');
             });
 
             // Agent Token Pricing Management
@@ -1196,6 +1382,41 @@ Route::prefix('ai-upload')->group(function () {
                 Route::post('/', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'pricingStore'])->name('api.v1.superadmin.agent-pricing.store');
                 Route::put('/{id}', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'pricingUpdate'])->name('api.v1.superadmin.agent-pricing.update');
                 Route::delete('/{id}', [\App\Http\Controllers\Api\Admin\AgentTokenController::class, 'pricingDestroy'])->name('api.v1.superadmin.agent-pricing.destroy');
+            });
+
+            // Terms & Conditions Management
+            Route::prefix('terms')->group(function () {
+                Route::get('/', [ApiSuperAdminTermsController::class, 'index'])->name('api.v1.superadmin.terms.index');
+                Route::post('/', [ApiSuperAdminTermsController::class, 'store'])->name('api.v1.superadmin.terms.store');
+                Route::get('/{term}', [ApiSuperAdminTermsController::class, 'show'])->name('api.v1.superadmin.terms.show');
+                Route::put('/{term}', [ApiSuperAdminTermsController::class, 'update'])->name('api.v1.superadmin.terms.update');
+                Route::post('/{term}/publish', [ApiSuperAdminTermsController::class, 'publish'])->name('api.v1.superadmin.terms.publish');
+                Route::post('/{term}/unpublish', [ApiSuperAdminTermsController::class, 'unpublish'])->name('api.v1.superadmin.terms.unpublish');
+            });
+
+            // Platform Pricing Management
+            Route::prefix('platform-pricing')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\SuperAdmin\PlatformPricingController::class, 'index'])->name('api.v1.superadmin.platform-pricing.index');
+                Route::post('/', [\App\Http\Controllers\Api\SuperAdmin\PlatformPricingController::class, 'store'])->name('api.v1.superadmin.platform-pricing.store');
+                Route::put('/{pricing}', [\App\Http\Controllers\Api\SuperAdmin\PlatformPricingController::class, 'update'])->name('api.v1.superadmin.platform-pricing.update');
+                Route::delete('/{pricing}', [\App\Http\Controllers\Api\SuperAdmin\PlatformPricingController::class, 'destroy'])->name('api.v1.superadmin.platform-pricing.destroy');
+                Route::get('/org-plans/{organization}', [\App\Http\Controllers\Api\SuperAdmin\PlatformPricingController::class, 'orgPlans'])->name('api.v1.superadmin.platform-pricing.org-plans');
+                Route::put('/org-plans/{organization}/{plan}', [\App\Http\Controllers\Api\SuperAdmin\PlatformPricingController::class, 'updateOrgPlan'])->name('api.v1.superadmin.platform-pricing.org-plans.update');
+                Route::post('/org-plans/{organization}/grant', [\App\Http\Controllers\Api\SuperAdmin\PlatformPricingController::class, 'grantPlan'])->name('api.v1.superadmin.platform-pricing.org-plans.grant');
+                Route::get('/revenue-overview', [\App\Http\Controllers\Api\SuperAdmin\PlatformPricingController::class, 'revenueOverview'])->name('api.v1.superadmin.platform-pricing.revenue');
+            });
+
+            // Platform Subscription Management
+            Route::prefix('subscriptions')->group(function () {
+                Route::get('/', [ApiSuperAdminSubscriptionController::class, 'index'])->name('api.v1.superadmin.subscriptions.index');
+                Route::post('/', [ApiSuperAdminSubscriptionController::class, 'store'])->name('api.v1.superadmin.subscriptions.store');
+                Route::get('/subscribers', [ApiSuperAdminSubscriptionController::class, 'subscribers'])->name('api.v1.superadmin.subscriptions.subscribers');
+                Route::get('/org-ai-plans', [ApiSuperAdminSubscriptionController::class, 'orgAiPlans'])->name('api.v1.superadmin.subscriptions.org-ai-plans');
+                Route::post('/grant', [ApiSuperAdminSubscriptionController::class, 'grant'])->name('api.v1.superadmin.subscriptions.grant');
+                Route::get('/{subscription}', [ApiSuperAdminSubscriptionController::class, 'show'])->name('api.v1.superadmin.subscriptions.show');
+                Route::put('/{subscription}', [ApiSuperAdminSubscriptionController::class, 'update'])->name('api.v1.superadmin.subscriptions.update');
+                Route::delete('/{subscription}', [ApiSuperAdminSubscriptionController::class, 'destroy'])->name('api.v1.superadmin.subscriptions.destroy');
+                Route::delete('/subscribers/{pivot}', [ApiSuperAdminSubscriptionController::class, 'revoke'])->name('api.v1.superadmin.subscriptions.revoke');
             });
         });
 
@@ -1241,6 +1462,20 @@ Route::prefix('ai-upload')->group(function () {
                 Route::get('/{task}', [ApiTeacherTaskController::class, 'show'])->name('api.v1.teacher.tasks.show');
                 Route::put('/{task}/status', [ApiTeacherTaskController::class, 'updateStatus'])->name('api.v1.teacher.tasks.update-status');
             });
+
+            // AI access request
+            Route::post('/request-ai-access', [\App\Http\Controllers\Api\Teacher\TaskController::class, 'requestAiAccess'])->name('api.v1.teacher.request-ai-access');
+
+            // Teacher conversations (messages to parents)
+            Route::prefix('conversations')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Teacher\ConversationController::class, 'index'])->name('api.v1.teacher.conversations.index');
+                Route::post('/send-to-parent', [\App\Http\Controllers\Api\Teacher\ConversationController::class, 'sendToParent'])->name('api.v1.teacher.conversations.send-to-parent');
+            });
+
+            // Teacher calls
+            Route::post('/calls/initiate', [\App\Http\Controllers\Api\Admin\CallController::class, 'initiate'])->name('api.v1.teacher.calls.initiate');
+            Route::get('/calls/active', [\App\Http\Controllers\Api\Admin\CallController::class, 'activeCall'])->name('api.v1.teacher.calls.active');
+            Route::post('/calls/{callLog}/hangup', [\App\Http\Controllers\Api\Admin\CallController::class, 'hangup'])->name('api.v1.teacher.calls.hangup');
 
     
         
@@ -1310,7 +1545,7 @@ Route::prefix('ai-upload')->group(function () {
                 Route::delete('/{lesson}', [ApiAdminLessonController::class, 'destroy'])->name('api.v1.teacher.lessons.destroy');
             });
 
-Route::prefix('ai-upload')->group(function () {
+Route::prefix('ai-upload')->middleware('plan.access:ai_content_gen')->group(function () {
             Route::get('/', [ApiAdminAIUploadController::class, 'index'])->name('api.v1.teacher.ai-upload.index');
             Route::post('/', [ApiAdminAIUploadController::class, 'store'])->name('api.v1.teacher.ai-upload.store');
             Route::put('/proposals/{proposal}', [ApiAdminAIUploadController::class, 'updateProposal'])->name('api.v1.teacher.ai-upload.proposals.update');

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\GenerateAssessmentReportJob;
-use App\Models\AdminTask;
+use App\Services\Tasks\TaskService;
 use Illuminate\Http\Request;
 use App\Models\Assessment;
 use App\Models\AssessmentQuestion;
@@ -1230,13 +1230,11 @@ public function attemptSubmit(Request $request, $id)
             $relatedLink = route('teacher.submissions.grade', $submission->id);
         }
         
-        AdminTask::create([
-            'task_type'      => 'Grade Assessment Submission',
+        TaskService::createFromEvent('grade_assessment', [
             'assigned_to'    => $assignedTo,
-            'status'         => 'Pending',
             'related_entity' => $relatedLink,
-            'priority'       => 'Medium',
             'description'    => "Manual grading required for submission #{$submission->id}. Assessment: {$assessment->title}. Student: {$child->child_name}",
+            'source_model'   => $submission,
         ]);
         
         Log::info('✅ GRADING TASK CREATED FOR TEACHER:', [

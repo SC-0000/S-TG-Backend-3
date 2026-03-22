@@ -35,9 +35,11 @@ return [
         ],
     ],
     'billingsystems' => [
-    'base_uri' => env('BILLING_SYSTEMS_API_URL'),
-    'token'    => env('BILLING_SYSTEMS_API_TOKEN'),
-  ],
+        'base_uri'       => env('BILLING_SYSTEMS_API_URL'),
+        'token'          => env('BILLING_SYSTEMS_API_TOKEN'),
+        'admin_token'    => env('BILLING_SYSTEMS_ADMIN_TOKEN'),
+        'webhook_secret' => env('BILLING_WEBHOOK_SECRET', env('BILLINGS_WEBHOOK_SECRET')),
+    ],
     'billing' => [
         'publishable_key' => env('VITE_BILLING_API_KEY'),
     ],

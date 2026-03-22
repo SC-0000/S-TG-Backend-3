@@ -43,7 +43,9 @@ class AIAgentSession extends Model
         'tutor' => 'General Tutoring',
         'grading_review' => 'Grading Review',
         'progress_analysis' => 'Progress Analysis',
-        'hint_generator' => 'Hint Generator'
+        'hint_generator' => 'Hint Generator',
+        'whatsapp_parent' => 'WhatsApp Parent Agent',
+        'whatsapp_admin' => 'WhatsApp Admin Agent',
     ];
 
     /**

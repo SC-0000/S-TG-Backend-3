@@ -54,7 +54,7 @@ class GenerateAssessmentReportJob implements ShouldQueue, ShouldBeUnique
         ]);
         
         $response = OpenAI::chat()->create([
-            'model' => 'gpt-5',
+            'model' => 'gpt-5.4',
             'messages' => [
                 ['role' => 'system', 'content' => 'You are a qualified educational psychologist and assessment specialist with expertise in cognitive development and academic evaluation. Provide professional, comprehensive assessment reports for parents that explain educational concepts, cognitive skills, and learning implications in clear, authoritative language. Use evidence-based insights and educational terminology appropriate for formal academic reports.'],
                 ['role' => 'user', 'content' => $prompt],

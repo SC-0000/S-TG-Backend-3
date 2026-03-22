@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Api\SuperAdmin;
 
 use App\Http\Controllers\Api\ApiController;
+use App\Models\AgentTokenBalance;
+use App\Models\AgentTokenTransaction;
+use App\Models\OrganizationPlan;
+use App\Models\PlatformPricing;
 use App\Models\Subscription;
 use App\Models\Transaction;
 use App\Support\ApiPagination;
@@ -15,7 +19,7 @@ class BillingController extends ApiController
 {
     public function overview(): JsonResponse
     {
-        $statusScope = ['completed', 'success', 'paid', 'confirmed'];
+        $statusScope = Transaction::PAID_STATUSES;
 
         $totalRevenue = (float) Transaction::whereIn('status', $statusScope)->sum('total');
         $revenueToday = (float) Transaction::whereIn('status', $statusScope)
@@ -30,6 +34,50 @@ class BillingController extends ApiController
             ->where('status', 'active')
             ->count();
 
+        // Platform subscription metrics
+        $platformPlanIds = Subscription::where('owner_type', 'platform')->pluck('id');
+        $platformSubscribers = DB::table('user_subscriptions')
+            ->whereIn('subscription_id', $platformPlanIds)
+            ->where('status', 'active')
+            ->count();
+        $platformPlanCount = $platformPlanIds->count();
+
+        // Org subscription metrics
+        $orgPlanCount = Subscription::where('owner_type', 'organization')->count();
+        $orgSubscribers = DB::table('user_subscriptions')
+            ->whereNotIn('subscription_id', $platformPlanIds)
+            ->where('status', 'active')
+            ->count();
+
+        // Organization plan revenue (admin/teacher AI subscriptions via Plans & Billing)
+        $activeOrgPlans = OrganizationPlan::where('status', 'active')
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->get();
+
+        $orgPlanMonthlyRevenue = 0;
+        foreach ($activeOrgPlans as $plan) {
+            $qty = $plan->quantity ?? 1;
+            $orgPlanMonthlyRevenue += $qty * $plan->getEffectivePrice();
+        }
+        $orgPlanMonthlyRevenue = round($orgPlanMonthlyRevenue, 2);
+
+        $aiWorkspacePlans = $activeOrgPlans->where('category', 'ai_workspace');
+        $aiWorkspaceRevenue = 0;
+        foreach ($aiWorkspacePlans as $plan) {
+            $qty = $plan->quantity ?? 1;
+            $aiWorkspaceRevenue += $qty * $plan->getEffectivePrice();
+        }
+        $aiWorkspaceRevenue = round($aiWorkspaceRevenue, 2);
+
+        $orgsWithActivePlans = $activeOrgPlans->pluck('organization_id')->unique()->count();
+
+        // Agent token totals across all orgs
+        $totalTokensPurchased = (int) AgentTokenBalance::sum('lifetime_purchased');
+        $totalTokensConsumed = (int) AgentTokenBalance::sum('lifetime_consumed');
+        $totalTokenBalance = (int) AgentTokenBalance::sum('balance');
+
         return $this->success([
             'metrics' => [
                 'total_revenue' => $totalRevenue,
@@ -38,6 +86,20 @@ class BillingController extends ApiController
                 'active_subscriptions' => $activeSubscriptions,
                 'total_plans' => Subscription::count(),
                 'total_transactions' => Transaction::count(),
+                'platform_plans' => $platformPlanCount,
+                'platform_subscribers' => $platformSubscribers,
+                'org_plans' => $orgPlanCount,
+                'org_subscribers' => $orgSubscribers,
+                // Organization plan revenue (admin/teacher AI, seats, etc.)
+                'org_plan_monthly_revenue' => $orgPlanMonthlyRevenue,
+                'ai_workspace_monthly_revenue' => $aiWorkspaceRevenue,
+                'ai_workspace_plans' => $aiWorkspacePlans->count(),
+                'orgs_with_active_plans' => $orgsWithActivePlans,
+                'total_active_org_plans' => $activeOrgPlans->count(),
+                // Agent tokens
+                'total_tokens_purchased' => $totalTokensPurchased,
+                'total_tokens_consumed' => $totalTokensConsumed,
+                'total_token_balance' => $totalTokenBalance,
             ],
         ]);
     }
@@ -144,9 +206,11 @@ class BillingController extends ApiController
 
     public function revenue(Request $request): JsonResponse
     {
-        $statusScope = ['completed', 'success', 'paid', 'confirmed'];
+        $statusScope = Transaction::PAID_STATUSES;
+        $days = $request->integer('days', 30);
+        $days = min(max($days, 7), 90);
 
-        $byDay = collect(range(6, 0))->map(function ($daysAgo) use ($statusScope) {
+        $byDay = collect(range($days - 1, 0))->map(function ($daysAgo) use ($statusScope) {
             $date = now()->subDays($daysAgo);
             $total = (float) Transaction::whereIn('status', $statusScope)
                 ->whereDate('created_at', $date)
@@ -163,26 +227,219 @@ class BillingController extends ApiController
         ]);
     }
 
-    public function invoices(): JsonResponse
+    public function invoices(Request $request): JsonResponse
     {
+        // User invoices (B2C)
+        $userQuery = \App\Models\Invoice::query()
+            ->with(['user:id,name,email']);
+
+        if ($request->filled('status')) {
+            $userQuery->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $userQuery->where(function ($q) use ($search) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhereHas('user', fn ($uq) => $uq->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"));
+            });
+        }
+
+        if ($request->filled('from_date')) {
+            $userQuery->whereDate('created_at', '>=', $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $userQuery->whereDate('created_at', '<=', $request->input('to_date'));
+        }
+
+        $invoices = $userQuery->orderByDesc('created_at')
+            ->paginate(ApiPagination::perPage($request));
+
+        $userData = $invoices->getCollection()->map(function ($invoice) {
+            return [
+                'id'             => $invoice->id,
+                'type'           => 'user',
+                'invoice_number' => $invoice->invoice_number,
+                'user'           => $invoice->user ? [
+                    'id'    => $invoice->user->id,
+                    'name'  => $invoice->user->name,
+                    'email' => $invoice->user->email,
+                ] : null,
+                'amount_due'     => $invoice->amount_due,
+                'status'         => $invoice->status,
+                'due_date'       => $invoice->due_date,
+                'pdf_url'        => $invoice->pdf_url,
+                'created_at'     => $invoice->created_at?->toISOString(),
+            ];
+        })->all();
+
+        // Organization invoices (B2B)
+        $orgQuery = \App\Models\OrganizationInvoice::query()
+            ->with('organization:id,name');
+
+        if ($request->filled('status')) {
+            $orgQuery->where('status', $request->input('status'));
+        }
+        if ($request->filled('organization_id')) {
+            $orgQuery->where('organization_id', $request->integer('organization_id'));
+        }
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $orgQuery->where(function ($q) use ($search) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhereHas('organization', fn ($oq) => $oq->where('name', 'like', "%{$search}%"));
+            });
+        }
+        if ($request->filled('from_date')) {
+            $orgQuery->whereDate('created_at', '>=', $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $orgQuery->whereDate('created_at', '<=', $request->input('to_date'));
+        }
+
+        $orgInvoices = $orgQuery->orderByDesc('created_at')
+            ->paginate(ApiPagination::perPage($request));
+
+        $orgData = $orgInvoices->getCollection()->map(function ($inv) {
+            return [
+                'id'             => $inv->id,
+                'type'           => 'organization',
+                'invoice_number' => $inv->invoice_number,
+                'organization'   => $inv->organization ? [
+                    'id'   => $inv->organization->id,
+                    'name' => $inv->organization->name,
+                ] : null,
+                'amount_due'     => $inv->total,
+                'status'         => $inv->status,
+                'due_date'       => null,
+                'period_start'   => $inv->period_start?->toDateString(),
+                'period_end'     => $inv->period_end?->toDateString(),
+                'paid_at'        => $inv->paid_at?->toISOString(),
+                'line_items'     => $inv->line_items,
+                'subtotal'       => $inv->subtotal,
+                'tax'            => $inv->tax,
+                'total'          => $inv->total,
+                'created_at'     => $inv->created_at?->toISOString(),
+            ];
+        })->all();
+
         return $this->success([
-            'invoices' => [],
-            'message' => 'Invoice listing is not configured.',
+            'user_invoices' => $userData,
+            'user_invoices_pagination' => [
+                'total'        => $invoices->total(),
+                'count'        => $invoices->count(),
+                'per_page'     => $invoices->perPage(),
+                'current_page' => $invoices->currentPage(),
+                'total_pages'  => $invoices->lastPage(),
+            ],
+            'organization_invoices' => $orgData,
+            'organization_invoices_pagination' => [
+                'total'        => $orgInvoices->total(),
+                'count'        => $orgInvoices->count(),
+                'per_page'     => $orgInvoices->perPage(),
+                'current_page' => $orgInvoices->currentPage(),
+                'total_pages'  => $orgInvoices->lastPage(),
+            ],
         ]);
     }
 
-    public function refund(Request $request, int $transaction): JsonResponse
+    public function refund(Request $request, Transaction $transaction): JsonResponse
     {
+        $request->validate([
+            'amount' => 'nullable|integer|min:1',
+            'reason' => 'required|string|max:500',
+        ]);
+
+        // Verify transaction is in a refundable state
+        if (! in_array($transaction->status, Transaction::PAID_STATUSES)) {
+            return $this->error('Transaction is not in a paid status and cannot be refunded.', [], 422);
+        }
+
+        if (! $transaction->invoice_id) {
+            return $this->error('Transaction has no associated billing invoice.', [], 422);
+        }
+
+        $billing = app(\App\Services\BillingService::class);
+        $amountCents = $request->input('amount');
+
+        $result = $billing->processRefund($transaction->invoice_id, $amountCents, $request->input('reason'));
+
+        if (! $result) {
+            return $this->error('Refund could not be processed via billing provider.', [], 500);
+        }
+
+        // Create local refund record
+        $refundAmount = $amountCents ? ($amountCents / 100) : $transaction->total;
+        $refund = \App\Models\Refund::create([
+            'transaction_id'    => $transaction->id,
+            'user_id'           => $transaction->user_id,
+            'amount_refunded'   => $refundAmount,
+            'refund_reason'     => $request->input('reason'),
+            'status'            => 'completed',
+            'billing_refund_id' => $result['id'] ?? null,
+        ]);
+
+        // Update transaction status if full refund
+        $totalRefunded = $transaction->refunds()->sum('amount_refunded');
+        if ($totalRefunded >= $transaction->total) {
+            $transaction->update(['status' => Transaction::STATUS_REFUNDED]);
+        }
+
+        // Log
+        \App\Models\TransactionLog::create([
+            'transaction_id' => $transaction->id,
+            'log_message'    => "Refund of {$refundAmount} processed. Reason: {$request->input('reason')}",
+            'log_type'       => 'info',
+        ]);
+
         return $this->success([
-            'message' => 'Refund requested.',
-            'transaction_id' => $transaction,
+            'message'        => 'Refund processed successfully.',
+            'refund'         => $refund,
+            'transaction_id' => $transaction->id,
         ]);
     }
 
     public function export(Request $request): JsonResponse
     {
+        $query = Transaction::query()->with('user:id,name,email');
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', $request->input('to_date'));
+        }
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->integer('organization_id'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        $transactions = $query->orderByDesc('created_at')->limit(5000)->get();
+
+        $csv = "ID,User,Email,Amount,Status,Payment Method,Date\n";
+        foreach ($transactions as $tx) {
+            $csv .= implode(',', [
+                $tx->id,
+                '"' . str_replace('"', '""', $tx->user?->name ?? '') . '"',
+                '"' . ($tx->user_email ?? $tx->user?->email ?? '') . '"',
+                $tx->total,
+                $tx->status,
+                $tx->payment_method ?? '',
+                $tx->created_at?->toDateTimeString() ?? '',
+            ]) . "\n";
+        }
+
+        $filename = 'billing-export-' . now()->format('Y-m-d-His') . '.csv';
+        $path = 'exports/' . $filename;
+        \Illuminate\Support\Facades\Storage::put($path, $csv);
+
         return $this->success([
-            'message' => 'Export queued.',
+            'message'      => 'Export generated.',
+            'download_url' => \Illuminate\Support\Facades\Storage::url($path),
+            'filename'     => $filename,
+            'row_count'    => $transactions->count(),
         ]);
     }
 }

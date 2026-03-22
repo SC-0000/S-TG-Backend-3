@@ -68,8 +68,20 @@ class ProfileController extends ApiController
             $user->email_verified_at = null;
         }
 
+        // Track if billing-relevant fields changed
+        $billingFieldsChanged = $user->isDirty('name') || $user->isDirty('email') || $user->isDirty('mobile_number');
+
         $user->save();
         $user->load('currentOrganization');
+
+        // Sync billing customer if name/email/phone changed
+        if ($billingFieldsChanged && $user->billing_customer_id) {
+            try {
+                app(\App\Services\BillingService::class)->updateCustomer($user);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Profile update: billing sync failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+            }
+        }
 
         if ($teacherPayload !== null) {
             if (!$canManageTeacherProfile) {

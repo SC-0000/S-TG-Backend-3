@@ -40,7 +40,7 @@ class AIChatController extends Controller
 
         /* ── call OpenAI for the reply ───────────────────── */
         $resp  = $this->openAI->chat()->create([
-            'model'=>'gpt-5-nano','messages'=>$messages,
+            'model'=>'gpt-5.4-nano','messages'=>$messages,
         ]);
         $reply = $resp['choices'][0]['message']['content'];
 
@@ -137,7 +137,7 @@ private function extractArticleBody(Article $a): string
     private function summariseText(string $blob, string $sys): string
     {
         $r = $this->openAI->chat()->create([
-            'model'=>'gpt-5-nano',
+            'model'=>'gpt-5.4-nano',
             'messages'=>[
                 ['role'=>'system','content'=>$sys],
                 ['role'=>'user','content'=>$blob],

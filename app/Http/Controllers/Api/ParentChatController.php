@@ -64,7 +64,7 @@ class ParentChatController extends ApiController
         ];
 
         $openaiResponse = OpenAI::chat()->create([
-            'model' => 'gpt-5-nano',
+            'model' => 'gpt-5.4-nano',
             'user' => (string) $child->id,
             'messages' => $messages,
         ]);
@@ -179,7 +179,7 @@ class ParentChatController extends ApiController
         ];
 
         $apiResponse = OpenAI::chat()->create([
-            'model' => 'gpt-5-nano',
+            'model' => 'gpt-5.4-nano',
             'user' => (string) $child->id,
             'messages' => $messages,
         ]);

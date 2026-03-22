@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\CommunicationTemplate;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Mail\Mailable;
@@ -180,6 +181,42 @@ class BrandedMailable extends Mailable
             return null;
         }
         return rtrim($base, '/') . '/' . ltrim($path, '/');
+    }
+
+    /**
+     * Resolve a CommunicationTemplate by system key, preferring org-specific over platform defaults.
+     * Returns null if no matching template is found.
+     */
+    protected function resolveSystemTemplate(string $systemKey, array $data): ?array
+    {
+        $orgId = $this->organization?->id;
+
+        $template = CommunicationTemplate::query()
+            ->forSystemKey($systemKey)
+            ->active()
+            ->where(function ($q) use ($orgId) {
+                if ($orgId) {
+                    $q->where('organization_id', $orgId)->orWhereNull('organization_id');
+                } else {
+                    $q->whereNull('organization_id');
+                }
+            })
+            ->orderByDesc('organization_id') // org-specific takes priority over platform
+            ->first();
+
+        if (!$template) {
+            return null;
+        }
+
+        return [
+            'subject'   => $template->subject ? str_replace(
+                array_map(fn ($k) => '{{' . $k . '}}', array_keys($data)),
+                array_values($data),
+                $template->subject
+            ) : null,
+            'body_html' => $template->render($data, 'html'),
+            'body_text' => $template->render($data, 'text'),
+        ];
     }
 
     protected function applyEmailSettingsFromOrg(?Organization $org): void

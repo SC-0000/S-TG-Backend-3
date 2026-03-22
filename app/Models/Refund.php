@@ -9,7 +9,7 @@ class Refund extends Model
     public $timestamps = false; // We only have created_at here.
 
     protected $fillable = [
-        'transaction_id', 'user_id', 'amount_refunded', 'refund_reason', 'status',
+        'transaction_id', 'user_id', 'amount_refunded', 'refund_reason', 'status', 'billing_refund_id',
     ];
 
     public function transaction()

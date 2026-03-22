@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\ParentFeedbacks\ParentFeedbackStoreRequest;
 use App\Http\Resources\ParentFeedbackResource;
-use App\Models\AdminTask;
 use App\Models\ParentFeedbacks;
+use App\Services\Tasks\TaskService;
 use App\Support\ApiPagination;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -120,13 +120,10 @@ class FeedbackController extends ApiController
         $org = $user->currentOrganization()->first();
         $relatedEntity = $this->portalUrl('/admin/portal-feedbacks/' . $feedback->id, $org, $request);
 
-        AdminTask::create([
-            'task_type' => 'Parent Concern',
-            'assigned_to' => null,
-            'status' => 'Pending',
-            'related_entity' => $relatedEntity,
-            'priority' => 'Medium',
+        TaskService::createFromEvent('parent_concern', [
             'organization_id' => $user->current_organization_id,
+            'source_model'    => $feedback,
+            'related_entity'  => $relatedEntity,
         ]);
 
         $data = (new ParentFeedbackResource($feedback))->resolve();

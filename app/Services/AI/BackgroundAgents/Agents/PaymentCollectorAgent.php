@@ -3,8 +3,8 @@
 namespace App\Services\AI\BackgroundAgents\Agents;
 
 use App\Mail\BrandedMailable;
-use App\Models\AdminTask;
 use App\Models\BackgroundAgentAction;
+use App\Services\Tasks\TaskService;
 use App\Models\PaymentFollowup;
 use App\Models\Transaction;
 use App\Services\AI\BackgroundAgents\AbstractBackgroundAgent;
@@ -237,12 +237,12 @@ class PaymentCollectorAgent extends AbstractBackgroundAgent
     protected function escalateToAdmin(PaymentFollowup $followup): void
     {
         // Create an admin task
-        AdminTask::create([
+        TaskService::createFromEvent('payment_followup', [
             'organization_id' => $this->organization->id,
             'title' => "Overdue payment requires manual action - Transaction #{$followup->transaction_id}",
             'description' => "Payment followup has been through all automated stages. Customer: {$followup->user->name}. Amount: £{$followup->transaction->amount}. Please contact them directly.",
             'priority' => 'high',
-            'status' => 'pending',
+            'source_model' => $followup,
         ]);
 
         $followup->update(['status' => PaymentFollowup::STATUS_ESCALATED]);

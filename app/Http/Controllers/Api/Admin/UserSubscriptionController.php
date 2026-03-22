@@ -29,6 +29,9 @@ class UserSubscriptionController extends ApiController
                 'subscriptions.id as subscription_id',
                 'subscriptions.name as plan_name',
                 'subscriptions.slug',
+                'subscriptions.price',
+                'subscriptions.billing_interval',
+                'subscriptions.owner_type',
                 'us.status',
                 'us.starts_at',
                 'us.ends_at',
@@ -37,6 +40,9 @@ class UserSubscriptionController extends ApiController
 
         if ($orgId) {
             $query->where('users.current_organization_id', $orgId);
+            // Only show org-owned subscriptions in org admin view
+            $query->where('subscriptions.owner_type', 'organization')
+                  ->where('subscriptions.organization_id', $orgId);
         }
 
         ApiQuery::applyFilters($query, $request, [
@@ -62,6 +68,9 @@ class UserSubscriptionController extends ApiController
                     'id' => $row->subscription_id,
                     'name' => $row->plan_name,
                     'slug' => $row->slug,
+                    'price' => $row->price,
+                    'billing_interval' => $row->billing_interval,
+                    'owner_type' => $row->owner_type,
                 ],
                 'status' => $row->status,
                 'starts_at' => $row->starts_at,
@@ -81,6 +90,18 @@ class UserSubscriptionController extends ApiController
         $user = User::findOrFail($validated['user_id']);
         if ($orgId && (int) $user->current_organization_id !== (int) $orgId) {
             return $this->error('Not found.', [], 404);
+        }
+
+        // Validate subscription belongs to this org (if org-scoped)
+        if ($orgId) {
+            $subscriptionBelongsToOrg = Subscription::where('id', $validated['subscription_id'])
+                ->where('owner_type', 'organization')
+                ->where('organization_id', $orgId)
+                ->exists();
+
+            if (!$subscriptionBelongsToOrg) {
+                return $this->error('Subscription not found.', [], 404);
+            }
         }
 
         if ($user->subscriptions()->where('subscriptions.id', $validated['subscription_id'])->exists()) {

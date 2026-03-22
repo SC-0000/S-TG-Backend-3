@@ -22,6 +22,9 @@ class AdminTaskUpdateRequest extends FormRequest
             'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'metadata' => 'nullable|array',
+            'due_at' => 'sometimes|nullable|date',
+            'category' => 'sometimes|nullable|string|max:50',
+            'action_url' => 'sometimes|nullable|string|max:500',
         ];
     }
 }

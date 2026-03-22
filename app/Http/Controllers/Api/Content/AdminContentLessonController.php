@@ -131,7 +131,12 @@ class AdminContentLessonController extends ApiController
             });
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $statusValue = $request->status;
+            if (str_contains($statusValue, ',')) {
+                $query->whereIn('status', array_map('trim', explode(',', $statusValue)));
+            } else {
+                $query->where('status', $statusValue);
+            }
         }
 
         if ($request->filled('search')) {
@@ -258,7 +263,7 @@ class AdminContentLessonController extends ApiController
             'year_group' => 'nullable|string|max:50',
             'lesson_type' => 'nullable|string|max:50',
             'delivery_mode' => 'nullable|string|max:50',
-            'status' => 'nullable|in:draft,published,archived,live',
+            'status' => 'nullable|in:draft,review,needs_approval,published,archived,live',
             'estimated_minutes' => 'required|integer|min:1',
             'completion_rules' => 'nullable|array',
             'enable_ai_help' => 'nullable|boolean',

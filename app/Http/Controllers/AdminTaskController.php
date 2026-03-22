@@ -35,14 +35,20 @@ class AdminTaskController extends Controller
     public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'task_type'   => 'required|string|max:255',
-            'assigned_to' => 'required|integer',
-            'status'      => 'required|in:Pending,In Progress,Completed',
+            'task_type'      => 'required|string|max:255',
+            'assigned_to'    => 'required|integer',
+            'status'         => 'required|in:Pending,In Progress,Completed',
             'related_entity' => 'nullable|string',
-            'priority'    => 'required|in:Low,Medium,High,Critical',
+            'priority'       => 'required|in:Low,Medium,High,Critical',
+            'title'          => 'nullable|string|max:255',
+            'description'    => 'nullable|string',
+            'due_at'         => 'nullable|date',
+            'category'       => 'nullable|string|max:50',
         ]);
 
         $validatedData['organization_id'] = $request->user()?->current_organization_id;
+        $validatedData['source'] = 'manual';
+        $validatedData['assigned_at'] = $validatedData['assigned_to'] ? now() : null;
 
         AdminTask::create($validatedData);
 
@@ -92,6 +98,12 @@ class AdminTaskController extends Controller
     {
         $orgId = Auth::user()?->current_organization_id;
         $task = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))->findOrFail($id);
+
+        if ($task->is_system_task) {
+            return redirect()->route('admin_tasks.index')
+                ->with('error', 'System tasks cannot be deleted. Complete the underlying action to resolve this task.');
+        }
+
         $task->delete();
 
         return redirect()->route('admin_tasks.index')->with('success', 'Task deleted successfully!');
@@ -108,7 +120,7 @@ class AdminTaskController extends Controller
         $orgId = Auth::user()?->current_organization_id;
         
         $tasks = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))
-        ->where('task_type', '!=', 'teacher_approval')
+        ->whereNotIn('task_type', ['teacher_approval', 'Parent Concern', 'parent_concern'])
         ->where(function ($query) use ($teacherId) {
             $query->whereNull('assigned_to')
                   ->orWhere('assigned_to', $teacherId);
@@ -129,7 +141,7 @@ class AdminTaskController extends Controller
         $orgId = Auth::user()?->current_organization_id;
         
         $task = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))
-        ->where('task_type', '!=', 'teacher_approval')
+        ->whereNotIn('task_type', ['teacher_approval', 'Parent Concern', 'parent_concern'])
         ->where(function ($query) use ($teacherId) {
             $query->whereNull('assigned_to')
                   ->orWhere('assigned_to', $teacherId);
@@ -149,7 +161,7 @@ class AdminTaskController extends Controller
         $orgId = Auth::user()?->current_organization_id;
         
         $task = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))
-        ->where('task_type', '!=', 'teacher_approval')
+        ->whereNotIn('task_type', ['teacher_approval', 'Parent Concern', 'parent_concern'])
         ->where(function ($query) use ($teacherId) {
             $query->whereNull('assigned_to')
                   ->orWhere('assigned_to', $teacherId);
@@ -176,7 +188,7 @@ class AdminTaskController extends Controller
         $orgId = Auth::user()?->current_organization_id;
         
         $count = AdminTask::when($orgId, fn($q) => $q->forOrganization($orgId))
-        ->where('task_type', '!=', 'teacher_approval')
+        ->whereNotIn('task_type', ['teacher_approval', 'Parent Concern', 'parent_concern'])
         ->where(function ($query) use ($teacherId) {
             $query->whereNull('assigned_to')
                   ->orWhere('assigned_to', $teacherId);

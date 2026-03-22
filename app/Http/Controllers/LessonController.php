@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AdminTask;
 use App\Models\Assessment;
+use App\Services\Tasks\TaskService;
 use App\Models\Child;
 use App\Models\HomeworkAssignment;
 use App\Models\JourneyCategory;
@@ -310,13 +310,12 @@ class LessonController extends Controller
             ? 'Lesson assigned to ' . $instructor->name
             : 'Lesson created without instructor';
 
-        AdminTask::create([
+        TaskService::createFromEvent('lesson_assigned', [
                 'organization_id' => $organizationId ?? $user->current_organization_id,
-                'task_type'     => $taskType,
+                'title'         => $taskType,
                 'assigned_to'   => $data['instructor_id'] ?? null,
-                'status'        => 'Pending',
                 'related_entity' => $relatedLink,
-                'priority'      => 'Medium',
+                'source_model'  => $lesson,
                 'metadata' => [
                     'lesson_id' => $lesson->id,
                     'lesson_title' => $lesson->title,

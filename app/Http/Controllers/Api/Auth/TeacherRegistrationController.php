@@ -7,6 +7,7 @@ use App\Mail\GuestVerificationCode;
 use App\Mail\TeacherApplicationReceived;
 use App\Models\AdminTask;
 use App\Models\Organization;
+use App\Services\Tasks\TaskService;
 use App\Models\User;
 use App\Support\MailContext;
 use Illuminate\Http\JsonResponse;
@@ -117,14 +118,12 @@ class TeacherRegistrationController extends ApiController
             return $this->error('An application for this email is already pending.', [], 422);
         }
 
-        $task = AdminTask::create([
+        $task = TaskService::createFromEvent('teacher_approval', [
             'organization_id' => $validated['organization_id'],
-            'task_type' => 'teacher_approval',
-            'title' => 'New Teacher Application: ' . $validated['name'],
-            'description' => 'Review and approve teacher application from ' . $validated['email'],
-            'status' => 'pending',
-            'related_entity' => url('/teacher-applications'),
-            'metadata' => [
+            'title'           => 'New Teacher Application: ' . $validated['name'],
+            'description'     => 'Review and approve teacher application from ' . $validated['email'],
+            'related_entity'  => url('/teacher-applications'),
+            'metadata'        => [
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password_hash' => Hash::make($validated['password']),

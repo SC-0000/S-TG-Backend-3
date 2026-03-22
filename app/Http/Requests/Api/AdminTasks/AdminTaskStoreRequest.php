@@ -15,13 +15,15 @@ class AdminTaskStoreRequest extends FormRequest
     {
         return [
             'task_type' => 'required|string|max:255',
-            'assigned_to' => 'required|integer|exists:users,id',
+            'assigned_to' => 'nullable|integer|exists:users,id',
             'status' => 'required|in:Pending,In Progress,Completed',
             'related_entity' => 'nullable|string|max:255',
             'priority' => 'required|in:Low,Medium,High,Critical',
             'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'metadata' => 'nullable|array',
+            'due_at' => 'nullable|date',
+            'category' => 'nullable|string|max:50',
         ];
     }
 }

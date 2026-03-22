@@ -7,8 +7,8 @@ use App\Http\Requests\Api\Assessments\AssessmentAttemptSubmitRequest;
 use App\Http\Resources\AssessmentSubmissionResource;
 use App\Jobs\GenerateAssessmentReportJob;
 use App\Models\Access;
-use App\Models\AdminTask;
 use App\Models\Assessment;
+use App\Services\Tasks\TaskService;
 use App\Models\Child;
 use App\Models\User;
 use App\Services\SubmissionGradingService;
@@ -201,13 +201,11 @@ class AssessmentAttemptController extends ApiController
                 $relatedLink = route('teacher.submissions.grade', $submission->id);
             }
 
-            AdminTask::create([
-                'task_type' => 'Grade Assessment Submission',
-                'assigned_to' => $assignedTo,
-                'status' => 'Pending',
+            TaskService::createFromEvent('grade_assessment', [
+                'assigned_to'    => $assignedTo,
+                'source_model'   => $submission,
                 'related_entity' => $relatedLink,
-                'priority' => 'Medium',
-                'description' => "Manual grading required for submission #{$submission->id}. Assessment: {$assessment->title}. Student: {$child?->child_name}",
+                'description'    => "Manual grading required for submission #{$submission->id}. Assessment: {$assessment->title}. Student: {$child?->child_name}",
             ]);
         }
 

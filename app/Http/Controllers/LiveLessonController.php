@@ -185,51 +185,49 @@ class LiveLessonController extends Controller
 
         if ($creatorRole === 'admin') {
             // Admin created session → Notify the assigned teacher
-            \App\Models\AdminTask::create([
-                'task_type'      => 'Live Session Scheduled',
-                'assigned_to'    => $session->teacher_id, // Notify specific teacher
-                'status'         => 'Pending',
+            \App\Services\Tasks\TaskService::createFromEvent('live_session_scheduled', [
+                'assigned_to'    => $session->teacher_id,
                 'related_entity' => route('teacher.live-sessions.index'),
-                'priority'       => 'Medium',
-                'description'    => "A new live session '{$lesson->title}' has been scheduled for " . 
-                                    $session->scheduled_start_time->format('M d, Y \a\t g:i A') . 
+                'description'    => "A new live session '{$lesson->title}' has been scheduled for " .
+                                    $session->scheduled_start_time->format('M d, Y \a\t g:i A') .
                                     ". Please review and prepare for the session.",
+                'source_model'   => $session,
             ]);
-            
+
             Log::info('[LiveLessonController] Task created for teacher', [
                 'teacher_id' => $session->teacher_id,
                 'session_id' => $session->id
             ]);
-            
+
         } elseif ($creatorRole === 'teacher') {
             // Teacher created session → Notify admins
-            \App\Models\AdminTask::create([
-                'task_type'      => 'Live Session Created by Teacher',
-                'assigned_to'    => null, // For all admins
-                'status'         => 'Pending',
+            \App\Services\Tasks\TaskService::createFromEvent('live_session_scheduled', [
+                'title'          => 'Live Session Created by Teacher',
+                'assigned_to'    => null,
                 'related_entity' => route('admin.live-sessions.index'),
                 'priority'       => 'Low',
-                'description'    => "Teacher " . auth()->user()->name . " has created a new live session '{$lesson->title}' scheduled for " . 
+                'description'    => "Teacher " . auth()->user()->name . " has created a new live session '{$lesson->title}' scheduled for " .
                                     $session->scheduled_start_time->format('M d, Y \a\t g:i A') . ".",
+                'source_model'   => $session,
             ]);
-            
+
             Log::info('[LiveLessonController] Task created for admins', [
                 'creator' => auth()->user()->name,
                 'session_id' => $session->id
             ]);
-            
-            // ✅ Also create a task for the teacher themselves (linked to the session)
-            \App\Models\AdminTask::create([
-                'task_type'      => 'Your Upcoming Live Session',
-                'assigned_to'    => auth()->id(), // The teacher who created it
-                'status'         => 'Pending',
+
+            // Also create a task for the teacher themselves (linked to the session)
+            \App\Services\Tasks\TaskService::createFromEvent('live_session_scheduled', [
+                'title'          => 'Your Upcoming Live Session',
+                'assigned_to'    => auth()->id(),
                 'related_entity' => route('teacher.live-sessions.teach', $session->id),
                 'priority'       => 'High',
-                'description'    => "You have scheduled a live session '{$lesson->title}' for " . 
-                                    $session->scheduled_start_time->format('M d, Y \a\t g:i A') . 
+                'description'    => "You have scheduled a live session '{$lesson->title}' for " .
+                                    $session->scheduled_start_time->format('M d, Y \a\t g:i A') .
                                     ". Click here to view or start the session.",
+                'source_model'   => $session,
             ]);
-            
+
             Log::info('[LiveLessonController] Task created for teacher (self)', [
                 'teacher_id' => auth()->id(),
                 'session_id' => $session->id

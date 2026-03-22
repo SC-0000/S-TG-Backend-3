@@ -29,7 +29,7 @@ class TransactionController extends ApiController
 
         $orgId = $request->attributes->get('organization_id');
 
-        $query = Transaction::query()->withCount('items');
+        $query = Transaction::query()->with('user:id,name,email')->withCount('items');
 
         if ($user->isSuperAdmin()) {
             if ($orgId) {
@@ -59,10 +59,17 @@ class TransactionController extends ApiController
                 'id' => $tx->id,
                 'user_id' => $tx->user_id,
                 'user_email' => $tx->user_email,
+                'user' => $tx->user ? [
+                    'id' => $tx->user->id,
+                    'name' => $tx->user->name,
+                    'email' => $tx->user->email,
+                ] : null,
                 'type' => $tx->type,
                 'status' => $tx->status,
                 'payment_method' => $tx->payment_method,
                 'subtotal' => $tx->subtotal,
+                'discount' => $tx->discount,
+                'tax' => $tx->tax,
                 'total' => $tx->total,
                 'invoice_id' => $tx->invoice_id,
                 'items_count' => $tx->items_count,
@@ -127,6 +134,11 @@ class TransactionController extends ApiController
             'id' => $transaction->id,
             'user_id' => $transaction->user_id,
             'user_email' => $transaction->user_email,
+            'user' => $transaction->user ? [
+                'id' => $transaction->user->id,
+                'name' => $transaction->user->name,
+                'email' => $transaction->user->email,
+            ] : null,
             'type' => $transaction->type,
             'status' => $transaction->status,
             'payment_method' => $transaction->payment_method,
@@ -141,17 +153,63 @@ class TransactionController extends ApiController
             'items' => $transaction->items->map(function ($item) {
                 return [
                     'id' => $item->id,
-                    'description' => $item->description,
+                    'description' => $item->description ?? $item->item?->name ?? 'Item',
+                    'item_name' => $item->item?->name,
                     'qty' => $item->qty,
                     'unit_price' => $item->unit_price,
                     'line_total' => $item->line_total,
                 ];
             })->all(),
+            'refunds' => $transaction->refunds->map(function ($refund) {
+                return [
+                    'id' => $refund->id,
+                    'amount' => $refund->amount_refunded,
+                    'reason' => $refund->refund_reason,
+                    'status' => $refund->status,
+                    'created_at' => $refund->created_at?->toISOString(),
+                ];
+            })->all(),
+            'logs' => $transaction->logs->map(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'message' => $log->log_message,
+                    'type' => $log->log_type,
+                    'event_type' => $log->event_type,
+                    'created_at' => $log->created_at?->toISOString(),
+                ];
+            })->all(),
         ];
+
+        // For admin/superadmin: fetch billing invoice data if transaction has an invoice_id
+        $billingData = null;
+        $user = $request->user();
+        if (($user->isAdmin() || $user->isSuperAdmin()) && $transaction->invoice_id) {
+            $billingData = $this->billing->getClientInvoice($transaction->invoice_id);
+            if (! $billingData) {
+                $billingData = $this->billing->getAdminInvoice($transaction->invoice_id);
+            }
+
+            if ($billingData) {
+                $billingData = [
+                    'id'         => $billingData['id'] ?? $transaction->invoice_id,
+                    'number'     => $billingData['number'] ?? null,
+                    'status'     => $billingData['status'] ?? null,
+                    'currency'   => $billingData['currency'] ?? null,
+                    'amount_due' => isset($billingData['amount_due']) ? round($billingData['amount_due'] / 100, 2) : null,
+                    'due_date'   => $billingData['due_date'] ?? null,
+                    'auto_bill'  => $billingData['auto_bill'] ?? null,
+                    'items'      => $billingData['items'] ?? [],
+                    'customer'   => $billingData['customer'] ?? null,
+                    'created_at' => $billingData['created_at'] ?? null,
+                    'meta'       => $billingData['meta'] ?? null,
+                ];
+            }
+        }
 
         return $this->success([
             'transaction' => $data,
             'due_date' => $dueDate,
+            'billing' => $billingData,
         ]);
     }
 

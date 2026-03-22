@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\AdminTask;
 use App\Models\Lesson;
 use App\Models\LessonNotification;
 use App\Models\Service;
 use App\Models\ServiceCredit;
 use App\Models\User;
+use App\Services\Tasks\TaskService;
 use App\Services\TeacherScheduleService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -298,14 +298,13 @@ class SlotBookingController extends Controller
         };
 
         // Create an admin task so the team can review and confirm
-        AdminTask::create([
-            'task_type'       => 'Session Request',
+        TaskService::createFromEvent('custom_task', [
+            'organization_id' => $service->organization_id,
             'title'           => 'Session Request — ' . $service->service_name,
             'description'     => "{$child->child_name} has requested a session for '{$service->service_name}'. "
                 . "Preferred: {$timeLabel} ({$modeLabel})."
                 . ($request->notes ? " Notes: {$request->notes}" : ''),
-            'status'          => 'Pending',
-            'organization_id' => $service->organization_id,
+            'source_model'    => $service,
             'metadata'        => [
                 'type'           => 'session_request',
                 'service_id'     => $service->id,
@@ -591,15 +590,14 @@ class SlotBookingController extends Controller
             $count        = $bookings->count();
             $timeLabel    = Carbon::parse($firstBooking->start_time)->format('D d M, H:i');
 
-            // Notify teacher via AdminTask
-            AdminTask::create([
-                'task_type'      => 'New Booking',
-                'title'          => 'New Booking — ' . $child->child_name,
-                'description'    => "{$child->child_name} booked {$count} session(s) for {$service->service_name} — first session {$timeLabel}.",
-                'status'         => 'Pending',
-                'assigned_to'    => $teacherId,
+            // Notify teacher via TaskService
+            TaskService::createFromEvent('lesson_assigned', [
                 'organization_id' => $service->organization_id,
-                'metadata'       => [
+                'assigned_to'     => $teacherId,
+                'title'           => 'New Booking — ' . $child->child_name,
+                'description'     => "{$child->child_name} booked {$count} session(s) for {$service->service_name} — first session {$timeLabel}.",
+                'source_model'    => $firstBooking,
+                'metadata'        => [
                     'type'       => 'booking_created',
                     'service_id' => $service->id,
                     'child_id'   => $childId,
@@ -630,14 +628,13 @@ class SlotBookingController extends Controller
             $timeLabel = $lesson->start_time?->format('D d M, H:i');
 
             if ($lesson->instructor_id) {
-                AdminTask::create([
-                    'task_type'      => 'Booking Cancelled',
-                    'title'          => 'Booking Cancelled — ' . ($child?->child_name ?? 'Student'),
-                    'description'    => ($child?->child_name ?? 'A student') . " cancelled their session on {$timeLabel}" . ($reason ? " — Reason: {$reason}" : '.'),
-                    'status'         => 'Info',
-                    'assigned_to'    => $lesson->instructor_id,
+                TaskService::createFromEvent('custom_task', [
                     'organization_id' => $lesson->organization_id,
-                    'metadata'       => [
+                    'assigned_to'     => $lesson->instructor_id,
+                    'title'           => 'Booking Cancelled — ' . ($child?->child_name ?? 'Student'),
+                    'description'     => ($child?->child_name ?? 'A student') . " cancelled their session on {$timeLabel}" . ($reason ? " — Reason: {$reason}" : '.'),
+                    'source_model'    => $lesson,
+                    'metadata'        => [
                         'type'      => 'booking_cancelled',
                         'lesson_id' => $lesson->id,
                         'child_id'  => $childId,
@@ -665,14 +662,13 @@ class SlotBookingController extends Controller
             $childIds     = $lesson->children()->pluck('children.id');
 
             if ($lesson->instructor_id) {
-                AdminTask::create([
-                    'task_type'      => 'Booking Rescheduled',
-                    'title'          => 'Booking Rescheduled',
-                    'description'    => "Session moved from {$oldStartLabel} to {$newTimeLabel}" . ($service ? " ({$service->service_name})" : '') . '.',
-                    'status'         => 'Info',
-                    'assigned_to'    => $lesson->instructor_id,
+                TaskService::createFromEvent('custom_task', [
                     'organization_id' => $lesson->organization_id,
-                    'metadata'       => [
+                    'assigned_to'     => $lesson->instructor_id,
+                    'title'           => 'Booking Rescheduled',
+                    'description'     => "Session moved from {$oldStartLabel} to {$newTimeLabel}" . ($service ? " ({$service->service_name})" : '') . '.',
+                    'source_model'    => $lesson,
+                    'metadata'        => [
                         'type'      => 'booking_rescheduled',
                         'lesson_id' => $lesson->id,
                     ],

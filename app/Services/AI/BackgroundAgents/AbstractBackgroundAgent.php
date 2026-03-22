@@ -19,7 +19,7 @@ abstract class AbstractBackgroundAgent
     protected AIUtilityService $ai;
     protected TokenBillingService $billing;
     protected int $tokensConsumedThisRun = 0;
-    protected string $model = 'gpt-5-nano';
+    protected string $model = 'gpt-5.4-nano';
 
     public function __construct(?Organization $organization = null)
     {

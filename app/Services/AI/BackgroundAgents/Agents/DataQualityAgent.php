@@ -160,6 +160,8 @@ class DataQualityAgent extends AbstractBackgroundAgent
 
         if (!$contentType || !$contentId) {
             Log::warning('[DataQualityAgent] Event-triggered scan missing content_type or content_id', $summary);
+            // Fall back to a full scan instead of silently doing nothing
+            $this->scanAll();
             return;
         }
 
@@ -171,7 +173,7 @@ class DataQualityAgent extends AbstractBackgroundAgent
 
         $model = $contentType::find($contentId);
         if (!$model) {
-            Log::debug("[DataQualityAgent] Content not found: {$contentType}#{$contentId}");
+            Log::debug("[DataQualityAgent] Content not found: {$contentType}#{$contentId} — may have been deleted");
             return;
         }
 

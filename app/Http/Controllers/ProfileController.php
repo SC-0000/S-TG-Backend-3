@@ -19,10 +19,8 @@ class ProfileController extends Controller
      protected string $apiKey;
     
     public function __construct()
-    {  
-        // pull your publishable key from config/services.php
-        $this->apiKey = config('services.billing.publishable_key');
-       
+    {
+        $this->apiKey = app(\App\Services\BillingService::class)->getPublishableKey();
     }
     public function edit(Request $request): Response
     {

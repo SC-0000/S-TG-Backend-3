@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Jobs\GenerateAssessmentReportJob;
 use App\Mail\AssessmentReportMail;
 use App\Models\AssessmentSubmission;
+use App\Services\Tasks\TaskResolutionService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
 
@@ -36,6 +37,13 @@ class AssessmentSubmissionObserver
 {
     if ($submission->isDirty('status') && $submission->status === 'graded') {
         dispatch(new GenerateAssessmentReportJob($submission));
+
+        // Auto-resolve any grade_assessment tasks linked to this submission
+        TaskResolutionService::resolve(
+            AssessmentSubmission::class,
+            $submission->id,
+            'submission_graded'
+        );
     }
 }
 

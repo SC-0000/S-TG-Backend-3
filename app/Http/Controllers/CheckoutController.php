@@ -30,7 +30,7 @@ class CheckoutController extends Controller
     {
         $this->billing = $billing;
         $this->guestCheckout = $guestCheckout;
-        $this->apiKey = config('services.billing.publishable_key');
+        $this->apiKey = $billing->getPublishableKey();
     }
 
     /* ───────── GET /checkout ───────── */

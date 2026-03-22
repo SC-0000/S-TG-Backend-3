@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\AdminTask;
 use App\Models\JourneyCategory;
+use App\Services\Tasks\TaskService;
 use App\Models\Lesson;
 use App\Models\Organization;
 use App\Models\Service;
@@ -67,27 +67,160 @@ class LessonController extends ApiController
         }
 
         $query = Lesson::withCount(['children', 'assessments'])
-            ->with(['service:id,service_name'])
+            ->with([
+                'service:id,service_name,booking_mode,default_lesson_mode,max_participants,session_duration_minutes,price',
+                'children:id,child_name',
+            ])
             ->latest();
 
         if ($user->isSuperAdmin() && $request->filled('organization_id')) {
-            $query->where('organization_id', $request->integer('organization_id'));
+            $query->where(function ($q) use ($request) {
+                $q->where('organization_id', $request->integer('organization_id'))
+                  ->orWhereNull('organization_id');
+            });
         } elseif (!$user->isSuperAdmin()) {
-            $query->visibleToOrg($user->current_organization_id);
+            // Include sessions matching user's org OR sessions with no org (created before org was set)
+            $query->where(function ($q) use ($user) {
+                $q->where('is_global', true)
+                  ->orWhereNull('organization_id');
+                if ($user->current_organization_id) {
+                    $q->orWhere('organization_id', $user->current_organization_id);
+                }
+            });
         }
 
-        $lessons = $query->paginate(ApiPagination::perPage($request, 10));
+        // Filters
+        if ($request->filled('lesson_mode')) {
+            $query->where('lesson_mode', $request->input('lesson_mode'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        if ($request->filled('lesson_type')) {
+            $query->where('lesson_type', $request->input('lesson_type'));
+        }
+        if ($request->filled('service_id')) {
+            $query->where('service_id', $request->integer('service_id'));
+        }
+        if ($request->filled('has_service')) {
+            $query->whereNotNull('service_id');
+        }
+        if ($request->filled('time_range')) {
+            $range = $request->input('time_range');
+            $now = now();
+            if ($range === 'today') {
+                $query->whereDate('start_time', $now->toDateString());
+            } elseif ($range === 'upcoming') {
+                $query->where('start_time', '>=', $now);
+            } elseif ($range === 'past') {
+                $query->where(function ($q) use ($now) {
+                    $q->where('end_time', '<', $now)->orWhere('start_time', '<', $now);
+                });
+            } elseif ($range === 'this_week') {
+                $query->whereBetween('start_time', [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()]);
+            }
+        }
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'LIKE', "%{$search}%")
+                  ->orWhereHas('service', fn ($sq) => $sq->where('service_name', 'LIKE', "%{$search}%"));
+            });
+        }
+
+        // Sorting
+        if ($request->filled('sort')) {
+            $sort = $request->input('sort');
+            $dir = $request->input('sort_dir', 'asc');
+            if ($sort === 'start_time') $query->reorder()->orderBy('start_time', $dir);
+            elseif ($sort === 'children_count') $query->reorder()->orderBy('children_count', $dir);
+            elseif ($sort === 'title') $query->reorder()->orderBy('title', $dir);
+        }
+
+        $lessons = $query->paginate(ApiPagination::perPage($request, 20));
 
         $organizations = null;
         if ($user->isSuperAdmin()) {
             $organizations = Organization::orderBy('name')->get(['id', 'name']);
         }
 
-        $data = $lessons->getCollection()->map(fn (Lesson $lesson) => $this->mapLessonSummary($lesson))->all();
+        // Resolve instructor names + avatars (Teacher.image_path → User.avatar_path fallback)
+        $instructorIds = $lessons->getCollection()->pluck('instructor_id')->filter()->unique()->values();
+        $instructors = $instructorIds->isNotEmpty()
+            ? User::whereIn('id', $instructorIds)->get(['id', 'name', 'avatar_path'])->keyBy('id')
+            : collect();
+        $teacherAvatars = $instructorIds->isNotEmpty()
+            ? \App\Models\Teacher::whereIn('user_id', $instructorIds)->whereNotNull('image_path')->pluck('image_path', 'user_id')
+            : collect();
+
+        // Check for live session links
+        $liveSessionIds = $lessons->getCollection()->pluck('live_lesson_session_id')->filter()->unique()->values();
+        $liveSessions = $liveSessionIds->isNotEmpty()
+            ? \App\Models\LiveLessonSession::whereIn('id', $liveSessionIds)->get(['id', 'status', 'session_code'])->keyBy('id')
+            : collect();
+
+        $data = $lessons->getCollection()->map(function (Lesson $lesson) use ($instructors, $teacherAvatars, $liveSessions) {
+            $mapped = $this->mapLessonSummary($lesson);
+            $instructor = $instructors->get($lesson->instructor_id);
+            $mapped['instructor_name'] = $instructor?->name;
+            // Teacher image_path takes priority over User avatar_path
+            $teacherImg = $teacherAvatars->get($lesson->instructor_id);
+            $userAvatar = $instructor?->avatar_path;
+            $avatarPath = $teacherImg ?: $userAvatar;
+            $mapped['instructor_avatar'] = $avatarPath ? '/storage/' . $avatarPath : null;
+            $mapped['max_participants'] = $lesson->max_participants ?? $lesson->service?->max_participants;
+            $mapped['duration_minutes'] = $lesson->start_time && $lesson->end_time
+                ? (int) round(($lesson->end_time->timestamp - $lesson->start_time->timestamp) / 60)
+                : ($lesson->service?->session_duration_minutes ?? null);
+            $mapped['service_price'] = $lesson->service?->price;
+            $mapped['service_booking_mode'] = $lesson->service?->booking_mode;
+            $liveSession = $liveSessions->get($lesson->live_lesson_session_id);
+            $mapped['live_session_status'] = $liveSession?->status;
+            $mapped['live_session_code'] = $liveSession?->session_code;
+            $mapped['live_lesson_session_id'] = $lesson->live_lesson_session_id;
+            // Student names for 1:1 and small groups
+            $mapped['student_names'] = $lesson->children->pluck('child_name')->values()->all();
+            return $mapped;
+        })->all();
+
+        // Aggregate stats
+        $allQuery = Lesson::query();
+        if ($user->isSuperAdmin() && $request->filled('organization_id')) {
+            $allQuery->where(function ($q) use ($request) {
+                $q->where('organization_id', $request->integer('organization_id'))->orWhereNull('organization_id');
+            });
+        } elseif (!$user->isSuperAdmin()) {
+            $allQuery->where(function ($q) use ($user) {
+                $q->where('is_global', true)->orWhereNull('organization_id');
+                if ($user->current_organization_id) {
+                    $q->orWhere('organization_id', $user->current_organization_id);
+                }
+            });
+        }
+        $totalCount = (clone $allQuery)->count();
+        $upcomingCount = (clone $allQuery)->where('start_time', '>=', now())->whereNotIn('status', ['cancelled'])->count();
+        $todayCount = (clone $allQuery)->whereDate('start_time', now()->toDateString())->whereNotIn('status', ['cancelled'])->count();
+        $liveCount = (clone $allQuery)->whereNotNull('live_lesson_session_id')->count();
+
+        // Available services for filter dropdown — scoped to org
+        $servicesQuery = Service::select('id', 'service_name')->orderBy('service_name');
+        if (!$user->isSuperAdmin() && $user->current_organization_id) {
+            $servicesQuery->where(function ($q) use ($user) {
+                $q->where('organization_id', $user->current_organization_id)->orWhereNull('organization_id');
+            });
+        }
+        $services = $servicesQuery->get();
 
         return $this->paginated($lessons, $data, [
             'organizations' => $organizations,
-            'filters' => $request->only('organization_id'),
+            'services' => $services,
+            'stats' => [
+                'total' => $totalCount,
+                'upcoming' => $upcomingCount,
+                'today' => $todayCount,
+                'live' => $liveCount,
+            ],
+            'filters' => $request->only('organization_id', 'lesson_mode', 'status', 'time_range', 'search'),
         ]);
     }
 
@@ -109,6 +242,13 @@ class LessonController extends ApiController
         $instructor = null;
         if ($lesson->instructor_id) {
             $instructor = User::find($lesson->instructor_id, ['id', 'name', 'email', 'avatar_path']);
+            // Prefer Teacher profile image over User avatar
+            if ($instructor) {
+                $teacherImg = \App\Models\Teacher::where('user_id', $lesson->instructor_id)->whereNotNull('image_path')->value('image_path');
+                if ($teacherImg) {
+                    $instructor->avatar_path = $teacherImg;
+                }
+            }
         }
 
         // Live classroom session (recording, stats)
@@ -271,18 +411,18 @@ class LessonController extends ApiController
             $relatedLink = $this->portalUrl("/teacher/lessons/{$lesson->id}/edit", $organization);
         }
 
-        $taskType = $instructor
+        $taskTitle = $instructor
             ? 'Lesson assigned to ' . $instructor->name
             : 'Lesson created without instructor';
 
-        AdminTask::create([
+        TaskService::createFromEvent('lesson_assigned', [
             'organization_id' => $organizationId ?? $user->current_organization_id,
-            'task_type' => $taskType,
-            'assigned_to' => $data['instructor_id'] ?? null,
-            'status' => 'Pending',
-            'related_entity' => $relatedLink,
-            'priority' => 'Medium',
-            'metadata' => [
+            'assigned_to'     => $data['instructor_id'] ?? null,
+            'title'           => $taskTitle,
+            'source_model'    => $lesson,
+            'related_entity'  => $relatedLink,
+            'action_url'      => $relatedLink,
+            'metadata'        => [
                 'lesson_id' => $lesson->id,
                 'lesson_title' => $lesson->title,
             ],
@@ -398,7 +538,8 @@ class LessonController extends ApiController
         }
 
         $orgId = $user->current_organization_id;
-        if ($orgId && !($lesson->is_global || (int) $lesson->organization_id === (int) $orgId)) {
+        // Allow: global lessons, org-matched lessons, and lessons with no org (created before org was set)
+        if ($orgId && !($lesson->is_global || $lesson->organization_id === null || (int) $lesson->organization_id === (int) $orgId)) {
             return $this->error('Not found.', [], 404);
         }
 
@@ -421,6 +562,8 @@ class LessonController extends ApiController
             'meeting_link' => $lesson->meeting_link,
             'instructor_id' => $lesson->instructor_id,
             'allocation_id' => $lesson->allocation_id,
+            'service_id' => $lesson->service_id,
+            'live_lesson_session_id' => $lesson->live_lesson_session_id,
             'children_count' => $lesson->children_count,
             'assessments_count' => $lesson->assessments_count,
             'service' => $lesson->service ? [

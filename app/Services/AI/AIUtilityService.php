@@ -27,7 +27,7 @@ class AIUtilityService
         string $systemPrompt = '',
         array $options = []
     ): array {
-        $model = $options['model'] ?? 'gpt-5-nano';
+        $model = $options['model'] ?? 'gpt-5.4-nano';
         $maxTokens = $options['max_tokens'] ?? 2000;
         $temperature = $options['temperature'] ?? 0.7;
 
@@ -79,7 +79,7 @@ class AIUtilityService
         string $systemPrompt = '',
         array $options = []
     ): array {
-        $model = $options['model'] ?? 'gpt-5-nano';
+        $model = $options['model'] ?? 'gpt-5.4-nano';
         $maxTokens = $options['max_tokens'] ?? 2000;
 
         $messages = [];
@@ -219,7 +219,7 @@ class AIUtilityService
     {
         $noTempModels = [
             'o1', 'o1-mini', 'o1-preview', 'o3', 'o3-mini', 'o4-mini',
-            'gpt-5-nano',
+            'gpt-5.4-nano',
         ];
 
         foreach ($noTempModels as $prefix) {

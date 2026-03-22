@@ -10,8 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
-use App\Mail\SendLoginCredentials;
-use App\Mail\VerifyApplicationEmail;
+use App\Mail\WelcomeSetupAccount;
 use App\Support\MailContext;
 
 class GuestCheckoutService
@@ -88,18 +87,27 @@ class GuestCheckoutService
             ]);
         }
 
-        // Dispatch a welcome / credentials email asynchronously.
-        // Prefer magic-link / passwordless flows; here we send credentials as a fallback.
+        // Send magic-link setup email instead of plaintext credentials.
         try {
-            // If your SendLoginCredentials expects ($user, $password) adjust accordingly.
+            $rawToken = $user->generateSetupToken();
             $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
-            MailContext::sendMailable($user->email, new SendLoginCredentials($user, $tempPassword, $organization), true);
+
+            $portalDomain = $organization?->portal_domain;
+            $base = $portalDomain
+                ? (str_starts_with($portalDomain, 'http') ? $portalDomain : 'https://' . $portalDomain)
+                : rtrim((string) config('app.frontend_url', config('app.url')), '/');
+
+            $setupUrl = $base . '/setup-account?' . http_build_query([
+                'token' => $rawToken,
+                'email' => $user->email,
+            ]);
+
+            MailContext::sendMailable($user->email, new WelcomeSetupAccount($user, $setupUrl, $organization), true);
         } catch (\Throwable $e) {
-            // Don't block checkout on email failure; log or handle via monitoring.
-                Log::warning('Failed to queue SendLoginCredentials for guest user', [
-                    'email' => $email,
-                    'error' => $e->getMessage(),
-                ]);
+            Log::warning('Failed to queue WelcomeSetupAccount for guest user', [
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return ['status' => 'created', 'user' => $user];

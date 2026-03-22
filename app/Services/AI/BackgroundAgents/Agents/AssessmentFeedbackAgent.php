@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 
 class AssessmentFeedbackAgent extends AbstractBackgroundAgent
 {
-    protected string $model = 'gpt-5-nano'; // Primary model for report generation
+    protected string $model = 'gpt-5.4-nano'; // Primary model for report generation
 
     public static function getAgentType(): string
     {
@@ -138,7 +138,7 @@ class AssessmentFeedbackAgent extends AbstractBackgroundAgent
         $reportText = $this->aiGenerateText(
             $prompt,
             'You are a qualified educational psychologist and assessment specialist with expertise in cognitive development and academic evaluation. Provide professional, comprehensive assessment reports for parents that explain educational concepts, cognitive skills, and learning implications in clear, authoritative language.',
-            ['model' => 'gpt-5', 'max_tokens' => 3000]
+            ['model' => 'gpt-5.4', 'max_tokens' => 3000]
         );
 
         // Format questions for display

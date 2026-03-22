@@ -10,7 +10,7 @@ use OpenAI\Laravel\Facades\OpenAI;
 
 class TeacherOrgAgent
 {
-    protected string $model = 'gpt-5-nano';
+    protected string $model = 'gpt-5.4-nano';
     protected int $maxTokens = 2000;
     protected float $temperature = 0.4;
 
@@ -134,6 +134,6 @@ Rules:
 
     protected function supportsTemperature(string $model): bool
     {
-        return !str_starts_with($model, 'gpt-5');
+        return !str_starts_with($model, 'gpt-5.4');
     }
 }

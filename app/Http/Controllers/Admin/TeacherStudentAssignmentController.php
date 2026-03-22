@@ -112,22 +112,20 @@ class TeacherStudentAssignmentController extends Controller
                 ]
             ]);
             
-            // ✅ Create task for teacher for each assigned student
+            // Create task for teacher for each assigned student
             $student = Child::find($studentId);
-            
+
             $notes = isset($validated['notes']) && !empty($validated['notes']) ? $validated['notes'] : null;
-            
-            \App\Models\AdminTask::create([
-                'task_type'      => 'New Student Assigned',
-                'assigned_to'    => $teacher->id, // Specific teacher
-                'status'         => 'Pending',
+
+            \App\Services\Tasks\TaskService::createFromEvent('new_student_assigned', [
+                'assigned_to'    => $teacher->id,
                 'related_entity' => route('teacher.students.show', $student->id),
-                'priority'       => 'Medium',
-                'description'    => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by " . 
-                                    auth()->user()->name . 
+                'description'    => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by " .
+                                    auth()->user()->name .
                                     ($notes ? ". Notes: {$notes}" : "."),
+                'source_model'   => $student,
             ]);
-            
+
             \Illuminate\Support\Facades\Log::info('[TeacherStudentAssignmentController] Task created for teacher', [
                 'teacher_id' => $teacher->id,
                 'student_id' => $studentId,
@@ -171,22 +169,20 @@ class TeacherStudentAssignmentController extends Controller
                 ]);
                 $assignedCount++;
                 
-                // ✅ Create task for teacher for each assigned student
+                // Create task for teacher for each assigned student
                 $student = Child::find($studentId);
-                
+
                 $notes = isset($validated['notes']) && !empty($validated['notes']) ? $validated['notes'] : null;
-                
-                \App\Models\AdminTask::create([
-                    'task_type'      => 'New Student Assigned',
-                    'assigned_to'    => $teacher->id, // Specific teacher
-                    'status'         => 'Pending',
+
+                \App\Services\Tasks\TaskService::createFromEvent('new_student_assigned', [
+                    'assigned_to'    => $teacher->id,
                     'related_entity' => route('teacher.students.show', $student->id),
-                    'priority'       => 'Medium',
-                    'description'    => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by " . 
-                                        auth()->user()->name . 
+                    'description'    => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by " .
+                                        auth()->user()->name .
                                         ($notes ? ". Notes: {$notes}" : "."),
+                    'source_model'   => $student,
                 ]);
-                
+
                 \Illuminate\Support\Facades\Log::info('[TeacherStudentAssignmentController] Bulk task created for teacher', [
                     'teacher_id' => $teacher->id,
                     'student_id' => $studentId

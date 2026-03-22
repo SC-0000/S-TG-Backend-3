@@ -13,8 +13,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call(AdminUsersSeeder::class);
-         SubscriptionSeeder::class;
+        $this->call([
+            AdminUsersSeeder::class,
+            SubscriptionSeeder::class,
+            PlatformPricingSeeder::class,
+            AgentTokenPricingSeeder::class,
+            CommunicationTokenPricingSeeder::class,
+        ]);
 
         User::factory()->create([
             'name' => 'Test User',

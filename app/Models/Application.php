@@ -13,12 +13,33 @@ class Application extends Model
 
     protected $table = 'applications';
 
+    // Pipeline status constants
+    public const PIPELINE_NEW          = 'new';
+    public const PIPELINE_VERIFIED     = 'verified';
+    public const PIPELINE_CONTACTED    = 'contacted';
+    public const PIPELINE_FOLLOW_UP    = 'follow_up';
+    public const PIPELINE_TRIAL_PENDING = 'trial_pending';
+    public const PIPELINE_APPROVED     = 'approved';
+    public const PIPELINE_REJECTED     = 'rejected';
+
+    public const PIPELINE_STATUSES = [
+        self::PIPELINE_NEW,
+        self::PIPELINE_VERIFIED,
+        self::PIPELINE_CONTACTED,
+        self::PIPELINE_FOLLOW_UP,
+        self::PIPELINE_TRIAL_PENDING,
+        self::PIPELINE_APPROVED,
+        self::PIPELINE_REJECTED,
+    ];
+
     protected $fillable = [
         'application_id',
         'applicant_name',
         'email',
         'phone_number',
         'application_status',
+        'pipeline_status',
+        'pipeline_status_changed_at',
         'submitted_date',
         'application_type',
         'signature_path',
@@ -38,15 +59,17 @@ class Application extends Model
     ];
 
     protected $casts = [
-        'submitted_date' => 'datetime',
-        'verified_at'    => 'datetime',
+        'submitted_date'             => 'datetime',
+        'verified_at'                => 'datetime',
+        'pipeline_status_changed_at' => 'datetime',
     ];
+
     public function children()
     {
-        // One-to-many relationship: An application can have many children.
         return $this->hasMany(Child::class, 'application_id', 'application_id');
     }
-     public function user()        // many-to-one
+
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
@@ -54,5 +77,30 @@ class Application extends Model
     public function affiliate()
     {
         return $this->belongsTo(Affiliate::class);
+    }
+
+    public function activities()
+    {
+        return $this->hasMany(ApplicationActivity::class, 'application_id', 'application_id');
+    }
+
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function scopePipelineStatus($query, string $status)
+    {
+        return $query->where('pipeline_status', $status);
+    }
+
+    /**
+     * Number of days the application has been in its current pipeline stage.
+     */
+    public function daysInCurrentStage(): int
+    {
+        $since = $this->pipeline_status_changed_at ?? $this->updated_at ?? $this->created_at;
+
+        return (int) $since->diffInDays(now());
     }
 }

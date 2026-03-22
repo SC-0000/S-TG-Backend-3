@@ -29,7 +29,7 @@ class OrgDataRequirementsAnalyzer
             $messages[] = ['role' => 'user', 'content' => $this->buildAnalysisPrompt($userMessage, $user, $conversationHistory)];
 
             $response = OpenAI::chat()->create([
-                'model' => 'gpt-5-nano',
+                'model' => 'gpt-5.4-nano',
                 'messages' => $messages,
                 'functions' => [$this->getDataRequirementsFunctionDefinition()],
                 'function_call' => ['name' => 'specify_data_requirements'],

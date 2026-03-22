@@ -6,8 +6,8 @@ use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\AdminAssignments\TeacherStudentAssignRequest;
 use App\Http\Requests\Api\AdminAssignments\TeacherStudentBulkAssignRequest;
 use App\Http\Requests\Api\AdminAssignments\TeacherStudentUnassignRequest;
-use App\Models\AdminTask;
 use App\Models\Child;
+use App\Services\Tasks\TaskService;
 use App\Models\User;
 use App\Models\Organization;
 use App\Support\ApiPagination;
@@ -179,15 +179,13 @@ class TeacherStudentAssignmentController extends ApiController
 
             $notes = !empty($validated['notes']) ? $validated['notes'] : null;
 
-            AdminTask::create([
-                'task_type' => 'New Student Assigned',
-                'assigned_to' => $teacher->id,
-                'status' => 'Pending',
-                'related_entity' => $this->portalUrl('/teacher/students/' . $student->id, $organization),
-                'priority' => 'Medium',
-                'description' => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by {$user->name}" .
-                    ($notes ? ". Notes: {$notes}" : '.'),
+            TaskService::createFromEvent('new_student_assigned', [
                 'organization_id' => $orgId,
+                'assigned_to'     => $teacher->id,
+                'source_model'    => $student,
+                'related_entity'  => $this->portalUrl('/teacher/students/' . $student->id, $organization),
+                'description'     => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by {$user->name}" .
+                    ($notes ? ". Notes: {$notes}" : '.'),
             ]);
         }
 
@@ -238,15 +236,13 @@ class TeacherStudentAssignmentController extends ApiController
 
                 $notes = !empty($validated['notes']) ? $validated['notes'] : null;
 
-                AdminTask::create([
-                    'task_type' => 'New Student Assigned',
-                    'assigned_to' => $teacher->id,
-                    'status' => 'Pending',
-                    'related_entity' => $this->portalUrl('/teacher/students/' . $student->id, $organization),
-                    'priority' => 'Medium',
-                    'description' => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by {$user->name}" .
-                        ($notes ? ". Notes: {$notes}" : '.'),
+                TaskService::createFromEvent('new_student_assigned', [
                     'organization_id' => $orgId,
+                    'assigned_to'     => $teacher->id,
+                    'source_model'    => $student,
+                    'related_entity'  => $this->portalUrl('/teacher/students/' . $student->id, $organization),
+                    'description'     => "Student '{$student->child_name}' (Parent: {$student->user->name}) has been assigned to you by {$user->name}" .
+                        ($notes ? ". Notes: {$notes}" : '.'),
                 ]);
 
                 $assignedCount++;

@@ -27,7 +27,7 @@ class QuestionUpdateRequest extends ApiRequest
             'hints' => 'nullable|array',
             'solutions' => 'nullable|array',
             'tags' => 'nullable|array',
-            'status' => 'in:draft,active,retired,under_review',
+            'status' => 'in:draft,active,retired,under_review,needs_approval',
             'images.*' => 'nullable|image|max:2048',
         ];
     }

@@ -22,7 +22,7 @@ class QuestionQuickCreateRequest extends ApiRequest
             'estimated_time_minutes' => 'nullable|integer|min:1',
             'marks' => 'required|numeric|min:0',
             'tags' => 'nullable|array',
-            'status' => 'nullable|in:draft,active,under_review,retired',
+            'status' => 'nullable|in:draft,active,under_review,retired,needs_approval',
         ];
     }
 }

@@ -102,6 +102,11 @@ class ContentLesson extends Model
         return $query->where('status', 'draft');
     }
 
+    public function scopeNeedsApproval($query)
+    {
+        return $query->where('status', 'needs_approval');
+    }
+
     public function scopeByDeliveryMode($query, $mode)
     {
         return $query->where('delivery_mode', $mode);

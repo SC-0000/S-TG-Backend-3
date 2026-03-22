@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Auth\TeacherRegistrationController as ApiTeacherReg
 use App\Models\User;
 use App\Models\AdminTask;
 use App\Mail\TeacherApplicationReceived;
+use App\Services\Tasks\TaskService;
 use App\Mail\TeacherApproved;
 use App\Mail\TeacherRejected;
 use App\Mail\GuestVerificationCode;
@@ -175,12 +176,10 @@ log::info('Email verified for teacher registration', [
             }
 
             // Create an AdminTask for approval
-            $task = AdminTask::create([
+            $task = TaskService::createFromEvent('teacher_approval', [
                 'organization_id' => $request->organization_id,
-                'task_type' => 'teacher_approval',
                 'title' => 'New Teacher Application: ' . $request->name,
                 'description' => 'Review and approve teacher application from ' . $request->email,
-                'status' => 'pending',
                 'related_entity' => url('/teacher-applications'),
                 'metadata' => [
                     'name' => $request->name,

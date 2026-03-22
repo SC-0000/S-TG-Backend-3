@@ -14,7 +14,7 @@ class AssessmentStoreRequest extends ApiRequest
             'description' => 'nullable|string',
             'lesson_id' => 'nullable|integer|exists:live_sessions,id',
             'type' => 'required|in:mcq,short_answer,essay,mixed',
-            'status' => 'required|in:active,inactive,archived',
+            'status' => 'required|in:active,inactive,needs_approval,archived',
             'journey_category_id' => 'nullable|integer|exists:journey_categories,id',
             'availability' => 'required|date',
             'deadline' => 'required|date|after:availability',

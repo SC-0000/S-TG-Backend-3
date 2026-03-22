@@ -2,18 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\SendLoginCredentials;
 use Illuminate\Http\Request;
 use App\Models\Application;
-use App\Models\User;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Mail;
 use App\Mail\VerifyApplicationEmail;
 use App\Support\MailContext;
-use App\Models\AdminTask;
-use App\Models\Child;
-use App\Models\Permission;
-use App\Services\BillingService;
+use App\Services\Tasks\TaskService;
+use App\Services\ApplicationApprovalService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -22,11 +17,11 @@ use Inertia\Inertia;
 
 class ApplicationController extends Controller
 {
-     protected BillingService $billing;
+    protected ApplicationApprovalService $approvalService;
 
-    public function __construct(BillingService $billing)
+    public function __construct(ApplicationApprovalService $approvalService)
     {
-        $this->billing = $billing;
+        $this->approvalService = $approvalService;
     }
     public function create()
     {
@@ -156,79 +151,25 @@ class ApplicationController extends Controller
     {
         $application = Application::where('verification_token', $token)->firstOrFail();
 
-        $application->update(['verified_at' => now()]);
+        $application->update([
+            'verified_at'                => now(),
+            'pipeline_status'            => Application::PIPELINE_VERIFIED,
+            'pipeline_status_changed_at' => now(),
+        ]);
 
-        // Type1: auto-approve, create User, send credentials
+        // Type1: auto-approve
         if ($application->application_type === 'Type1') {
-            $application->update(['application_status' => 'Approved']);
-            $password=Str::random(8);
-            
-            // Get organization_id from application (sent from frontend)
-            $organizationId = $application->organization_id ?? 2;
-            
-            $user = User::firstOrCreate(
-                ['email' => $application->email],
-                [
-                    'name'                    => $application->applicant_name,
-                    'password'                => bcrypt($password),
-                    'role'                    => 'parent',
-                    'email_verified_at'       => now(),
-                    'address_line1'           => $application->address_line1,
-                    'address_line2'           => $application->address_line2,
-                    'mobile_number'           => $application->mobile_number,
-                    'current_organization_id' => $organizationId,
-                ]
-            );
-        if (! $user->billing_customer_id) {
-            $custId = $this->billing->createCustomer($user);
-            Log::info('Billing customer creation', [
-                'user_id' => $user->id,
-                'user_email' => $user->email,
-                'custId' => $custId,
-            ]);
-            if ($custId) {
-                $user->billing_customer_id = $custId;
-                $user->saveQuietly();
-                Log::info('Saved billing_customer_id', [
-                    'user_id' => $user->id,
-                    'billing_customer_id' => $user->billing_customer_id,
-                ]);
-            }
-        }
-            
-            // Attach to organization pivot table (same as teacher registration)
-            if (!$user->organizations()->where('organization_id', $organizationId)->exists()) {
-                $user->organizations()->attach($organizationId, [
-                    'role' => 'parent',
-                    'status' => 'active',
-                    'invited_by' => null,
-                    'joined_at' => now(),
-                ]);
-            }
-            
-            $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
-            MailContext::sendMailable($user->email, new SendLoginCredentials($user, $password, $organization));
-
-            $application->update(['user_id' => $user->id]);
-
-            // Create a permission record (no children in Type1)
-            // Permission::create([
-            //   'user_id'           => $user->id,
-            //   'child_id'          => null,
-            //   'terms_accepted_at' => now(),
-            //   'signature_path'    => $application->signature_path,
-            // ]);
+            $this->approvalService->approve($application);
         }
 
-        // Type2: queue admin review
+        // Type2: queue admin review and notify applicant
         if ($application->application_type === 'Type2') {
-            AdminTask::create([
-                'task_type'     => 'Application Review',
-                'assigned_to'   => null,
-                'status'        => 'Pending',
+            TaskService::createFromEvent('application_review', [
+                'source_model'   => $application,
                 'related_entity' => route('applications.edit', $application->application_id),
-                'priority'      => 'High',
             ]);
+
+            $this->approvalService->notifyUnderReview($application);
         }
 
         return redirect()->route('email.verified')
@@ -245,108 +186,21 @@ class ApplicationController extends Controller
     }
     public function reviewApplication($id, Request $request)
     {
-        log::info("Reviewing application with ID: $request");
         $application = Application::findOrFail($id);
 
         $request->validate([
-            'status'         => 'required|in:Approved,Rejected',
-            'admin_feedback' => 'nullable|string',
+            ‘status’         => ‘required|in:Approved,Rejected’,
+            ‘admin_feedback’ => ‘nullable|string’,
         ]);
 
-        $application->update([
-            'application_status' => $request->status,
-            'admin_feedback'     => $request->admin_feedback,
-            'reviewer_id'        => auth()->id(),
-        ]);
-        $password=Str::random(8);
-        // On approval, create User + Children + Permissions
-        if ($request->status === 'Approved') {
-            // Get organization_id from application (sent from frontend)
-            $organizationId = $application->organization_id ?? 2;
-            
-            // 1) Create or fetch User
-            $user = User::firstOrCreate(
-                ['email' => $application->email],
-                [
-                    'name'                    => $application->applicant_name,
-                    'password'                => bcrypt($password),
-                    'role'                    => 'parent',
-                    'email_verified_at'       => now(),
-                    'address_line1'           => $application->address_line1,
-                    'address_line2'           => $application->address_line2,
-                    'mobile_number'           => $application->mobile_number,
-                    'current_organization_id' => $organizationId,
-                ]
-            );
-             if (! $user->billing_customer_id) {
-            $custId = $this->billing->createCustomer($user);
-            Log::info('Billing customer creation', [
-                'user_id' => $user->id,
-                'user_email' => $user->email,
-                'custId' => $custId,
-            ]);
-            if ($custId) {
-                $user->billing_customer_id = $custId;
-                $user->saveQuietly();
-                Log::info('Saved billing_customer_id', [
-                    'user_id' => $user->id,
-                    'billing_customer_id' => $user->billing_customer_id,
-                ]);
-            }
-        }
-            
-            // Attach to organization pivot table (same as teacher registration)
-            if (!$user->organizations()->where('organization_id', $organizationId)->exists()) {
-                $user->organizations()->attach($organizationId, [
-                    'role' => 'parent',
-                    'status' => 'active',
-                    'invited_by' => null,
-                    'joined_at' => now(),
-                ]);
-            }
-            
-            $organization = MailContext::resolveOrganization($organizationId ?? null, $user);
-            MailContext::sendMailable($user->email, new SendLoginCredentials($user, $password, $organization));
-
-            $application->update(['user_id' => $user->id]);
-
-            // 2) Create Child records
-            $children = json_decode($application->children_data, true) ?? [];
-            foreach ($children as $childData) {
-                $child = Child::create([
-                    'application_id'          => $application->application_id,
-                    'user_id'                 => $user->id,
-                    'child_name'              => $childData['name'],
-                    'age'                     => $childData['age'],
-                    'school_name'             => $childData['school_name'],
-                    'area'                    => $childData['area'],
-                    'year_group'              => $childData['year_group'],
-                    'date_of_birth'           => $childData['date_of_birth'] ?? null,
-                    'emergency_contact_name'  => $childData['emergency_contact_name']  ?? null,
-                    'emergency_contact_phone' => $childData['emergency_contact_phone'] ?? null,
-                    'academic_info'           => $childData['academic_info']           ?? null,
-                    'previous_grades'         => $childData['previous_grades']         ?? null,
-                    'medical_info'            => $childData['medical_info']            ?? null,
-                    'additional_info'         => $childData['additional_info']         ?? null,
-                    'organization_id'         => $organizationId,
-
-                ]);
-
-                // 3) Create a Permission for this child
-                Permission::create([
-                    'user_id'           => $user->id,
-                    'child_id'          => $child->id,
-                    'terms_accepted_at' => now(),
-                    'signature_path'    => $application->signature_path,
-                ]);
-            }
-
-            // 4) Clear JSON so we don’t re-insert on a second review
-            $application->update(['children_data' => null]);
+        if ($request->status === ‘Approved’) {
+            $this->approvalService->approve($application, auth()->id());
+        } else {
+            $this->approvalService->reject($application, $request->admin_feedback, auth()->id());
         }
 
-        return redirect()->route('applications.index')
-            ->with('success', 'Application reviewed successfully!');
+        return redirect()->route(‘applications.index’)
+            ->with(‘success’, ‘Application reviewed successfully!’);
     }
     public function edit($id)
     {

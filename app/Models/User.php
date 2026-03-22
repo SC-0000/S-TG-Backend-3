@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Sanctum\HasApiTokens;
 use App\Mail\PasswordResetLink;
 use App\Support\MailContext;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable implements MustVerifyEmail  // ← implement interface
 {
@@ -42,6 +43,8 @@ class User extends Authenticatable implements MustVerifyEmail  // ← implement 
         'billing_customer_id',
         'current_organization_id',  // For organization context
         'metadata',  // For role-specific data
+        'setup_token',
+        'setup_token_expires_at',
     ];
 
     /**
@@ -61,8 +64,9 @@ class User extends Authenticatable implements MustVerifyEmail  // ← implement 
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password'          => 'hashed',
-        'metadata'          => 'array',
+        'password'                => 'hashed',
+        'metadata'                => 'array',
+        'setup_token_expires_at'  => 'datetime',
     ];
 
     /**
@@ -71,6 +75,14 @@ class User extends Authenticatable implements MustVerifyEmail  // ← implement 
     public function children()
     {
         return $this->hasMany(Child::class, 'user_id');
+    }
+
+    /**
+     * Relationship: parent's client health scores (one per organization).
+     */
+    public function clientHealthScore()
+    {
+        return $this->hasMany(\App\Models\ClientHealthScore::class);
     }
 
     /**
@@ -113,6 +125,48 @@ class User extends Authenticatable implements MustVerifyEmail  // ← implement 
         return $this->role === $role;
     }
 
+    /**
+     * Generate a hashed setup token for account activation (magic link).
+     * Returns the raw (unhashed) token for use in the email link.
+     */
+    public function generateSetupToken(): string
+    {
+        $raw = Str::random(64);
+        $this->update([
+            'setup_token'            => hash('sha256', $raw),
+            'setup_token_expires_at' => now()->addHours(48),
+        ]);
+
+        return $raw;
+    }
+
+    /**
+     * Verify a raw setup token against the stored hash.
+     */
+    public function verifySetupToken(string $rawToken): bool
+    {
+        if (!$this->setup_token || !$this->setup_token_expires_at) {
+            return false;
+        }
+
+        if ($this->setup_token_expires_at->isPast()) {
+            return false;
+        }
+
+        return hash_equals($this->setup_token, hash('sha256', $rawToken));
+    }
+
+    /**
+     * Clear the setup token after use.
+     */
+    public function clearSetupToken(): void
+    {
+        $this->update([
+            'setup_token'            => null,
+            'setup_token_expires_at' => null,
+        ]);
+    }
+
     public function sendPasswordResetNotification($token): void
     {
         $organization = MailContext::resolveOrganization(null, $this, null, request());
@@ -139,6 +193,11 @@ public function applications()   // one-to-many
         return $this->subscriptions()
                     ->whereJsonContains('features->'.$feature, true)
                     ->exists();
+    }
+
+    public function notificationPreference()
+    {
+        return $this->hasOne(NotificationPreference::class);
     }
 
     // Add: User has many Transactions

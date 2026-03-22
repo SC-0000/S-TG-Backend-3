@@ -17,7 +17,7 @@ abstract class AbstractAgent
     // Increased from 1000 to 2000 to prevent GPT-5 from returning empty responses when hitting token limit
     protected int $maxTokens = 2000;
     protected float $temperature = 0.7;
-    protected string $model = 'gpt-5-nano';
+    protected string $model = 'gpt-5.4-nano';
 
     public function __construct()
     {
@@ -558,7 +558,7 @@ abstract class AbstractAgent
      */
     protected function supportsTemperature(string $model): bool
     {
-        return !str_starts_with($model, 'gpt-5');
+        return !str_starts_with($model, 'gpt-5.4');
     }
 
     /**

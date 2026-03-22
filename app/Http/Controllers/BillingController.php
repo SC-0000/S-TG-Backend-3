@@ -16,9 +16,8 @@ class BillingController extends Controller
     
     public function __construct(BillingService $billingService)
     {  
-        // pull your publishable key from config/services.php
-        $this->apiKey = config('services.billing.publishable_key');
         $this->billingService = $billingService;
+        $this->apiKey = $billingService->getPublishableKey();
     }
 
     /**

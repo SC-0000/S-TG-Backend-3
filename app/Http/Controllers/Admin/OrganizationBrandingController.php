@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Constants\AdminSettingsFields;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use Illuminate\Http\Request;
@@ -25,80 +26,8 @@ class OrganizationBrandingController extends Controller
         //     'request_data' => $request->all(), // Log all request data
         // ]);
         
-        // Define allowed fields for security (whitelist)
-        $allowedFields = [
-            'branding.organization_name',
-            'branding.tagline',
-            'branding.description',
-            'theme.colors.primary',
-            'theme.colors.primary_50',
-            'theme.colors.primary_100',
-            'theme.colors.primary_200',
-            'theme.colors.primary_300',
-            'theme.colors.primary_400',
-            'theme.colors.primary_500',
-            'theme.colors.primary_600',
-            'theme.colors.primary_700',
-            'theme.colors.primary_800',
-            'theme.colors.primary_900',
-            'theme.colors.primary_950',
-            'theme.colors.accent',
-            'theme.colors.accent_50',
-            'theme.colors.accent_100',
-            'theme.colors.accent_200',
-            'theme.colors.accent_300',
-            'theme.colors.accent_400',
-            'theme.colors.accent_500',
-            'theme.colors.accent_600',
-            'theme.colors.accent_700',
-            'theme.colors.accent_800',
-            'theme.colors.accent_900',
-            'theme.colors.accent_950',
-            'theme.colors.accent_soft',
-            'theme.colors.accent_soft_50',
-            'theme.colors.accent_soft_100',
-            'theme.colors.accent_soft_200',
-            'theme.colors.accent_soft_300',
-            'theme.colors.accent_soft_400',
-            'theme.colors.accent_soft_500',
-            'theme.colors.accent_soft_600',
-            'theme.colors.accent_soft_700',
-            'theme.colors.accent_soft_800',
-            'theme.colors.accent_soft_900',
-            'theme.colors.secondary',
-            'theme.colors.heavy',
-            'contact.phone',
-            'contact.email',
-            'contact.address.line1',
-            'contact.address.city',
-            'contact.address.country',
-            'contact.address.postal_code',
-            'contact.business_hours',
-            'social_media.facebook',
-            'social_media.twitter',
-            'social_media.instagram',
-            'social_media.linkedin',
-            'social_media.youtube',
-            'email.from_name',
-            'email.from_email',
-            'email.reply_to_email',
-            'email.header_color',
-            'email.button_color',
-            'email.footer_text',
-            'email.footer_disclaimer',
-            'email.admin_task_notifications.enabled',
-            'email.admin_task_notifications.tasks.parent_concern',
-            'email.admin_task_notifications.tasks.application_review',
-            'email.admin_task_notifications.tasks.teacher_approval',
-            'email.admin_task_notifications.tasks.grade_assessment_submission',
-            'email.admin_task_notifications.tasks.lesson_assigned',
-            'email.admin_task_notifications.tasks.live_session_scheduled',
-            'email.admin_task_notifications.tasks.live_session_created_by_teacher',
-            'email.admin_task_notifications.tasks.your_upcoming_live_session',
-            'email.admin_task_notifications.tasks.new_student_assigned',
-            'email.admin_task_notifications.tasks.flag_review',
-            'theme.custom_css',
-        ];
+        // Use shared whitelist from AdminSettingsFields constant
+        $allowedFields = AdminSettingsFields::ALLOWED_FIELDS;
         
         // Get only allowed fields from request (flat keys with dots)
         // Use $request->all() because $request->input() treats dots as nested arrays

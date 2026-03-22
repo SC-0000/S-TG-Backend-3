@@ -8,12 +8,14 @@ use App\Http\Requests\Api\Checkout\GuestCodeRequest;
 use App\Http\Requests\Api\Checkout\GuestVerifyRequest;
 use App\Jobs\GrantAccessForTransactionJob;
 use App\Mail\ReceiptAccessMail;
+use App\Models\Promotion;
 use App\Models\Service;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Services\BillingService;
 use App\Services\CourseAccessService;
 use App\Services\GuestCheckoutService;
+use App\Services\PromotionService;
 use App\Support\MailContext;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -39,6 +41,36 @@ class CheckoutController extends ApiController
 
         $data = $request->validated();
 
+        // Resolve promotion if applied to cart
+        $promotion = null;
+        $discount = 0;
+        if ($cart->promotion_code) {
+            $promoService = app(PromotionService::class);
+            $cartItems = $cart->items->map(fn ($ci) => [
+                'type' => $ci->service_id ? 'service' : 'product',
+                'id' => $ci->service_id ?? $ci->product_id,
+                'line_total' => $ci->quantity * $ci->price,
+            ])->toArray();
+            $subtotal = collect($cartItems)->sum('line_total');
+
+            $result = $promoService->validateCode(
+                $cart->promotion_code,
+                $subtotal,
+                $user->id,
+                $user->current_organization_id,
+                $cartItems
+            );
+
+            if ($result['valid']) {
+                $promotion = $result['promotion'];
+                $discount = $promoService->calculateDiscount($promotion, $subtotal, $cartItems);
+            } else {
+                // Clear invalid promotion but continue checkout
+                $cart->promotion_code = null;
+                $cart->save();
+            }
+        }
+
         $customerId = null;
         try {
             $customerId = $this->ensureBillingCustomer($user, $billing);
@@ -51,11 +83,12 @@ class CheckoutController extends ApiController
 
         if (! $customerId) {
             if ($this->allowOfflineBilling()) {
-                $transaction = $this->createTransactionFromCart($cart, $data, $user);
+                $transaction = $this->createTransactionFromCart($cart, $data, $user, true, $promotion, $discount);
                 $offlineInvoice = 'offline_' . Str::uuid()->toString();
                 $transaction->invoice_id = $offlineInvoice;
                 $transaction->status = 'completed';
                 $transaction->save();
+                $this->recordPromotionUsage($promotion, $transaction, $user->id, $discount);
                 $this->queueReceiptEmails($transaction);
                 $this->grantAccessForTransaction($transaction, $cart, $data['serviceChildren'] ?? [], $offlineInvoice);
 
@@ -70,7 +103,7 @@ class CheckoutController extends ApiController
             return $this->error('Billing service unavailable. Please try again later.', [], 503);
         }
 
-        $transaction = $this->createTransactionFromCart($cart, $data, $user);
+        $transaction = $this->createTransactionFromCart($cart, $data, $user, true, $promotion, $discount);
 
         $invoiceId = null;
         try {
@@ -86,6 +119,7 @@ class CheckoutController extends ApiController
             $transaction->invoice_id = $invoiceId;
             $transaction->status = 'completed';
             $transaction->save();
+            $this->recordPromotionUsage($promotion, $transaction, $user->id, $discount);
             $this->queueReceiptEmails($transaction);
             $this->grantAccessForTransaction($transaction, $cart, $data['serviceChildren'] ?? [], $invoiceId);
 
@@ -101,6 +135,7 @@ class CheckoutController extends ApiController
             $transaction->invoice_id = $offlineInvoice;
             $transaction->status = 'completed';
             $transaction->save();
+            $this->recordPromotionUsage($promotion, $transaction, $user->id, $discount);
             $this->queueReceiptEmails($transaction);
             $this->grantAccessForTransaction($transaction, $cart, $data['serviceChildren'] ?? [], $offlineInvoice);
 
@@ -112,6 +147,7 @@ class CheckoutController extends ApiController
             ]);
         }
 
+        $this->recordPromotionUsage($promotion, $transaction, $user->id, $discount);
         $this->queueReceiptEmails($transaction);
 
         return $this->success([
@@ -135,6 +171,32 @@ class CheckoutController extends ApiController
 
         $data = $request->validated();
 
+        // Resolve promotion
+        $promotion = null;
+        $discount = 0;
+        if ($cart->promotion_code) {
+            $promoService = app(PromotionService::class);
+            $cartItems = $cart->items->map(fn ($ci) => [
+                'type' => $ci->service_id ? 'service' : 'product',
+                'id' => $ci->service_id ?? $ci->product_id,
+                'line_total' => $ci->quantity * $ci->price,
+            ])->toArray();
+            $subtotal = collect($cartItems)->sum('line_total');
+
+            $result = $promoService->validateCode(
+                $cart->promotion_code, $subtotal, $user->id,
+                $user->current_organization_id, $cartItems
+            );
+
+            if ($result['valid']) {
+                $promotion = $result['promotion'];
+                $discount = $promoService->calculateDiscount($promotion, $subtotal, $cartItems);
+            } else {
+                $cart->promotion_code = null;
+                $cart->save();
+            }
+        }
+
         $customerId = null;
         try {
             $customerId = $this->ensureBillingCustomer($user, $billing);
@@ -147,17 +209,18 @@ class CheckoutController extends ApiController
 
         if (! $customerId) {
             if ($this->allowOfflineBilling()) {
-                $transaction = $this->createTransactionFromCart($cart, $data, $user, true);
+                $transaction = $this->createTransactionFromCart($cart, $data, $user, true, $promotion, $discount);
                 $offlineInvoice = 'offline_' . Str::uuid()->toString();
                 $transaction->invoice_id = $offlineInvoice;
                 $transaction->status = 'completed';
                 $transaction->save();
+                $this->recordPromotionUsage($promotion, $transaction, $user->id, $discount);
 
                 return $this->success([
                     'transaction_id' => $transaction->id,
                     'invoice_id' => $offlineInvoice,
                     'customer_id' => null,
-                    'api_key' => config('services.billing.publishable_key'),
+                    'api_key' => $billing->getPublishableKey(),
                     'offline_billing' => true,
                 ]);
             }
@@ -175,7 +238,7 @@ class CheckoutController extends ApiController
             }
         }
 
-        $transaction = $this->createTransactionFromCart($cart, $data, $user, true);
+        $transaction = $this->createTransactionFromCart($cart, $data, $user, true, $promotion, $discount);
 
         $serviceChildren = $data['serviceChildren'] ?? [];
         $meta = $transaction->meta ?? [];
@@ -203,12 +266,13 @@ class CheckoutController extends ApiController
             $transaction->invoice_id = $invoiceId;
             $transaction->status = 'completed';
             $transaction->save();
+            $this->recordPromotionUsage($promotion, $transaction, $user->id, $discount);
 
             return $this->success([
                 'transaction_id' => $transaction->id,
                 'invoice_id' => $invoiceId,
                 'customer_id' => $customerId,
-                'api_key' => config('services.billing.publishable_key'),
+                'api_key' => $billing->getPublishableKey(),
                 'offline_billing' => true,
             ]);
         }
@@ -218,11 +282,13 @@ class CheckoutController extends ApiController
             $transaction->save();
         }
 
+        $this->recordPromotionUsage($promotion, $transaction, $user->id, $discount);
+
         return $this->success([
             'transaction_id' => $transaction->id,
             'invoice_id' => $invoiceId,
             'customer_id' => $customerId,
-            'api_key' => config('services.billing.publishable_key'),
+            'api_key' => $billing->getPublishableKey(),
         ]);
     }
 
@@ -341,10 +407,22 @@ class CheckoutController extends ApiController
         return $customerId;
     }
 
-    private function createTransactionFromCart($cart, array $data, $user, bool $clearCart = true): Transaction
+    private function createTransactionFromCart($cart, array $data, $user, bool $clearCart = true, ?Promotion $promotion = null, float $discountAmount = 0): Transaction
     {
-        return DB::transaction(function () use ($cart, $data, $user, $clearCart) {
+        return DB::transaction(function () use ($cart, $data, $user, $clearCart, $promotion, $discountAmount) {
             $subtotal = $cart->items->sum(fn ($ci) => $ci->quantity * $ci->price);
+            $total = max(0, $subtotal - $discountAmount);
+
+            $meta = [];
+            if ($promotion) {
+                $meta['promotion'] = [
+                    'id' => $promotion->id,
+                    'code' => $promotion->code,
+                    'name' => $promotion->name,
+                    'discount_type' => $promotion->discount_type,
+                    'discount_value' => $promotion->discount_value,
+                ];
+            }
 
             $tx = Transaction::create([
                 'user_id' => $user->id,
@@ -353,8 +431,11 @@ class CheckoutController extends ApiController
                 'status' => 'pending',
                 'payment_method' => 'manual',
                 'subtotal' => $subtotal,
-                'total' => $subtotal,
+                'discount' => $discountAmount,
+                'total' => $total,
                 'comment' => $data['comment'] ?? null,
+                'promotion_id' => $promotion?->id,
+                'meta' => !empty($meta) ? $meta : null,
             ]);
 
             $rows = $cart->items->map(function ($ci) {
@@ -374,6 +455,7 @@ class CheckoutController extends ApiController
 
             if ($clearCart) {
                 $cart->items()->delete();
+                $cart->update(['promotion_code' => null]);
             }
 
             return $tx;
@@ -398,18 +480,31 @@ class CheckoutController extends ApiController
             $dueDate = now()->addDays(7)->toDateString();
         }
 
+        $invoiceItems = $transaction->items->map(function ($item) {
+            return [
+                'description' => $item->description,
+                'quantity' => $item->qty,
+                'unit_amount' => (int) ($item->unit_price * 100),
+                'currency' => 'usd',
+            ];
+        })->toArray();
+
+        // Add discount as negative line item if applicable
+        if ($transaction->discount > 0) {
+            $promoName = $transaction->meta['promotion']['name'] ?? 'Promotion';
+            $invoiceItems[] = [
+                'description' => "Discount: {$promoName}",
+                'quantity' => 1,
+                'unit_amount' => -1 * (int) ($transaction->discount * 100),
+                'currency' => 'usd',
+            ];
+        }
+
         $invoiceData = [
             'customer_id' => $customerId,
             'due_date' => $dueDate,
             'description' => 'Payment for services',
-            'items' => $transaction->items->map(function ($item) {
-                return [
-                    'description' => $item->description,
-                    'quantity' => $item->qty,
-                    'unit_amount' => (int) ($item->unit_price * 100),
-                    'currency' => 'usd',
-                ];
-            })->toArray(),
+            'items' => $invoiceItems,
             'currency' => 'usd',
             'auto_bill' => true,
             'status' => 'open',
@@ -554,6 +649,22 @@ class CheckoutController extends ApiController
             ]);
         }
     }
+    private function recordPromotionUsage(?Promotion $promotion, Transaction $transaction, int $userId, float $discount): void
+    {
+        if (!$promotion || $discount <= 0) return;
+
+        try {
+            $promoService = app(PromotionService::class);
+            $promoService->applyPromotion($promotion, $transaction, $userId, $discount);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to record promotion usage', [
+                'promotion_id' => $promotion->id,
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function allowOfflineBilling(): bool
     {
         return config('app.env') !== 'production';
